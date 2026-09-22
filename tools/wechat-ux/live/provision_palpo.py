@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run on Mini 1 to provision an isolated, loopback-only Robrix test homeserver.
+"""Run on Mini 1 to provision an isolated, loopback-only Rinx test homeserver.
 
 Idempotent: preserves the database and credentials on repeat runs. Does not touch
 other Palpo deployments. Credentials stay in a mode-0600 file on the server.

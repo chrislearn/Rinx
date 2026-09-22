@@ -61,7 +61,7 @@ def main():
     for key, name in (("alex", "Alex Chen"), ("emma", "Emma Wilson"), ("leo", "Leo Zhang"), ("nora", "Nora Patel")):
         password = secrets.token_urlsafe(28)
         body = {"username": f"robrix_ux_{key}_{suffix}", "password": password,
-                "initial_device_display_name": "Robrix UX fixture"}
+                "initial_device_display_name": "Rinx UX fixture"}
         status, response = api(args.url, "POST", "register", body)
         for _ in range(5):
             if status != 401:

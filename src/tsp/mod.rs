@@ -45,7 +45,7 @@ pub fn submit_tsp_request(req: TspRequest) {
     let Some(sender) = TSP_REQUEST_SENDER.get() else {
         enqueue_popup_notification(
             "Failed to submit TSP request: TSP request sender was not initialized.\n\n\
-                Please restart Robrix to continue using TSP features.",
+                Please restart Rinx to continue using TSP features.",
             PopupKind::Error,
             None,
         );
@@ -54,7 +54,7 @@ pub fn submit_tsp_request(req: TspRequest) {
     if sender.send(req).is_err() {
         enqueue_popup_notification(
             "Failed to submit TSP request: the background TSP worker task has died.\n\n\
-                Please restart Robrix to continue using TSP features.",
+                Please restart Rinx to continue using TSP features.",
             PopupKind::Error,
             None,
         );
@@ -75,7 +75,7 @@ pub fn tsp_state_ref() -> &'static Mutex<TspState> {
     TSP_STATE.get_or_init(|| Mutex::new(TspState::new()))
 }
 
-/// The current actively-used (singleton) state of TSP wallets known to Robrix.
+/// The current actively-used (singleton) state of TSP wallets known to Rinx.
 #[derive(Default, Debug)]
 pub struct TspState {
     /// The current active (default) TSP wallet, if any.
@@ -258,7 +258,7 @@ impl TspState {
 }
 
 
-/// A TSP wallet entry known to Robrix. Derefs to `TspWalletMetadata`.
+/// A TSP wallet entry known to Rinx. Derefs to `TspWalletMetadata`.
 #[derive(Debug)]
 pub enum TspWalletEntry {
     /// A wallet that currently exists and has been opened successfully.
@@ -606,7 +606,7 @@ pub enum TspRequest {
 
 fn create_reqwest_client() -> reqwest::Result<reqwest::Client> {
     reqwest::ClientBuilder::new()
-        .user_agent(format!("Robrix v{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("Rinx v{}", env!("CARGO_PKG_VERSION")))
         .build()
 }
 

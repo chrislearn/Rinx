@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Upload the GitHub Actions secrets used by the Robrix release workflow.
+# Upload the GitHub Actions secrets used by the Rinx release workflow.
 #
 # Fill in packaging/release-secrets.env (copy it from the .example) and run:
 #   ./packaging/upload-release-secrets.sh [path-to-env-file]
@@ -30,7 +30,7 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-REPO="${RELEASE_REPO:-project-robius/robrix}"
+REPO="${RELEASE_REPO:-OctoSense-org/Rinx}"
 echo "==> Uploading secrets to $REPO"
 errors=0
 
@@ -85,7 +85,7 @@ set_file_b64 APPLE_PROVISIONING_PROFILE        "${APPLE_PROVISIONING_PROFILE_FIL
 set_str      APPLE_KEYCHAIN_PASSWORD           "${APPLE_KEYCHAIN_PASSWORD:-}"
 
 echo "-- Release token --"
-set_str ROBRIX_RELEASE "${ROBRIX_RELEASE:-}"
+set_str RINX_RELEASE "${RINX_RELEASE:-}"
 
 echo ""
 if (( errors > 0 )); then

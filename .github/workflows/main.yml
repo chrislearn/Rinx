@@ -1,75 +1,48 @@
-# Trigger CI on PR updates and main branch pushes
-# Uses caching and selective path triggers to optimize performance
+name: Rinx CI
 
-name: Robrix CI
-
-# Only `main` branch
 on:
-    push:
-      branches:
-        - main
-      paths:
-        - packaging/**
-        - resources/**
-        - src/**
-        - .cargo/**
-        - build.rs
-        - .github/**
-        - Cargo.lock
-        - Cargo.toml
-        - rust-toolchain.toml
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
-    pull_request:
-      types: [opened, synchronize, reopened, ready_for_review]
-      branches:
-        - main
-      paths:
-        - packaging/**
-        - resources/**
-        - src/**
-        - .cargo/**
-        - build.rs
-        - .github/**
-        - Cargo.lock
-        - Cargo.toml
-        - rust-toolchain.toml
+permissions:
+  contents: read
 
-# Prevent concurrent CI runs and cancel in-progress runs on new pushes
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
-# Global environment configuration
 env:
-    CARGO_TERM_COLOR: always
-    CARGO_INCREMENTAL: "0"  # Disable incremental compilation in CI
-    RUST_BACKTRACE: 1
-    # Enable warnings as errors for strict checks
-    RUSTFLAGS: "-D warnings"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  clippy:
-    if: github.event.pull_request.draft == false
-    name: clippy
-    runs-on: macos-14  ## avoids having to install Linux deps
+  native:
+    name: Native build and unit tests
+    runs-on: macos-14
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt, clippy
+          toolchain: 1.98.0
       - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: "true"
-          cache-on-failure: "true"
-      - run: cargo clippy --workspace --all-features --all-targets
-
-  typos:
-    if: github.event.pull_request.draft == false
-    name: typos
+      - run: brew install cmake
+      - run: cargo test --locked --features agent_chat --lib
+      - run: cargo build --locked --features agent_chat
+      - run: cargo check --locked --no-default-features --features agent_chat
+      - run: python3 tools/wechat-ux/check_i18n.py
+  article-core:
+    name: Portable article core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Check for typos
-        uses: crate-ci/typos@master
+      - uses: dtolnay/rust-toolchain@master
         with:
-          config: .github/typos.toml
+          toolchain: 1.98.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/article-core
+      - run: cargo test --locked --manifest-path crates/article-core/Cargo.toml

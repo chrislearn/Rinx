@@ -48,7 +48,7 @@ class NativeApp:
         profile.mkdir(exist_ok=True)
         (profile / "window_geom_state.json").write_text(json.dumps({"inner_size": list(self.size), "position": [50, 50], "is_fullscreen": False}))
         fixture = json.loads((self.root / "fixture.json").read_text())
-        args = ["target/debug/robrix"]
+        args = ["target/debug/rinx"]
         if self.auto_login and not (profile / "latest_user_id.txt").exists():
             user = fixture["users"]["alex"]
             args += [user["user_id"], user["password"], fixture["url"]]
@@ -56,11 +56,11 @@ class NativeApp:
         os.chmod(self.output / "native.log", 0o600)
         self.trace.append({"run": self.output.name, "binary_sha256": hashlib.sha256(Path(args[0]).read_bytes()).hexdigest(), "at": time.time()})
         self.process = subprocess.Popen(args, stdout=self.log, stderr=subprocess.STDOUT,
-                                        env=dict(os.environ, ROBRIX_DATA_DIR=str(profile), MAKEPAD_REMOTE=str(self.port), RUST_BACKTRACE="1"))
+                                        env=dict(os.environ, RINX_DATA_DIR=str(profile), ROBRIX_DATA_DIR=str(profile), MAKEPAD_REMOTE=str(self.port), RUST_BACKTRACE="1"))
         (self.root / "native-pid").write_text(str(self.process.pid))
         for _ in range(80):
             if self.process.poll() is not None:
-                raise RuntimeError("Robrix exited during startup")
+                raise RuntimeError("Rinx exited during startup")
             try:
                 status = self.request("/s")
                 if status["pid"] != self.process.pid:
@@ -242,11 +242,11 @@ def main():
         app.capture("conversation-native")
         # Input goes through the native TextInput, not a direct server send.
         app.click_text("Message (unencrypted)")
-        body = "Native Robrix live check " + str(time.time_ns())
+        body = "Native Rinx live check " + str(time.time_ns())
         app.request("/t", t=body, wait=1)
         app.trace.append({"input": "text", "text": body, "at": time.time()})
         app.click_text("Send")
-        app.wait_text("Native Robrix live check", pixels=True)
+        app.wait_text("Native Rinx live check", pixels=True)
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             events = checked(fixture["url"], "GET", f"rooms/{room}/messages?dir=b&limit=30", token=fixture["users"]["emma"]["access_token"])["chunk"]

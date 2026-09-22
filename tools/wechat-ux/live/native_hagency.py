@@ -17,7 +17,7 @@ def fixture():
             raise RuntimeError('Set ROBRIX_TEST_SSH to the isolated fixture server before provisioning')
         registration=json.loads(subprocess.check_output(['ssh','-o','BatchMode=yes',ssh_host,'cat ~/robrix-mobile-soak/credentials.json'],text=True))['registration_token']
         password=secrets.token_urlsafe(28)
-        body={'username':'robrix_ux_'+secrets.token_hex(4)+'_reviewer','password':password,'initial_device_display_name':'Robrix Hagency fixture'}
+        body={'username':'robrix_ux_'+secrets.token_hex(4)+'_reviewer','password':password,'initial_device_display_name':'Rinx Hagency fixture'}
         status,response=api(original['url'],'POST','register',body)
         for _ in range(5):
             if status!=401:break

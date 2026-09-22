@@ -4,7 +4,7 @@
 # licenses/THIRD-PARTY-LICENSES.md (summary) in sync with the dependency graph,
 # without burdening contributors.
 #
-# Runs ONLY on pushes to main (after PRs merge). It regenerates both files with
+# Manually dispatched after Rinx release credentials are configured. Regenerates with
 # `cargo about` (config + templates in licenses/config/) and, if anything
 # changed, commits them straight to main. The push needs LICENSES_PUSH_TOKEN, a
 # PAT owned by a repo admin, since main's protection rejects GITHUB_TOKEN.
@@ -21,18 +21,6 @@
 name: Third-party licenses
 
 on:
-  push:
-    branches:
-      - main
-    # Inputs only. The generated licenses/ files are deliberately absent here,
-    # so this workflow's own push can't re-trigger it.
-    paths:
-      - Cargo.toml
-      - Cargo.lock
-      - licenses/config/about.toml
-      - licenses/config/about.hbs
-      - licenses/config/about.md.hbs
-      - .github/workflows/licenses.yml
   workflow_dispatch:
 
 concurrency:

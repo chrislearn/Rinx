@@ -13,7 +13,7 @@ let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[Stri
 guard let window = windows.first(where: {
     ($0[kCGWindowOwnerPID as String] as? Int32) == pid &&
     ($0[kCGWindowLayer as String] as? Int) == 0 &&
-    ($0[kCGWindowName as String] as? String ?? "").hasPrefix("Robrix")
+    ($0[kCGWindowName as String] as? String ?? "").hasPrefix("Rinx")
 }), let bounds = window[kCGWindowBounds as String] as? [String: Double],
 let number = window[kCGWindowNumber as String] as? Int else { exit(3) }
 if CommandLine.arguments.count == 4 {

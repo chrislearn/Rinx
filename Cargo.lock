@@ -6258,7 +6258,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "robrix"
+name = "rinx"
 version = "1.0.0-beta.1"
 dependencies = [
  "anyhow",

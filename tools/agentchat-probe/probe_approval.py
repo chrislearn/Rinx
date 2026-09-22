@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """End-to-end probe: a real approval request, rendered and decided in the real client.
 
-Drives a running Robrix through makepad's `--remote` HTTP control surface (a
+Drives a running Rinx through makepad's `--remote` HTTP control surface (a
 localhost bridge baked into every makepad app) against a real Matrix homeserver.
 Input is injected via `Cx::dispatch_studio_msg`, the same path studio uses, so
 hit-testing and capture behave exactly as they do for a human click.
 
     # 1. start the app with the bridge on a fixed port
-    MAKEPAD_REMOTE=8099 ./target/debug/robrix <user> <password> <homeserver>
+    MAKEPAD_REMOTE=8099 ./target/debug/rinx <user> <password> <homeserver>
     # 2. with a pending request already in the room:
     python3 probe_approval.py --bridge 8099 --homeserver http://127.0.0.1:8128 \
         --room '!room:server' --request-id approval_<32hex> --token <reader-token> \

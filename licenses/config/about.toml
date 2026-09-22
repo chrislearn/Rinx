@@ -3,12 +3,12 @@
 #
 #   cargo about generate --fail -c licenses/config/about.toml licenses/config/about.hbs -o licenses/THIRD-PARTY-NOTICES.html
 #
-# This covers Robrix's default build. The experimental `tsp` feature is NOT
+# This covers Rinx's default build. The experimental `tsp` feature is NOT
 # included; to also document its deps, append `--features tsp`.
 
 # An empty `targets` (the default) applies NO platform filter, so the notice
 # covers the full dependency graph across every platform — the comprehensive,
-# compliance-safe superset. To scope the notice to only the platforms Robrix
+# compliance-safe superset. To scope the notice to only the platforms Rinx
 # actually ships on (a smaller, distribution-accurate set), uncomment below.
 targets = []
 # targets = [

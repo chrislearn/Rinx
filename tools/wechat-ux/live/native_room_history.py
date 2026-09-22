@@ -47,7 +47,7 @@ def main():
         def upload(name, data, mime):
             request=urllib.request.Request(base+'/_matrix/media/v3/upload?filename='+urllib.parse.quote(name),data=data,method='POST',headers={'Authorization':'Bearer '+emma['access_token'],'Content-Type':mime})
             with urllib.request.urlopen(request,timeout=30) as response: return json.load(response)['content_uri']
-        data=b'Isolated Robrix room attachment test.\n'
+        data=b'Isolated Rinx room attachment test.\n'
         send({'msgtype':'m.file','body':'Room note '+run,'filename':'project-notes.txt','url':upload('project-notes.txt',data,'text/plain'),'info':{'size':len(data),'mimetype':'text/plain'}})
         wav=io.BytesIO()
         with wave.open(wav,'wb') as writer:

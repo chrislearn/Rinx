@@ -12,7 +12,7 @@ const TSP_STATE_FILE_NAME: &str = "tsp_state.json";
 const WALLETS_DIR_NAME: &str = "tsp_wallets";
 
 /// Returns the path to the persistent app data directory for TSP wallets.
-/// When Robrix creates a new TSP wallet, it will be saved in this directory.
+/// When Rinx creates a new TSP wallet, it will be saved in this directory.
 pub fn tsp_wallets_dir() -> std::path::PathBuf {
     app_data_dir().join(WALLETS_DIR_NAME)
 }
@@ -23,7 +23,7 @@ pub fn tsp_wallets_dir() -> std::path::PathBuf {
 /// It contains metadata about all wallets that have been created or imported.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct SavedTspState {
-    /// All wallets that have been created or imported into Robrix.
+    /// All wallets that have been created or imported into Rinx.
     ///
     /// This is a list of metadata, not the actual wallet objects.
     pub wallets: Vec<TspWalletMetadata>,

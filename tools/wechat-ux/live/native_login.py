@@ -29,9 +29,9 @@ class LoginApp(NativeApp):
         (profile / "window_geom_state.json").write_text(json.dumps({"inner_size": list(self.size), "position": [50, 50], "is_fullscreen": False}))
         self.log = (self.output / "native.log").open("w")
         os.chmod(self.output / "native.log", 0o600)
-        binary = Path("target/debug/robrix")
+        binary = Path("target/debug/rinx")
         self.trace.append({"binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest()})
-        env = dict(os.environ, ROBRIX_DATA_DIR=str(profile), MAKEPAD_REMOTE=str(self.port), MAKEPAD_HIDE_WINDOWS="1", MAKEPAD_NO_FOCUS="1")
+        env = dict(os.environ, RINX_DATA_DIR=str(profile), ROBRIX_DATA_DIR=str(profile), MAKEPAD_REMOTE=str(self.port), MAKEPAD_HIDE_WINDOWS="1", MAKEPAD_NO_FOCUS="1")
         env.pop("MAKEPAD_FOCUS", None)
         self.process = subprocess.Popen([str(binary)], stdout=self.log, stderr=subprocess.STDOUT, env=env)
         for _ in range(100):
@@ -71,7 +71,7 @@ def main():
     result = {"passed": False, "checks": [], "evidence": str(app.output), "mode": "headless"}
     try:
         app.start()
-        app.wait_text("Sign in to Robrix")
+        app.wait_text("Sign in to Rinx")
         app.capture("login-initial")
         app.click_id("check_server_button")
         app.wait_text("matrix-client.matrix.org", timeout=45)
@@ -121,7 +121,7 @@ def main():
         result["checks"].append("restart_restores_same_account_and_device_without_password")
         log = (app.output / "native.log").read_text()
         assert not any(line.startswith("[E]") for line in log.splitlines()), "Native runtime errors after restore"
-        result["binary_sha256"] = hashlib.sha256(Path("target/debug/robrix").read_bytes()).hexdigest()
+        result["binary_sha256"] = hashlib.sha256(Path("target/debug/rinx").read_bytes()).hexdigest()
         result["restore_evidence"] = str(app.output)
         result["passed"] = True
     except Exception as error:

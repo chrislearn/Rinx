@@ -73,7 +73,7 @@ script_mod! {
         text_style_normal: MESSAGE_TEXT_STYLE { font_size: 11 },
     }
 
-    // A single item within a Robrix-styled settings DropDown popup menu.
+    // A single item within a Rinx-styled settings DropDown popup menu.
     mod.widgets.RobrixSettingsPopupMenuItem = PopupMenuItem {
         width: Fill, height: Fit
         align: Align{y: 0.5}
@@ -115,7 +115,7 @@ script_mod! {
         }
     }
 
-    // A DropDown styled to match other Robrix settings controls.
+    // A DropDown styled to match other Rinx settings controls.
     mod.widgets.RobrixSettingsDropDown = DropDownFlat {
         width: 218, height: (mod.widgets.SETTINGS_BUTTON_HEIGHT),
         padding: Inset{top: 8, bottom: 8, left: 12, right: 30}
@@ -198,7 +198,7 @@ script_mod! {
         }
     }
 
-    // A radio button styled to match other Robrix settings controls.
+    // A radio button styled to match other Rinx settings controls.
     mod.widgets.RobrixSettingsRadioButton = RadioButton {
         height: Fit,
         align: Align{y: 0.5},
@@ -230,7 +230,7 @@ script_mod! {
     }
 
 
-    // The view containing Robrix app-wide preferences/settings.
+    // The view containing Rinx app-wide preferences/settings.
     mod.widgets.AppSettings = #(AppSettings::register_widget(vm)) {
         width: Fill, height: Fit
         flow: Down,

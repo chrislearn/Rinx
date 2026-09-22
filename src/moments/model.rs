@@ -19,7 +19,7 @@ pub struct Asset {
 pub fn post_content(body: &str, media: &[Asset]) -> Value {
     let mut value = json!({"msgtype":"m.text", "body":body,
         super::ROOM_TYPE:{"version":1,"media":media}});
-    // Ordinary clients can show the first asset; Robrix uses the ordered album.
+    // Ordinary clients can show the first asset; Rinx uses the ordered album.
     if let Some(asset) = media.first() {
         value["msgtype"] = json!(if asset.mimetype.starts_with("video/") {
             "m.video"

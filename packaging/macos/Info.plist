@@ -10,17 +10,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleDisplayName</key>
-	<string>Robrix</string>
+	<string>Rinx</string>
 	<key>CFBundleExecutable</key>
-	<string>robrix</string>
+	<string>rinx</string>
 	<key>CFBundleIconFile</key>
-	<string>Robrix.icns</string>
+	<string>Rinx.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>rs.robius.robrix</string>
+	<string>org.octosense.rinx</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Robrix</string>
+	<string>Rinx</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<!-- Both are overwritten from Cargo.toml at build time by build-macos-dmg.sh.
@@ -40,11 +40,11 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>robrix</string>
+				<string>rinx</string>
 				<string>matrix</string>
 			</array>
 			<key>CFBundleURLName</key>
-			<string>rs.robius.robrix robrix</string>
+			<string>org.octosense.rinx rinx</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 		</dict>
@@ -56,15 +56,15 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright 2023-2026, Project Robius</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Robrix uses your microphone for speech-to-text dictation.</string>
+	<string>Rinx uses your microphone for speech-to-text dictation.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Robrix uses speech recognition to let you dictate messages that you can review before sending.</string>
+	<string>Rinx uses speech recognition to let you dictate messages that you can review before sending.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Robrix needs permission to share your current location to a Matrix room.</string>
+	<string>Rinx needs permission to share your current location to a Matrix room.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Robrix needs permission to share your current location to a Matrix room.</string>
+	<string>Rinx needs permission to share your current location to a Matrix room.</string>
 	<key>NSLocationUsageDescription</key>
-	<string>Robrix needs permission to share your current location to a Matrix room.</string>
+	<string>Rinx needs permission to share your current location to a Matrix room.</string>
 	<key>NSLocationDefaultAccuracyReduced</key>
 	<false/>
 	

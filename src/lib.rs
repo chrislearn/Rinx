@@ -99,26 +99,26 @@ pub mod temp_storage;
 pub mod location;
 pub mod image_utils;
 
-pub const APP_QUALIFIER: &str = "rs";
-pub const APP_ORGANIZATION: &str = "robius";
-pub const APP_NAME: &str = "robrix";
+pub const APP_QUALIFIER: &str = "org";
+pub const APP_ORGANIZATION: &str = "octosense";
+pub const APP_NAME: &str = "rinx";
 
 pub fn project_dir() -> &'static ProjectDirs {
-    static ROBRIX_PROJECT_DIRS: OnceLock<ProjectDirs> = OnceLock::new();
+    static RINX_PROJECT_DIRS: OnceLock<ProjectDirs> = OnceLock::new();
 
-    ROBRIX_PROJECT_DIRS.get_or_init(|| {
+    RINX_PROJECT_DIRS.get_or_init(|| {
         ProjectDirs::from(APP_QUALIFIER, APP_ORGANIZATION, APP_NAME)
-            .expect("Failed to obtain Robrix project directory")
+            .expect("Failed to obtain Rinx project directory")
     })
 }
 
 pub fn app_data_dir() -> &'static Path {
     static DATA_DIR: OnceLock<std::path::PathBuf> = OnceLock::new();
     DATA_DIR.get_or_init(|| {
-        match std::env::var_os("ROBRIX_DATA_DIR") {
+        match std::env::var_os("RINX_DATA_DIR").or_else(|| std::env::var_os("ROBRIX_DATA_DIR")) {
             Some(value) => {
                 let path = std::path::PathBuf::from(value);
-                assert!(path.is_absolute(), "ROBRIX_DATA_DIR must be an absolute path");
+                assert!(path.is_absolute(), "RINX_DATA_DIR (or legacy ROBRIX_DATA_DIR) must be an absolute path");
                 path
             }
             None => project_dir().data_dir().to_owned(),
@@ -129,7 +129,7 @@ pub fn app_data_dir() -> &'static Path {
 pub fn cache_dir() -> &'static Path {
     static CACHE_DIR: OnceLock<std::path::PathBuf> = OnceLock::new();
     CACHE_DIR.get_or_init(|| {
-        if std::env::var_os("ROBRIX_DATA_DIR").is_some() {
+        if std::env::var_os("RINX_DATA_DIR").is_some() || std::env::var_os("ROBRIX_DATA_DIR").is_some() {
             app_data_dir().join("cache")
         } else {
             project_dir().cache_dir().to_owned()

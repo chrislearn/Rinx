@@ -128,7 +128,7 @@ pub(crate) fn use_android_tls_roots(builder: matrix_sdk::ClientBuilder) -> matri
     builder
 }
 
-/// Creates and returns a `ClientBuilder` configured with every setting Robrix needs.
+/// Creates and returns a `ClientBuilder` configured with every setting Rinx needs.
 pub(crate) fn base_client_builder(db_path: &Path, passphrase: &str) -> matrix_sdk::ClientBuilder {
     let store_config = build_sqlite_store_config(db_path, passphrase);
     // Store event and media cache content in the platform's intended cache dir.
@@ -242,7 +242,7 @@ async fn login(
             let identifier = crate::login::homeserver::password_identifier(&cli.user_id)?;
             client.matrix_auth()
                 .login_identifier(identifier, &cli.password)
-                .initial_device_display_name("Robrix")
+                .initial_device_display_name("Rinx")
                 .request_refresh_token()
                 .send()
                 .await?;
@@ -1298,7 +1298,7 @@ async fn matrix_worker_task(
                     let Some(room) = client.get_room(&room_id) else {
                         error!("BUG: client could not get room with ID {room_id}");
                         enqueue_popup_notification(
-                            "Failed to leave room: Robrix couldn't locate it.",
+                            "Failed to leave room: Rinx couldn't locate it.",
                             PopupKind::Error,
                             None,
                         );
@@ -1805,8 +1805,8 @@ async fn matrix_worker_task(
                 let Some(client) = get_client() else { continue };
                 let _diagnostics_task = Handle::current().spawn(async move {
                     use std::fmt::Write as _;
-                    let mut text = format!("Robrix diagnostics for room {room_id}\n");
-                    let _ = writeln!(text, "Robrix version: {}", env!("CARGO_PKG_VERSION"));
+                    let mut text = format!("Rinx diagnostics for room {room_id}\n");
+                    let _ = writeln!(text, "Rinx version: {}", env!("CARGO_PKG_VERSION"));
                     if let Some(sync_service) = get_sync_service() {
                         let _ = writeln!(text, "Sync service state: {:?}", sync_service.state().get());
                     }
@@ -1854,7 +1854,7 @@ async fn matrix_worker_task(
                         None => { let _ = writeln!(text, "\n## Room was NOT found in the client!"); }
                     }
 
-                    let _ = writeln!(text, "\n## Robrix timeline state");
+                    let _ = writeln!(text, "\n## Rinx timeline state");
                     {
                         let all_joined_rooms = ALL_JOINED_ROOMS.lock().unwrap();
                         match all_joined_rooms.get(&room_id) {
@@ -2117,7 +2117,7 @@ async fn matrix_worker_task(
                                 title: "Finishing sign-in".into(), status: "Loading your account…".into(),
                             });
                             if sender.send(LoginRequest::LoginBySSOSuccess(client, session)).await.is_err() {
-                                Cx::post_action(LoginAction::LoginFailure("Could not finish sign-in. Restart Robrix and try again.".into()));
+                                Cx::post_action(LoginAction::LoginFailure("Could not finish sign-in. Restart Rinx and try again.".into()));
                             }
                         }
                         Err(error) => {
@@ -3470,7 +3470,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
                         },
                         None => {
                             error!("BUG: login_receiver hung up unexpectedly");
-                            let err = String::from("Please restart Robrix.\n\nUnable to listen for login requests.");
+                            let err = String::from("Please restart Rinx.\n\nUnable to listen for login requests.");
                             Cx::post_action(LoginAction::LoginFailure(err.clone()));
                             enqueue_rooms_list_update(RoomsListUpdate::Status {
                                 status: err,
@@ -3528,7 +3528,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
                 let err_msg = if is_invalid_token_error(&e) {
                     "Your login token is no longer valid.\n\nPlease log in again.".to_string()
                 } else {
-                    format!("Please restart Robrix.\n\nFailed to create Matrix sync service: {e}.")
+                    format!("Please restart Rinx.\n\nFailed to create Matrix sync service: {e}.")
                 };
                 Cx::post_action(LoginAction::LoginFailure(err_msg.clone()));
                 enqueue_popup_notification(err_msg.clone(), PopupKind::Error, None);
@@ -3648,7 +3648,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
                         Ok(Err(e)) => {
                             error!("Error: space service loop task ended:\n\t{e:?}");
                             enqueue_popup_notification(
-                                format!("Spaces sync service has died. Rooms will still be synced, but spaces won't until you restart Robrix.\n\nError: {e}"),
+                                format!("Spaces sync service has died. Rooms will still be synced, but spaces won't until you restart Rinx.\n\nError: {e}"),
                                 PopupKind::Error,
                                 None,
                             );
@@ -4523,7 +4523,7 @@ fn handle_session_changes(client: Client) -> JoinHandle<()> {
                 Ok(SessionChange::TokensRefreshed) => {
                     if let Err(error) = persistence::save_refreshed_session(&client).await {
                         warning!("Could not persist refreshed session: {error}");
-                        enqueue_popup_notification("Could not save your refreshed session. You may need to sign in again after restarting Robrix.", PopupKind::Warning, None);
+                        enqueue_popup_notification("Could not save your refreshed session. You may need to sign in again after restarting Rinx.", PopupKind::Warning, None);
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -4734,7 +4734,7 @@ fn handle_sync_service_state_subscriber(mut subscriber: Subscriber<sync_service:
                             apply_sync_service_desired_state("sync service error restart").await;
                         } else {
                             enqueue_popup_notification(
-                                "Unable to restart the Matrix sync service.\n\nPlease quit and restart Robrix.",
+                                "Unable to restart the Matrix sync service.\n\nPlease quit and restart Rinx.",
                                 PopupKind::Error,
                                 None,
                             );
@@ -5684,7 +5684,7 @@ async fn run_sso_login(homeserver_url: String) -> Result<(Client, ClientSessionP
     warmup_homeserver_connection(&client).await?;
     Cx::post_action(LoginAction::Status {
         title: "Continue in your browser".into(),
-        status: "Choose your server's sign-in provider, complete authentication, then return to Robrix.".into(),
+        status: "Choose your server's sign-in provider, complete authentication, then return to Rinx.".into(),
     });
     #[cfg(not(target_os = "ios"))]
     crate::login::homeserver::browser_login(&client, |sso_url| async move {
@@ -5711,7 +5711,7 @@ async fn warmup_homeserver_connection(client: &Client) -> matrix_sdk::HttpResult
 }
 
 /// Drives iOS SSO via `ASWebAuthenticationSession`. Gets the SSO URL with a
-/// `robrix://` redirect, opens it in the auth sheet, and feeds the callback
+/// `rinx://` redirect, opens it in the auth sheet, and feeds the callback
 /// URL through `login_with_sso_callback` to finish.
 #[cfg(target_os = "ios")]
 async fn run_ios_sso_flow(
@@ -5724,8 +5724,8 @@ async fn run_ios_sso_flow(
 
     // Session-scoped scheme, so no Info.plist registration needed. Synapse
     // doesn't validate redirectUrl, so the URL shape is up to us.
-    const REDIRECT_URL: &str = "robrix://login";
-    const CALLBACK_SCHEME: &str = "robrix";
+    const REDIRECT_URL: &str = "rinx://login";
+    const CALLBACK_SCHEME: &str = "rinx";
 
     let auth = client.matrix_auth();
     let sso_url = auth
@@ -5784,7 +5784,7 @@ async fn run_ios_sso_flow(
                 "Failed to parse SSO callback for loginToken: {e}"
             )))
         })?
-        .initial_device_display_name("Robrix")
+        .initial_device_display_name("Rinx")
         .request_refresh_token()
         .await
 }

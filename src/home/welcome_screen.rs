@@ -30,7 +30,7 @@ script_mod! {
             title := Label {
                 padding: 0
                 margin: 0
-                text: #(crate::i18n::tr("Welcome to Robrix!")) i18n_text: "Welcome to Robrix!",
+                text: #(crate::i18n::tr("Welcome to Rinx!")) i18n_text: "Welcome to Rinx!",
                 draw_text +: {
                     color: (mod.widgets.WELCOME_TEXT_COLOR),
                     text_style: theme.font_bold {
@@ -56,7 +56,7 @@ script_mod! {
                 }
                 body:"<p>Our Matrix client is under active development, so you may need to use other clients to perform admin actions like creating rooms, kicking/banning users, and starting verification requests.</p>
                 <p><br></p>
-                <p>But don't worry, we're constantly expanding the featureset of Robrix!</p>
+                <p>But don't worry, we're constantly expanding the featureset of Rinx!</p>
                 <p><br></p>
                 <p>Look for the latest announcements in our Matrix channel:</p>
                 <p><b>#robrix:matrix.org</b></p>

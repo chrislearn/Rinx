@@ -42,7 +42,7 @@ script_mod! {
     mod.widgets.FillerY = View { width: Fit,  height: Fill }
 
 
-    // The base widget definition used for all "small" modals in Robrix.
+    // The base widget definition used for all "small" modals in Rinx.
     mod.widgets.SmallModal = RoundedView {
         width: Fill { max: 400 }
         height: Fit { max: FitBound.Rel{base: Base.Full, factor: 1.0} }

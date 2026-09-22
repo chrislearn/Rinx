@@ -54,7 +54,7 @@ script_mod! {
                 DetailSection {
                     help_row := DetailRow {title.text: #(crate::i18n::tr("Help & Feedback")) title.i18n_text: "Help & Feedback"}
                     DetailDivider {}
-                    about_row := DetailRow {title.text: #(crate::i18n::tr("About Robrix")) title.i18n_text: "About Robrix"}
+                    about_row := DetailRow {title.text: #(crate::i18n::tr("About Rinx")) title.i18n_text: "About Rinx"}
                 }
                 DetailGap {}
                 DetailSection {logout_row := DetailAction {title +: {text: #(crate::i18n::tr("Log Out")) i18n_text: "Log Out" draw_text.color: #x191919}}}
@@ -157,7 +157,7 @@ script_mod! {
                     DetailDivider {}
                     zoom_large := DetailRow {title.text: #(crate::i18n::tr("Larger")) title.i18n_text: "Larger" value.text: "110%"}
                 }
-                DetailNote {text: #(crate::i18n::tr("Changes the size of text and controls throughout Robrix.")) i18n_text: "Changes the size of text and controls throughout Robrix."}
+                DetailNote {text: #(crate::i18n::tr("Changes the size of text and controls throughout Rinx.")) i18n_text: "Changes the size of text and controls throughout Rinx."}
             }
             images := ScrollYView {
                 width: Fill height: Fill flow: Down
@@ -197,7 +197,8 @@ script_mod! {
                 View {
                     width: Fill height: Fit padding: Inset{top: 48 bottom: 40} flow: Down spacing: 16 align: Align{x: 0.5}
                     Image {width: 72 height: 72 fit: ImageFit.Smallest src: crate_resource("self://resources/robrix_logo_alpha.png")}
-                    DetailLabel {text: "Robrix" draw_text.text_style: theme.font_bold {font_size: 20}}
+                    DetailLabel {text: "Rinx" draw_text.text_style: theme.font_bold {font_size: 20}}
+                    DetailLabel {text: #(crate::i18n::tr("Built on Robrix · Apache-2.0")) i18n_text: "Built on Robrix · Apache-2.0" draw_text.color: #x888888}
                     version := DetailLabel {draw_text.color: #x888888}
                 }
                 DetailSection {
@@ -226,7 +227,7 @@ impl Page {
         Self::Settings => crate::i18n::tr("Settings"), Self::Personal => crate::i18n::tr("Personal Information"), Self::Name => crate::i18n::tr("Name"),
         Self::Photo => crate::i18n::tr("Profile Photo"), Self::Account => crate::i18n::tr("Account and Security"), Self::General => crate::i18n::tr("General"),
         Self::Zoom => crate::i18n::tr("Display Size"), Self::Images => crate::i18n::tr("Chat Image Size"), Self::Privacy => crate::i18n::tr("Privacy"),
-        Self::Blocked => crate::i18n::tr("Blocked Users"), Self::About => crate::i18n::tr("About Robrix"), Self::Language => crate::i18n::tr("Language"),
+        Self::Blocked => crate::i18n::tr("Blocked Users"), Self::About => crate::i18n::tr("About Rinx"), Self::Language => crate::i18n::tr("Language"),
         Self::Hagency => "Hagency",
     })}
 }
@@ -370,9 +371,9 @@ impl Widget for MobileSettings {
         }
         if self.view.navigation_bar_button(cx, ids!(logout_row)).clicked(actions) { cx.action(LogoutConfirmModalAction::Open); }
         for (path, url) in [
-            (ids!(help_row), "https://github.com/project-robius/robrix/issues/new"),
-            (ids!(website_row), "https://robrix.app"), (ids!(policy_row), "https://robrix.app/privacy/"),
-            (ids!(source_row), "https://github.com/project-robius/robrix"),
+            (ids!(help_row), "https://github.com/OctoSense-org/Rinx/issues/new"),
+            (ids!(website_row), "https://github.com/OctoSense-org/Rinx"), (ids!(policy_row), "https://github.com/OctoSense-org/Rinx/blob/main/docs/privacy.md"),
+            (ids!(source_row), "https://github.com/OctoSense-org/Rinx"),
         ] { if self.view.navigation_bar_button(cx, path).clicked(actions) { utils::open_url(url); } }
         if let Some(app) = scope.data.get_mut::<AppState>() {
             let prefs = &mut app.app_prefs;

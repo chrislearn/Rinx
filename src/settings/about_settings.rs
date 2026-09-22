@@ -1,24 +1,24 @@
-//! An "About Robrix" section within the SettingsScreen.
+//! An "About Rinx" section within the SettingsScreen.
 //!
 //! Shows the app version and a set of external links (e.g., privacy policy).
 
 use makepad_widgets::*;
 use crate::{app::PositiveConfirmationModalAction, shared::{confirmation_modal::ConfirmationModalContent, popup_list::{enqueue_popup_notification, PopupKind}}, sliding_sync::{MatrixRequest, submit_async_request}, utils::open_url};
 
-const HOMEPAGE_URL: &str = "https://robrix.app";
-const PRIVACY_POLICY_URL: &str = "https://robrix.app/privacy/";
-const SOURCE_URL: &str = "https://github.com/project-robius/robrix";
-const NEW_ISSUE_URL: &str = "https://github.com/project-robius/robrix/issues/new";
+const HOMEPAGE_URL: &str = "https://github.com/OctoSense-org/Rinx";
+const PRIVACY_POLICY_URL: &str = "https://github.com/OctoSense-org/Rinx/blob/main/docs/privacy.md";
+const SOURCE_URL: &str = "https://github.com/OctoSense-org/Rinx";
+const NEW_ISSUE_URL: &str = "https://github.com/OctoSense-org/Rinx/issues/new";
 
 const ROBRIX_VERSION: &str = env!("CARGO_PKG_VERSION");
-const ROBRIX_GIT_COMMIT_HASH: &str = env!("ROBRIX_GIT_COMMIT_HASH");
-const ROBRIX_GIT_COMMIT_URL: &str = env!("ROBRIX_GIT_COMMIT_URL");
+const RINX_GIT_COMMIT_HASH: &str = env!("RINX_GIT_COMMIT_HASH");
+const RINX_GIT_COMMIT_URL: &str = env!("RINX_GIT_COMMIT_URL");
 const MATRIX_SDK_VERSION: &str = env!("MATRIX_SDK_VERSION");
 const MATRIX_SDK_GIT_REV: &str = env!("MATRIX_SDK_GIT_REV");
 const TESTFLIGHT_BUILD_NUMBER: &str = env!("TESTFLIGHT_BUILD_NUMBER");
 const MATRIX_SDK_URL: &str = env!("MATRIX_SDK_URL");
 
-const ROBRIX_PREFIX: &str = "Robrix: ";
+const ROBRIX_PREFIX: &str = "Rinx: ";
 const TESTFLIGHT_PREFIX: &str = "TestFlight build: ";
 const SDK_PREFIX: &str = "Matrix Rust SDK: ";
 
@@ -56,7 +56,11 @@ script_mod! {
         flow: Down
 
         TitleLabel {
-            text: #(crate::i18n::tr("About Robrix")) i18n_text: "About Robrix"
+            text: #(crate::i18n::tr("About Rinx")) i18n_text: "About Rinx"
+        }
+
+        SubsectionLabel {
+            text: #(crate::i18n::tr("Built on Robrix · Apache-2.0")) i18n_text: "Built on Robrix · Apache-2.0"
         }
 
         SubsectionLabel {
@@ -126,7 +130,7 @@ script_mod! {
                 margin: Inset{left: 5, top: 5, bottom: 5}
                 draw_icon.svg: (ICON_EXTERNAL_LINK)
                 icon_walk: Walk{width: 16, height: 16}
-                text: #(crate::i18n::tr("Robrix Homepage")) i18n_text: "Robrix Homepage"
+                text: #(crate::i18n::tr("Rinx Homepage")) i18n_text: "Rinx Homepage"
             }
 
             source_button := RobrixIconButton {
@@ -212,7 +216,7 @@ impl Widget for AboutSettings {
         // Long-press / hover tooltips per copy button, same pattern as
         // the user-id copy button in account_settings.rs.
         let robrix_btn = self.view.button(cx, ids!(copy_robrix_version_button));
-        Self::handle_copy_tooltip(cx, event, &robrix_btn, "Copy Robrix version");
+        Self::handle_copy_tooltip(cx, event, &robrix_btn, "Copy Rinx version");
         if !TESTFLIGHT_BUILD_NUMBER.is_empty() {
             let testflight_btn = self.view.button(cx, ids!(copy_testflight_button));
             Self::handle_copy_tooltip(cx, event, &testflight_btn, "Copy TestFlight build");
@@ -231,7 +235,7 @@ impl Widget for AboutSettings {
 impl AboutSettings {
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
         if self.view.button(cx, ids!(copy_robrix_version_button)).clicked(actions) {
-            Self::copy_with_toast(cx, &robrix_plaintext(), "Copied Robrix version.");
+            Self::copy_with_toast(cx, &robrix_plaintext(), "Copied Rinx version.");
         }
         if !TESTFLIGHT_BUILD_NUMBER.is_empty()
             && self.view.button(cx, ids!(copy_testflight_button)).clicked(actions)
@@ -321,18 +325,18 @@ impl AboutSettings {
 
 fn robrix_html() -> String {
     let value = robrix_plaintext();
-    if ROBRIX_GIT_COMMIT_URL.is_empty() {
+    if RINX_GIT_COMMIT_URL.is_empty() {
         format!("<b>{ROBRIX_PREFIX}</b>{value}")
     } else {
-        format!("<b>{ROBRIX_PREFIX}</b><a href=\"{ROBRIX_GIT_COMMIT_URL}\">{value}</a>")
+        format!("<b>{ROBRIX_PREFIX}</b><a href=\"{RINX_GIT_COMMIT_URL}\">{value}</a>")
     }
 }
 
 fn robrix_plaintext() -> String {
-    if ROBRIX_GIT_COMMIT_HASH.is_empty() {
+    if RINX_GIT_COMMIT_HASH.is_empty() {
         format!("v{ROBRIX_VERSION}")
     } else {
-        format!("v{ROBRIX_VERSION} ({ROBRIX_GIT_COMMIT_HASH})")
+        format!("v{ROBRIX_VERSION} ({RINX_GIT_COMMIT_HASH})")
     }
 }
 

@@ -1,4 +1,4 @@
-//! Robrix's Matrix publication metadata and shared article storage adapter.
+//! Rinx's Matrix publication metadata and shared article storage adapter.
 use std::{path::Path, collections::BTreeMap, io::Read};
 use serde::{Serialize, Deserialize};
 use ruma::{OwnedRoomId, OwnedEventId};

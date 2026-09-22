@@ -580,7 +580,7 @@ impl InviteScreen {
             self.all_rooms_loaded = true;
             self.redraw(cx);
         }
-        // If this invite has already been accepted (e.g., in another client, or while Robrix was offline),
+        // If this invite has already been accepted (e.g., in another client, or while Rinx was offline),
         // we need to handle that and upgrade this screen to the corresponding joined room's RoomScreen.
         else if cx.has_global::<RoomsListRef>()
             && cx.get_global::<RoomsListRef>().get_room_state(room_name_id.room_id()) == Some(RoomState::Joined)

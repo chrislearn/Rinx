@@ -4,7 +4,7 @@ script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
 
-    // The base Robrix button widget.
+    // The base Rinx button widget.
     // Uses COLOR_ACTIVE_PRIMARY (blue) background with white text by default.
     // See also the preset variants below:
     //   RobrixPositiveIconButton, RobrixNegativeIconButton, RobrixNeutralIconButton.

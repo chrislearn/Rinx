@@ -2,7 +2,7 @@
 //! control plane for coding agents.
 //!
 //! hagency runs Claude Code and Codex agents and exposes them in Matrix rooms
-//! through a bridge bot. This module makes Robrix a first-class client for
+//! through a bridge bot. This module makes Rinx a first-class client for
 //! that bridge:
 //!
 //! * [`approval`] — the `com.agentchat.approval.*` owner-approval protocol

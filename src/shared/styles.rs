@@ -94,9 +94,9 @@ script_mod! {
         font_size: (mod.widgets.USERNAME_FONT_SIZE),
     }
 
-    mod.widgets.COLOR_ROBRIX_PURPLE = #572DCC; // the purple color from the Robrix logo
+    mod.widgets.COLOR_ROBRIX_PURPLE = #572DCC; // the purple color from the Rinx logo
 
-    mod.widgets.COLOR_ROBRIX_CYAN = #05CDC7; // the cyan color from the Robrix logo
+    mod.widgets.COLOR_ROBRIX_CYAN = #05CDC7; // the cyan color from the Rinx logo
 
     mod.widgets.TYPING_NOTICE_TEXT_COLOR = #121570
 
@@ -268,7 +268,7 @@ script_mod! {
     }
 
 
-    // A text input widget styled for Robrix.
+    // A text input widget styled for Rinx.
     mod.widgets.RobrixTextInput = TextInput {
         width: Fill, height: Fit
         flow: Flow.Right{wrap: true},

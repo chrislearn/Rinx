@@ -166,7 +166,7 @@ pub fn confirm_delete(cx: &mut Cx, room: OwnedRoomId, timestamp: u64) {
     let owner = current_user_id();
     cx.action(ConfirmDeleteAction::Show(RefCell::new(Some(ConfirmationModalContent {
         title_text: crate::i18n::tr("Delete Chat").into(),
-        body_text: crate::i18n::tr("Remove this chat and clear its existing history from Robrix on this device? You stay in the conversation. Messages remain on the server and other devices.").into(),
+        body_text: crate::i18n::tr("Remove this chat and clear its existing history from Rinx on this device? You stay in the conversation. Messages remain on the server and other devices.").into(),
         accept_button_text: Some(crate::i18n::tr("Delete Chat").into()),
         on_accept_clicked: Some(Box::new(move |cx| {
             if current_user_id() == owner { hide(cx, room.clone(), timestamp, true); }

@@ -185,7 +185,7 @@ async fn palpo_moments_recipient_encryption_and_native_seed() -> Result<()> {
         let idx=index(&alice,&room).await?;ensure!(idx.comments(&entry).len()==1);ensure!(idx.likes(&entry).len()==1);
         let reactions=idx.likes(&entry)[&bob.owner].clone();ensure!((1..=2).contains(&reactions.len()));checks.push("encrypted_comment_and_deduplicated_standard_likes");
         bob.redact(&room,reactions).await?;ensure!(index(&alice,&room).await?.likes(&entry).is_empty());checks.push("unlike_redacts_all_duplicate_reactions");
-        // A legitimate viewer may send arbitrary encrypted roots. Robrix must
+        // A legitimate viewer may send arbitrary encrypted roots. Rinx must
         // not treat those roots as posts by the timeline's owner.
         let forged=bob.client.get_room(&room).unwrap().send_raw("m.room.message",model::post_content("Forged owner post",&[])).await?.response.event_id;
         decrypted(&alice,&room,&forged).await?;

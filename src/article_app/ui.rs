@@ -129,13 +129,13 @@ script_mod! {
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Write visually. Add images, choose a theme, review and publish.")) i18n_text: "Write visually. Add images, choose a theme, review and publish."}
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Sharing this app shares neither your drafts nor your account permissions.")) i18n_text: "Sharing this app shares neither your drafts nor your account permissions." draw_text.color: #x777777}
             View {width: Fill height: Fill}
-            article_continue := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Continue with Robrix")) i18n_text: "Continue with Robrix"}
+            article_continue := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Continue with Rinx")) i18n_text: "Continue with Rinx"}
         }
         consent := View {visible: false width: Fill height: Fill flow: Down padding: 24 spacing: 24
             consent_account := mod.widgets.ArticleLabel {draw_text.text_style: theme.font_bold{font_size: 16}}
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("This app requests permission to:")) i18n_text: "This app requests permission to:"}
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("• Save your drafts and selected images on this device\n\n• Upload images and publish only after confirmation\n\n• Update or withdraw your own articles after confirmation")) i18n_text: "• Save your drafts and selected images on this device\n\n• Upload images and publish only after confirmation\n\n• Update or withdraw your own articles after confirmation"}
-            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Your password and session token stay with Robrix. Permission expires when you close this app or after one hour.")) i18n_text: "Your password and session token stay with Robrix. Permission expires when you close this app or after one hour." draw_text.color: #x777777}
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Your password and session token stay with Rinx. Permission expires when you close this app or after one hour.")) i18n_text: "Your password and session token stay with Rinx. Permission expires when you close this app or after one hour." draw_text.color: #x777777}
             View {width: Fill height: Fill}
             article_allow := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Allow and open")) i18n_text: "Allow and open"}
             article_cancel := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Cancel")) i18n_text: "Cancel"}
@@ -1321,7 +1321,7 @@ impl Widget for ArticlePanel {
                     self.label(cx, ids!(consent_account))
                         .set_text(cx, owner.as_str());
                 } else {
-                    self.status(cx, "Sign in to Robrix to authorize this app.");
+                    self.status(cx, "Sign in to Rinx to authorize this app.");
                 }
             }
             if self.page == Page::Consent && self.button(cx, ids!(article_allow)).clicked(actions) {

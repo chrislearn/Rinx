@@ -4,7 +4,7 @@
 Optional dependency: playwright. Supply --chromium for an installed executable,
 or install Playwright's Chromium. Coordinates come from the inspected 400x800
 published demo; output always requires visual review after deployment changes.
-This is reference collection, not a Robrix acceptance test.
+This is reference collection, not a Rinx acceptance test.
 """
 import argparse
 from datetime import datetime, timezone
@@ -39,7 +39,7 @@ def main():
                'logical_viewport': [400, 800], 'device_pixel_ratio': 2, 'pixels': [800, 1600],
                'locale': 'mixed English/Chinese as shipped by mock',
                'deployed_source_commit': None, 'not_actual_wechat': True,
-               'scope': 'Reference screenshots only; no native Robrix or backend acceptance.',
+               'scope': 'Reference screenshots only; no native Rinx or backend acceptance.',
                'review_status': 'unreviewed', 'assets': [], 'screens': [], 'errors': []}
     try:
         with sync_playwright() as p:

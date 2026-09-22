@@ -489,7 +489,7 @@ fn add_new_space(space: &SpaceRoom, client: &Client) {
         children_count: space.children_count,
     };
     // If this space was renamed since the last time we received it,
-    // Robrix might be showing an out-of-date name, so broadcast the new name.
+    // Rinx might be showing an out-of-date name, so broadcast the new name.
     Cx::post_action(AppStateAction::RoomNameUpdated(jsi.space_name_id.clone()));
     enqueue_spaces_list_update(SpacesListUpdate::AddJoinedSpace(jsi));
 

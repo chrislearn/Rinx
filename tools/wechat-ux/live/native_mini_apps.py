@@ -35,7 +35,7 @@ def main():
             requests.append({"path": self.path, "at": time.time()})
             page = '''<!doctype html><html><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{font:18px "PingFang SC",sans-serif;padding:20px;color:#191919;background:#fff}button,a{display:block;padding:20px;margin:20px 0;background:#07c160;color:white;border:0;border-radius:8px;font:inherit}</style>
-<h1>Robrix Web Mini App</h1><p>网页小应用 · English and 中文</p>
+<h1>Rinx Web Mini App</h1><p>网页小应用 · English and 中文</p>
 <button onclick="fetch('/clicked').then(()=>this.textContent='Interaction passed')">Test interaction</button>
 <a href="/second">Open second page</a><p>This content is rendered by WebKit.</p>
 <script>window.addEventListener('load',()=>fetch('/ready'))</script></html>'''
@@ -156,11 +156,11 @@ print(visible.count)
         fill("mini_title", title)
         app.capture("mini-app-form")
         app.click_id("mini_preview")
-        desktop_text("Robrix Web Mini App", "mini-app-webview")
+        desktop_text("Rinx Web Mini App", "mini-app-webview")
         assert any(request["path"] == "/app" for request in requests)
         if args.headless:
             app.click_id("mini_reload")
-            desktop_text("Robrix Web Mini App", "mini-app-reloaded")
+            desktop_text("Rinx Web Mini App", "mini-app-reloaded")
             result["checks"].append("hidden_webkit_loads_http_and_executes_javascript_after_reload")
         else:
             result["checks"].append("http_page_visible_in_native_wkwebview")
@@ -170,7 +170,7 @@ print(visible.count)
             web_click("Open second page")
             desktop_text("Second page", "mini-app-second-page")
             app.click_id("mini_web_back")
-            desktop_text("Robrix Web Mini App", "mini-app-history-back")
+            desktop_text("Rinx Web Mini App", "mini-app-history-back")
             result["checks"].append("javascript_input_and_web_history_work")
         app.click_id("mini_share")
         app.wait_text("Web address")
@@ -182,7 +182,7 @@ print(visible.count)
         app.capture("mini-app-sent-card")
         result["checks"].append("native_card_sent_once_and_rendered")
         app.click_text(title)
-        desktop_text("Robrix Web Mini App", "mini-app-reopened")
+        desktop_text("Rinx Web Mini App", "mini-app-reopened")
         app.click_id("mini_share")
         app.click_id("mini_choose_chat")
         app.wait_text("Leo Zhang")
@@ -205,7 +205,7 @@ print(visible.count)
         x, y, w, h = row["box"]
         width, height = app.request("/s")["w"][0]["sz"]
         app.click((x+w/2)*width, (y+h/2)*height)
-        desktop_text("Robrix Web Mini App", "mini-app-incoming-opened")
+        desktop_text("Rinx Web Mini App", "mini-app-incoming-opened")
         app.click_id("mini_close")
         app.wait_text("Message (unencrypted)", pixels=True)
         _, rows = desktop("mini-app-closed")

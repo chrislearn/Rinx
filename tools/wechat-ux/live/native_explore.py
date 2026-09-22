@@ -28,7 +28,7 @@ def main():
     alias = "robrix-ux-explore-" + emma["user_id"].split("_")[-1].split(":")[0]
     if not state.exists():
         room = checked(fixture["url"], "POST", "createRoom", {
-            "name": "Robrix Garden 设计", "topic": "Isolated room-name search fixture.",
+            "name": "Rinx Garden 设计", "topic": "Isolated room-name search fixture.",
             "preset": "public_chat", "visibility": "public", "room_alias_name": alias,
         }, token=emma["access_token"])
         state.write_text(json.dumps(room))
@@ -69,18 +69,18 @@ def main():
         passed("escape_returns_even_with_search_focused")
         app.click_id("explore")
         search("Garden")
-        visible("Robrix Garden")
+        visible("Rinx Garden")
         app.capture("name-results")
         passed("partial_name_search_on_custom_homeserver")
-        app.click_text("Robrix Garden")
+        app.click_text("Rinx Garden")
         visible("Join this room")
         app.capture("room-preview")
         app.click_id("back")
         visible("result")
-        visible("Robrix Garden")
+        visible("Rinx Garden")
         passed("preview_back_preserves_results")
         search("设计")
-        visible("Robrix Garden")
+        visible("Rinx Garden")
         passed("chinese_name_search")
         search("design")
         visible("Design Studio")
@@ -102,7 +102,7 @@ def main():
         search("design")
         visible("Design Studio")
         time.sleep(1)
-        assert not any("Robrix Garden" in row["text"] for row in app.ocr())
+        assert not any("Rinx Garden" in row["text"] for row in app.ocr())
         passed("replacement_search_keeps_latest_results")
         app.click_id("back")
         visible("Explore Groups")

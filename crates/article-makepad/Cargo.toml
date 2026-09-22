@@ -2,7 +2,7 @@
 name = "article-makepad"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "Apache-2.0"
 description = "Reusable native Makepad article editing and viewing widgets"
 
 [workspace]

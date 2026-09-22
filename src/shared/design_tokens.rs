@@ -338,7 +338,7 @@ script_mod! {
     //     1.3 used by styles.rs message text, so multi-line wraps stay readable.
     // =========================================================================
     // Mobile/desktop page title (e.g. "Settings", room hero name).
-    // Font providers for the RBX_TEXT_* scale. Upstream Robrix ships no
+    // Font providers for the RBX_TEXT_* scale. Upstream Rinx ships no
     // system-font links, so these sit on the theme fonts; the
     // `fonts/macos-system-fonts` branch swaps them for the OS's San Francisco
     // and PingFang families.

@@ -1,6 +1,7 @@
-# Maintainer: Project Robius <it@gosim.org>
+# Maintainer: OctoSense Rinx contributors
+# Original packaging: Project Robius <it@gosim.org>
 #
-# Shared template behind both Robrix pacman packages: the .pkg.tar.zst attached to
+# Shared template behind both Rinx pacman packages: the .pkg.tar.zst attached to
 # every GitHub release, and the AUR package. Only packaging/aur/render-pkgbuild.sh
 # fills these placeholders in, and the two renderings differ only in the source
 # block, so send fixes here rather than to a rendered copy.
@@ -13,13 +14,13 @@
 pkgname=@PKGNAME@
 pkgver=@PKGVER@
 pkgrel=@PKGREL@
-pkgdesc="A powerful multi-platform Matrix chat client written from scratch in Rust"
+pkgdesc="A native Matrix messenger derived from Robrix, with scoped mini apps"
 arch=(@ARCH@)
 url="@URL@"
-## Only the ones with a license file to point at. usr/share/licenses/robrix/copyright
+## Only the ones with a license file to point at. usr/share/licenses/rinx/copyright
 ## enumerates the rest per file, with full texts, and namcap counts files against
 ## uncommon SPDX ids, so adding an id here means adding a file too.
-license=('MIT' 'Apache-2.0' 'OFL-1.1' 'CC-BY-3.0')
+license=('Apache-2.0' 'MIT' 'OFL-1.1' 'CC-BY-3.0')
 depends=(
   'glibc'
   'libgcc'      ## owns libgcc_s.so.1; gcc-libs is an empty metapackage now
@@ -53,7 +54,7 @@ options=('!strip' '!debug')
 
 package() {
     ## The payload unpacks straight to $srcdir/usr with no top-level directory, and
-    ## already carries usr/share/licenses/robrix/{copyright,THIRD-PARTY-NOTICES.html}.
+    ## already carries usr/share/licenses/rinx/{copyright,THIRD-PARTY-NOTICES.html}.
     cp -a "${srcdir}/usr" "${pkgdir}/"
 @LICENSE_DIR_FIXUP@
 }

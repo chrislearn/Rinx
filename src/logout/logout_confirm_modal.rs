@@ -193,8 +193,8 @@ impl WidgetMatchEvent for LogoutConfirmModal {
 
                 Some(LogoutAction::LogoutFailure(error)) => {
                     if is_logout_past_point_of_no_return() {
-                        self.label(cx, ids!(title)).set_text(cx, crate::i18n::tr("Logout error, please restart Robrix."));
-                        self.set_message(cx, "The logout process encountered an error when communicating with the homeserver. Since your login session has been partially invalidated, Robrix must restart in order to continue to properly function.");
+                        self.label(cx, ids!(title)).set_text(cx, crate::i18n::tr("Logout error, please restart Rinx."));
+                        self.set_message(cx, "The logout process encountered an error when communicating with the homeserver. Since your login session has been partially invalidated, Rinx must restart in order to continue to properly function.");
 
                         confirm_button.set_text(cx, crate::i18n::tr("Restart now"));
                         script_apply_eval!(cx, confirm_button, {
@@ -218,7 +218,7 @@ impl WidgetMatchEvent for LogoutConfirmModal {
                 }
 
                 Some(LogoutAction::ApplicationRequiresRestart { .. }) => {
-                    self.label(cx, ids!(title)).set_text(cx, crate::i18n::tr("Logout error, please restart Robrix."));
+                    self.label(cx, ids!(title)).set_text(cx, crate::i18n::tr("Logout error, please restart Rinx."));
                     self.set_message(cx, "Application is in an inconsistent state and needs to be restarted to continue.");
 
                     confirm_button.set_text(cx, crate::i18n::tr("Restart now"));

@@ -145,7 +145,7 @@ pub static SLASH_COMMANDS: &[SlashCommand] = &[
     // * /join and /goto <room-address>: we can't resolve an alias to a room ID yet.
     //   See the `MatrixId::RoomAlias` TODO in `room_screen.rs`.
     // * /upgraderoom, /converttodm, /converttoroom, /jumptodate, /devtools, /discardsession.
-    // * No counterpart in Robrix at all yet: /verify (we only do interactive SAS, not
+    // * No counterpart in Rinx at all yet: /verify (we only do interactive SAS, not
     //   manual fingerprints), /addwidget, /rageshake, /status, /holdcall.
     // * Element's chat effects: /confetti, /fireworks, /rainfall, /snowfall, /hearts.
 ];

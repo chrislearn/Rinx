@@ -45,12 +45,12 @@ def main():
         (profile/'ui-language.json').write_text(json.dumps(value))
     try:
         locale(login_root,'en')
-        login=start(login_root,auto_login=False,expected='Sign in to Robrix',port=8297)
+        login=start(login_root,auto_login=False,expected='Sign in to Rinx',port=8297)
         field(login,'user_id_input','alice:matrix.org')
-        login.click_id('login_language_zh');login.wait_text('登录 Robrix',pixels=True)
+        login.click_id('login_language_zh');login.wait_text('登录 Rinx',pixels=True)
         login.wait_text('alice:matrix.org',pixels=True);login.capture('login-zh')
         assert json.loads((login_root/'profile/ui-language.json').read_text())=='zh-CN'
-        login.click_id('login_language_en');login.wait_text('Sign in to Robrix',pixels=True)
+        login.click_id('login_language_en');login.wait_text('Sign in to Rinx',pixels=True)
         login.wait_text('alice:matrix.org',pixels=True);login.capture('login-en');stop(login)
         passed('login_language_switch_preserves_input')
 

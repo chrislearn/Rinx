@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WeChat UX reference inventory and evidence gate, not a Robrix renderer.
+"""WeChat UX reference inventory and evidence gate, not a Rinx renderer.
 
 All commands are local/read-only except explicitly named output files. Capture
 reads the existing Makepad localhost bridge; it never clicks or sends messages.
@@ -282,7 +282,7 @@ def report(output, project=PROJECT):
     result = template.replace('__UX_DATA__', payload)
     with Path(output).open('x') as stream:
         stream.write(result)
-    return {'report': str(output), 'scope': 'Interactive specification; not a functioning Robrix client.'}
+    return {'report': str(output), 'scope': 'Interactive specification; not a functioning Rinx client.'}
 
 
 def main():

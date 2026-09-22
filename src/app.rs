@@ -40,14 +40,14 @@ script_mod! {
         ui: Root {
             main_window := Window {
                 window.inner_size: vec2(1280, 800)
-                window.title: "Robrix"
+                window.title: "Rinx"
                 pass.clear_color: #FFFFFF00
                 caption_bar +: {
                     draw_bg.color: #F3F3F3
                     caption_label +: {
                         label +: {
                             draw_text +: { color: #0 }
-                            text: "Robrix"
+                            text: "Rinx"
                         }
                     }
                 }
@@ -900,9 +900,9 @@ impl App {
         cx.update_macos_menu(MacosMenu::Main {
             items: vec![
                 MacosMenu::Sub {
-                    name: "Robrix".into(),
+                    name: "Rinx".into(),
                     items: vec![MacosMenu::Item {
-                        name: "Quit Robrix".into(),
+                        name: "Quit Rinx".into(),
                         command: live_id!(quit),
                         key: KeyCode::KeyQ,
                         shift: false,
@@ -1180,7 +1180,7 @@ pub struct AppState {
     /// keyed by the space ID.
     #[serde(default, deserialize_with = "crate::utils::deserialize_or_default")]
     pub saved_dock_state_per_space: HashMap<OwnedRoomId, SavedDockState>,
-    /// Whether a user is currently logged in to Robrix or not.
+    /// Whether a user is currently logged in to Rinx or not.
     #[serde(default, deserialize_with = "crate::utils::deserialize_or_default")]
     pub logged_in: bool,
     /// App-wide user preferences/settings.

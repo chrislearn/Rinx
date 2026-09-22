@@ -923,7 +923,7 @@ impl RoomsList {
                 }
                 RoomsListUpdate::UpdateRoomName { new_room_name } => {
                     searchable_metadata_changed = true;
-                    // Broadcast this room name change to the rest of Robrix's UI elements.
+                    // Broadcast this room name change to the rest of Rinx's UI elements.
                     cx.action(AppStateAction::RoomNameUpdated(new_room_name.clone()));
 
                     let room_id = new_room_name.room_id().clone();

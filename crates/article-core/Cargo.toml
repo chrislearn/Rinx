@@ -2,7 +2,7 @@
 name = "article-core"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "Apache-2.0"
 description = "Host-independent article documents, editing state, assets and scoped storage"
 
 [workspace]

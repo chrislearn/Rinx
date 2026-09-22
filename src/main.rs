@@ -10,5 +10,5 @@
 )]
 
 fn main() {
-    robrix::app::app_main()
+    rinx::app::app_main()
 }

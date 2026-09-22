@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Build a fully codesigned, notarized, and stapled macOS DMG for Robrix,
+# Build a fully codesigned, notarized, and stapled macOS DMG for Rinx,
 # with the Applications-folder icon fix applied.
 #
 # Why this script exists:
@@ -148,10 +148,10 @@ case "$(uname -m)" in
     x86_64) PACKAGER_ARCH=x86_64 ;;
     *)      PACKAGER_ARCH=$(uname -m) ;;
 esac
-CANONICAL_DMG="$PROJECT_DIR/dist/Robrix_${PRODUCT_VERSION}_${PACKAGER_ARCH}.dmg"
+CANONICAL_DMG="$PROJECT_DIR/dist/Rinx_${PRODUCT_VERSION}_${PACKAGER_ARCH}.dmg"
 
 echo "==> Cleaning prior build artifacts in dist/..."
-rm -rf "$PROJECT_DIR/dist/Robrix.app" \
+rm -rf "$PROJECT_DIR/dist/Rinx.app" \
        "$PROJECT_DIR/dist/.cargo-packager" \
        "$CANONICAL_DMG"
 
@@ -179,7 +179,7 @@ TS_MARKER=$(mktemp)
 echo "==> Running cargo packager (unsigned: we sign + notarize ourselves with retries)..."
 env -u APPLE_ID -u APPLE_PASSWORD -u APPLE_TEAM_ID cargo packager --release
 
-APP_PATH="$PROJECT_DIR/dist/Robrix.app"
+APP_PATH="$PROJECT_DIR/dist/Rinx.app"
 DMG_FILE=$(find "$PROJECT_DIR/dist" -maxdepth 1 -name '*.dmg' -newer "$TS_MARKER" -print -quit)
 rm -f "$TS_MARKER"
 
@@ -197,7 +197,7 @@ echo "==> Found unsigned DMG: $DMG_FILE"
 
 echo "==> Codesigning $APP_PATH..."
 xattr -cr "$APP_PATH"
-codesign_with_retry "$APP_PATH/Contents/MacOS/robrix" app
+codesign_with_retry "$APP_PATH/Contents/MacOS/rinx" app
 codesign_with_retry "$APP_PATH" app
 codesign --verify --verbose=2 "$APP_PATH"
 
@@ -236,12 +236,12 @@ cleanup_rw() {
 }
 trap 'cleanup_rw; mv "$CARGO_TOML.bak" "$CARGO_TOML" 2>/dev/null && echo "Restored Cargo.toml"' EXIT
 
-if [[ ! -d "$MOUNT_DIR/Robrix.app" ]]; then
-    echo "Error: Robrix.app not found inside mounted DMG at $MOUNT_DIR" >&2
+if [[ ! -d "$MOUNT_DIR/Rinx.app" ]]; then
+    echo "Error: Rinx.app not found inside mounted DMG at $MOUNT_DIR" >&2
     exit 1
 fi
-rm -rf "$MOUNT_DIR/Robrix.app"
-ditto "$APP_PATH" "$MOUNT_DIR/Robrix.app"
+rm -rf "$MOUNT_DIR/Rinx.app"
+ditto "$APP_PATH" "$MOUNT_DIR/Rinx.app"
 
 sync
 sleep 2

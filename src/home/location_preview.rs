@@ -105,7 +105,7 @@ fn location_error_message(error: robius_location::Error) -> &'static str {
     use robius_location::Error;
     match error {
         Error::AuthorizationDenied =>
-            "Permission denied. Give Robrix location access in your device's settings, then try again.",
+            "Permission denied. Give Rinx location access in your device's settings, then try again.",
         Error::TemporarilyUnavailable =>
             "Your location isn't available right now. Please try again in a moment.",
         Error::Network =>

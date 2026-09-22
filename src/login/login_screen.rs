@@ -90,7 +90,7 @@ script_mod! {
                             color: (COLOR_TEXT)
                             text_style: TITLE_TEXT {font_size: 16.0}
                         }
-                        text: #(crate::i18n::tr("Sign in to Robrix")) i18n_text: "Sign in to Robrix"
+                        text: #(crate::i18n::tr("Sign in to Rinx")) i18n_text: "Sign in to Rinx"
                     }
 
                     View {

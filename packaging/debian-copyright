@@ -1,36 +1,37 @@
-Upstream-Name: Robrix
-Upstream-Contact: Project Robius <contact@robius.rs>
-Source: https://github.com/project-robius/robrix
+Upstream-Name: Rinx
+Upstream-Contact: https://github.com/OctoSense-org/Rinx/issues
+Source: https://github.com/OctoSense-org/Rinx
 Comment: The Files: paths below are the paths of the files as installed, not paths
  in the upstream source tree, so this file deliberately does not claim conformance
  to the machine-readable copyright-format spec.
 
 Files: *
-Copyright: 2023-2026 Project Robius Developers
-License: MIT
+Copyright: 2026 Rinx Contributors
+           2023-2026 Project Robius Developers
+License: Apache-2.0 and MIT
 
-Files: usr/lib/robrix/makepad_widgets/resources/IBMPlexSans-*.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/IBMPlexSans-*.ttf
 Copyright: 2018 IBM Corp.
 License: OFL-1.1
 Comment: Reserved Font Name "Plex". Bundled via the makepad-widgets dependency.
  Upstream declares the RFN and a 2017 year; 2018 above is the shipped binaries'
  own embedded copyright string.
 
-Files: usr/lib/robrix/makepad_widgets/resources/LXGWWenKai*.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/LXGWWenKai*.ttf
 Copyright: 2021-2024 LXGW <https://github.com/lxgw/LxgwWenKai>
            2020 The Klee Project Authors <https://github.com/fontworks-fonts/Klee>
 License: OFL-1.1
 
-Files: usr/lib/robrix/makepad_widgets/resources/NotoColorEmoji.ttf
-       usr/lib/robrix/makepad_widgets/resources/NotoSans-Regular.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/NotoColorEmoji.ttf
+       usr/lib/rinx/makepad_widgets/resources/NotoSans-Regular.ttf
 Copyright: 2012, 2022 Google Inc.
 License: OFL-1.1
 
-Files: usr/lib/robrix/makepad_widgets/resources/jetbrains_mono_variable.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/jetbrains_mono_variable.ttf
 Copyright: 2020 The JetBrains Mono Project Authors <https://github.com/JetBrains/JetBrainsMono>
 License: OFL-1.1
 
-Files: usr/lib/robrix/makepad_widgets/resources/fa-solid-900.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/fa-solid-900.ttf
 Copyright: 2024 Fonticons, Inc. <https://fontawesome.com>
 License: OFL-1.1
 Comment: Font Awesome 6 Free 6.7.2, Reserved Font Name "Font Awesome".
@@ -38,7 +39,7 @@ Comment: Font Awesome 6 Free 6.7.2, Reserved Font Name "Font Awesome".
  CC-BY-4.0 terms cover only the .svg and .js icon packagings, which are not
  shipped in this package.
 
-Files: usr/lib/robrix/makepad_widgets/resources/LiberationMono-Regular.ttf
+Files: usr/lib/rinx/makepad_widgets/resources/LiberationMono-Regular.ttf
 Copyright: 2007 Red Hat, Inc.
            2007 Ascender Corporation (digitized data)
 License: GPL-2-with-Liberation-exceptions
@@ -46,14 +47,14 @@ Comment: Liberation Mono 1.04. LIBERATION is a trademark of Red Hat, Inc.
  Liberation 2.00 and later are licensed under OFL-1.1 instead; this package
  bundles a 1.x release, which predates that relicensing.
 
-Files: usr/lib/robrix/makepad_widgets/resources/NewCMMath-Regular.otf
+Files: usr/lib/rinx/makepad_widgets/resources/NewCMMath-Regular.otf
 Copyright: 2019-2021 Antonis Tsolomitis
 License: GUST-Font-License
 Comment: New Computer Modern Math 4.0.
 
-Files: usr/lib/robrix/robrix/resources/icons/*
-       usr/lib/robrix/robrix/resources/*.svg
-       usr/lib/robrix/makepad_widgets/resources/icons/*
+Files: usr/lib/rinx/rinx/resources/icons/*
+       usr/lib/rinx/rinx/resources/*.svg
+       usr/lib/rinx/makepad_widgets/resources/icons/*
 Copyright: various, see the upstream icon sources
 License: SVG-Repo-terms
 Comment: Nearly all icons are obtained from SVG Repo and used in accordance with
@@ -61,32 +62,34 @@ Comment: Nearly all icons are obtained from SVG Repo and used in accordance with
  so no single licence applies and no grant is claimed here beyond those terms.
  See licenses/ATTRIBUTIONS.md in the upstream source.
 
-Files: usr/lib/robrix/robrix/resources/icons/add_wallet.svg
+Files: usr/lib/rinx/rinx/resources/icons/add_wallet.svg
 Copyright: Creative Stall
 License: CC-BY-3.0
 Comment: "Add Wallet" by Creative Stall from Noun Project.
  <https://thenounproject.com/browse/icons/term/add-wallet/>
 
-Files: usr/lib/robrix/robrix/resources/img/apple.png
-       usr/lib/robrix/robrix/resources/img/facebook.png
-       usr/lib/robrix/robrix/resources/img/github.png
-       usr/lib/robrix/robrix/resources/img/gitlab.png
-       usr/lib/robrix/robrix/resources/img/google.png
+Files: usr/lib/rinx/rinx/resources/img/apple.png
+       usr/lib/rinx/rinx/resources/img/facebook.png
+       usr/lib/rinx/rinx/resources/img/github.png
+       usr/lib/rinx/rinx/resources/img/gitlab.png
+       usr/lib/rinx/rinx/resources/img/google.png
 Copyright: the respective trademark owners
 License: brand-logo-no-grant
 Comment: Third-party brand logos, shown only to identify the corresponding
  single-sign-on provider. No copyright licence is asserted over them.
 
-Files: usr/lib/robrix/robrix/resources/img/x.png
+Files: usr/lib/rinx/rinx/resources/img/x.png
 Copyright: shobumiah
 License: Vecteezy-Free
 Comment: X logo obtained from Vecteezy, attribution as required by their free
  licence. <https://www.vecteezy.com/png/42148611-new-twitter-x-logo-twitter-icon-x-social-media-icon>
 
-Files: usr/bin/robrix
-Copyright: 2023-2026 Project Robius Developers
-License: MIT
-Comment: Robrix's own code is MIT. This binary also statically links Rust crates
+Files: usr/bin/rinx
+Copyright: 2026 Rinx Contributors
+           2023-2026 Project Robius Developers
+License: Apache-2.0 and MIT
+Comment: Rinx is distributed under Apache-2.0. Inherited Robrix code retains
+ its MIT copyright and permission notice (LICENSE-MIT); see NOTICE. This binary also statically links Rust crates
  under their own licences, predominantly MIT and Apache-2.0. Their copyright
  notices and full licence texts are installed alongside this file as
  THIRD-PARTY-NOTICES.html.
@@ -309,3 +312,7 @@ License: brand-logo-no-grant
 License: Vecteezy-Free
  Obtained from Vecteezy under their Free License, which permits use with
  attribution to the author. See <https://www.vecteezy.com/licensing-agreement>.
+
+License: Apache-2.0
+ See the complete Apache License, Version 2.0, installed alongside this file
+ as LICENSE. Rinx attribution and inherited notices are in NOTICE and LICENSE-MIT.

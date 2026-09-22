@@ -21,14 +21,14 @@
 
 set -euo pipefail
 
-## THE ONE-LINE NAME SWITCH. Set this to robrix-bin to publish under the -bin
+## THE ONE-LINE NAME SWITCH. Set this to rinx-bin to publish under the -bin
 ## suffix instead; provides, conflicts and the license dir all follow it.
-PKGNAME='robrix'
+PKGNAME='rinx'
 
 ## Upstream's own name, which is what cargo-packager names the payload after and
 ## what the payload's own /usr/lib and /usr/share/licenses paths use.
-APPNAME='robrix'
-DEFAULT_REPO='project-robius/robrix'
+APPNAME='rinx'
+DEFAULT_REPO='OctoSense-org/Rinx'
 ## Arches we know how to publish, in the order they get emitted.
 CANDIDATE_ARCHES='x86_64 aarch64'
 
@@ -192,7 +192,7 @@ for a in $found; do arches="${arches:+$arches }'${a}'"; done
 pkgver="$(to_pkgver "$srcver")"
 
 ## Provide whichever prebuilt name we are not, so either package drops in for the
-## other, and conflict with all three since they all own /usr/bin/robrix.
+## other, and conflict with all three since they all own /usr/bin/rinx.
 provides='' conflicts=''
 for n in "$APPNAME" "${APPNAME}-bin"; do
     [[ "$n" == "$PKGNAME" ]] || provides="${provides:+$provides }\"${n}=\${pkgver}\""

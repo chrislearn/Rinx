@@ -7,29 +7,29 @@ shift
 
 # Run the executable as-is unless bundling it would actually help. Cargo routes
 # test binaries through here too, and a bundle is useless (or impossible) when
-# there is no GUI session to open it in. Set ROBRIX_DEV_NO_BUNDLE=1 to opt out,
+# there is no GUI session to open it in. Set RINX_DEV_NO_BUNDLE=1 to opt out,
 # for example to attach a debugger to the process cargo itself started.
 # Without the bundle the app still runs; macOS just attributes microphone,
-# speech and location prompts to the terminal instead of to Robrix.
-if [[ ${binary##*/} != robrix || -n ${ROBRIX_DEV_NO_BUNDLE:-} ]]; then
+# speech and location prompts to the terminal instead of to Rinx.
+if [[ ${binary##*/} != rinx || -n ${RINX_DEV_NO_BUNDLE:-} ]]; then
     exec "$binary" "$@"
 fi
 # A missing or broken codesign is handled by the signing step below, which falls
 # back to running unbundled rather than failing the run.
 if [[ $(launchctl managername 2>/dev/null) != Aqua ]]; then
-    echo 'robrix: no macOS window session, so running without an app bundle. Native permission prompts will be attributed to the terminal.' >&2
+    echo 'rinx: no macOS window session, so running without an app bundle. Native permission prompts will be attributed to the terminal.' >&2
     exec "$binary" "$@"
 fi
 
 working_dir=$PWD
 binary_dir=$(cd "$(dirname "$binary")" && pwd -P)
-binary="$binary_dir/robrix"
+binary="$binary_dir/rinx"
 packaging_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-bundle_dir="$binary_dir/.robrix-dev"
-bundle="$bundle_dir/Robrix.app"
+bundle_dir="$binary_dir/.rinx-dev"
+bundle="$bundle_dir/Rinx.app"
 mkdir -p "$bundle_dir"
 staging=$(mktemp -d "$bundle_dir/.stage.XXXXXX")
-launch_dir=$(mktemp -d "${TMPDIR:-/tmp}/robrix-launch.XXXXXX")
+launch_dir=$(mktemp -d "${TMPDIR:-/tmp}/rinx-launch.XXXXXX")
 open_pid=
 app_pid=
 stdout_pid=
@@ -67,35 +67,35 @@ trap 'forward_signal HUP 129' HUP
 inputs=$(/usr/bin/shasum -a 256 "$binary" "$packaging_dir/macos/Info.plist" "${BASH_SOURCE[0]}")
 previous_inputs=
 if [[ -f $bundle_dir/inputs ]]; then previous_inputs=$(< "$bundle_dir/inputs"); fi
-if [[ $inputs != "$previous_inputs" || ! -f $bundle/Contents/MacOS/robrix ]]; then
+if [[ $inputs != "$previous_inputs" || ! -f $bundle/Contents/MacOS/rinx ]]; then
     # TCC may inspect the bundle again while it is running. Keep its executable
     # and signature in place until that instance has exited.
     while IFS= read -r running_binary; do
-        if [[ $running_binary == "$bundle/Contents/MacOS/robrix" ]]; then
-            echo 'Quit the running Robrix development app before launching a rebuilt version.' >&2
+        if [[ $running_binary == "$bundle/Contents/MacOS/rinx" ]]; then
+            echo 'Quit the running Rinx development app before launching a rebuilt version.' >&2
             exit 1
         fi
     done < <(/bin/ps -axo comm=)
     # Copy before signing: a symlink or hard link would mutate Cargo's executable.
-    mkdir -p "$staging/Robrix.app/Contents/MacOS"
-    cp "$binary" "$staging/Robrix.app/Contents/MacOS/robrix"
-    cp "$packaging_dir/macos/Info.plist" "$staging/Robrix.app/Contents/Info.plist"
-    plist="$staging/Robrix.app/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier rs.robius.robrix.development' "$plist"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Robrix Development' "$plist"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleName Robrix Development' "$plist"
-    # Development builds must not register URL handlers over an installed Robrix.
+    mkdir -p "$staging/Rinx.app/Contents/MacOS"
+    cp "$binary" "$staging/Rinx.app/Contents/MacOS/rinx"
+    cp "$packaging_dir/macos/Info.plist" "$staging/Rinx.app/Contents/Info.plist"
+    plist="$staging/Rinx.app/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier org.octosense.rinx.development' "$plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Rinx Development' "$plist"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleName Rinx Development' "$plist"
+    # Development builds must not register URL handlers over an installed Rinx.
     /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "$plist"
-    if ! /usr/bin/codesign --force --sign - "$staging/Robrix.app" >"$staging/signing.log" 2>&1; then
+    if ! /usr/bin/codesign --force --sign - "$staging/Rinx.app" >"$staging/signing.log" 2>&1; then
         cat "$staging/signing.log" >&2
-        echo 'robrix: could not sign the development app bundle, so running without it.' >&2
+        echo 'rinx: could not sign the development app bundle, so running without it.' >&2
         cleanup
         exec "$binary" "$@"
     fi
     if [[ -e $bundle || -L $bundle ]]; then
         mv "$bundle" "$staging/previous.app"
     fi
-    mv "$staging/Robrix.app" "$bundle"
+    mv "$staging/Rinx.app" "$bundle"
     printf '%s\n' "$inputs" > "$bundle_dir/inputs"
 fi
 
@@ -120,7 +120,7 @@ startup_seconds=$SECONDS
 open_exited_seconds=
 while [[ ! -s $launch_dir/pid ]]; do
     if (( SECONDS - startup_seconds >= 30 )); then
-        echo 'Robrix did not complete its development launcher handshake.' >&2
+        echo 'Rinx did not complete its development launcher handshake.' >&2
         exit 1
     fi
     # `open -W` sometimes returns before the app has finished launching. Giving up
@@ -139,7 +139,7 @@ if [[ -s $launch_dir/pid ]]; then
     app_pid=$(< "$launch_dir/pid")
     if [[ ! $app_pid =~ ^[0-9]+$ || $app_pid -le 1 ]]; then
         app_pid=
-        echo 'Robrix returned an invalid development process ID.' >&2
+        echo 'Rinx returned an invalid development process ID.' >&2
         exit 1
     fi
     if [[ -n $pending_signal ]]; then
@@ -165,12 +165,12 @@ fi
 if (( interrupted != 0 )); then exit "$interrupted"; fi
 if (( open_status != 0 )); then exit "$open_status"; fi
 if [[ ! -s $launch_dir/status ]]; then
-    echo 'Robrix exited before reporting a normal application shutdown.' >&2
+    echo 'Rinx exited before reporting a normal application shutdown.' >&2
     exit 1
 fi
 app_status=$(< "$launch_dir/status")
 if [[ ! $app_status =~ ^[0-9]+$ || $app_status -gt 255 ]]; then
-    echo 'Robrix returned an invalid development exit status.' >&2
+    echo 'Rinx returned an invalid development exit status.' >&2
     exit 1
 fi
 completed=1

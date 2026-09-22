@@ -266,7 +266,7 @@ impl WidgetMatchEvent for JoinLeaveRoomModal {
                             SpaceRequest::LeaveSpace { space_name_id: details.room_name_id().clone() }
                         ).is_err() {
                             enqueue_popup_notification(
-                                "Failed to send leave space request.\n\nPlease restart Robrix.",
+                                "Failed to send leave space request.\n\nPlease restart Rinx.",
                                 PopupKind::Error,
                                 None,
                             );

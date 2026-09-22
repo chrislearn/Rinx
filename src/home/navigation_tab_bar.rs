@@ -1,5 +1,5 @@
 //! The NavigationTabBar shows a bar of icon buttons that allow the user to
-//! navigate or switch between various top-level views in Robrix.
+//! navigate or switch between various top-level views in Rinx.
 //!
 //! The bar is positioned either within the left side bar (in the wide "Desktop" view mode)
 //! or along the bottom of the app window (in the narrow "Mobile" view mode).

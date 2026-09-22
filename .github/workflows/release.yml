@@ -1,6 +1,6 @@
-# Robrix Release CI Workflow
+# Rinx Release CI Workflow
 
-name: Robrix Release CI
+name: Rinx Release CI
 
 on:
   push:
@@ -97,12 +97,12 @@ jobs:
           TAG_REF="${GITHUB_REF##*/}"
           echo "Current tag: $TAG_REF"
 
-          CARGO_MANIFEST_VERSION=$(cargo metadata --no-deps --format-version 1 --frozen | jq -r '.packages[] | select(.name=="robrix") | .version' | head -n1)
+          CARGO_MANIFEST_VERSION=$(cargo metadata --no-deps --format-version 1 --frozen | jq -r '.packages[] | select(.name=="rinx") | .version' | head -n1)
           if [[ -z "$CARGO_MANIFEST_VERSION" || "$CARGO_MANIFEST_VERSION" == "null" ]]; then
-            echo "Error: Failed to resolve robrix version from Cargo metadata."
+            echo "Error: Failed to resolve rinx version from Cargo metadata."
             exit 1
           fi
-          echo "Cargo.toml Robrix version: $CARGO_MANIFEST_VERSION"
+          echo "Cargo.toml Rinx version: $CARGO_MANIFEST_VERSION"
 
           if [[ "$TAG_REF" != "v$CARGO_MANIFEST_VERSION" ]]; then
             echo "Error: Tag '$TAG_REF' does not match Cargo.toml version '$CARGO_MANIFEST_VERSION'."
@@ -217,14 +217,14 @@ jobs:
           fi
 
           echo "tag=${resolved_tag}" >> "$GITHUB_OUTPUT"
-          echo "name=Robrix ${resolved_tag}" >> "$GITHUB_OUTPUT"
+          echo "name=Rinx ${resolved_tag}" >> "$GITHUB_OUTPUT"
 
       # Safety: this workflow only ever creates a NEW release. If one already
       # exists for the tag, bail so we never adopt, overwrite, or unpublish it.
       - name: Refuse to reuse an existing release
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.ROBRIX_RELEASE }}
+          GH_TOKEN: ${{ secrets.RINX_RELEASE }}
         run: |
           TAG="${{ steps.resolve.outputs.tag }}"
           existing=$(gh api "repos/${{ github.repository }}/releases" --paginate \
@@ -272,17 +272,17 @@ jobs:
           ## anyone can download a half-built release. Publish it by hand.
           draft: true
           prerelease: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.pre_release == 'true') || (github.event_name == 'push' && contains(github.ref, '-')) }}
-          token: ${{ secrets.ROBRIX_RELEASE }}
+          token: ${{ secrets.RINX_RELEASE }}
 
       - name: Verify release access
         shell: bash
         run: |
           gh api "repos/${{ github.repository }}/releases/${{ steps.create_release.outputs.id }}" --jq '.id'
         env:
-          GH_TOKEN: ${{ secrets.ROBRIX_RELEASE }}
+          GH_TOKEN: ${{ secrets.RINX_RELEASE }}
 
   for_linux:
-    name: Release Robrix for Linux (${{ matrix.os }}, ${{ matrix.arch }})
+    name: Release Rinx for Linux (${{ matrix.os }}, ${{ matrix.arch }})
     needs: [check_tag_version, determine_matrices, create_release]
     if: ${{ always() && ((github.event_name == 'push' && needs.check_tag_version.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.determine_matrices.outputs.run_linux == 'true')) }}
     strategy:
@@ -322,7 +322,7 @@ jobs:
           CARGO_PACKAGER_SIGNING_KEY: ${{ secrets.CARGO_PACKAGER_SIGNING_KEY }}
           CARGO_PACKAGER_SIGNING_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGNING_PASSWORD }}
         with:
-          github_token: ${{ secrets.ROBRIX_RELEASE }}
+          github_token: ${{ secrets.RINX_RELEASE }}
           packager_formats: deb
           releaseId: ${{ needs.create_release.outputs.release_id }}
           ## Include the distro in asset names: the 22.04 and 24.04 legs produce
@@ -336,7 +336,7 @@ jobs:
           ## TODO: flip to true once this has passed on all four Linux legs.
           ## Until then it reports problems without blocking releases.
           verify_strict: false
-          ## Nothing in Robrix consumes updater metadata, and .deb has no updater
+          ## Nothing in Rinx consumes updater metadata, and .deb has no updater
           ## format mapping anyway, so latest.json would ship empty and misleading.
           uploadUpdaterJson: false
 
@@ -384,7 +384,7 @@ jobs:
           CARGO_PACKAGER_SIGNING_KEY: ${{ secrets.CARGO_PACKAGER_SIGNING_KEY }}
           CARGO_PACKAGER_SIGNING_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGNING_PASSWORD }}
         with:
-          github_token: ${{ secrets.ROBRIX_RELEASE }}
+          github_token: ${{ secrets.RINX_RELEASE }}
           packager_formats: appimage
           releaseId: ${{ needs.create_release.outputs.release_id }}
           ## No distro in the name, unlike the .deb above, since an AppImage
@@ -407,7 +407,7 @@ jobs:
           CARGO_PACKAGER_SIGNING_KEY: ${{ secrets.CARGO_PACKAGER_SIGNING_KEY }}
           CARGO_PACKAGER_SIGNING_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGNING_PASSWORD }}
         with:
-          github_token: ${{ secrets.ROBRIX_RELEASE }}
+          github_token: ${{ secrets.RINX_RELEASE }}
           packager_formats: pacman
           releaseId: ${{ needs.create_release.outputs.release_id }}
           asset_name_template: __FILENAME__
@@ -424,14 +424,14 @@ jobs:
       - name: Build and upload Arch Linux package
         if: (matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm') && needs.create_release.outputs.tag != ''
         env:
-          GH_TOKEN: ${{ secrets.ROBRIX_RELEASE }}
+          GH_TOKEN: ${{ secrets.RINX_RELEASE }}
           TAG: ${{ needs.create_release.outputs.tag }}
           ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
 
           srcver="$(awk -F'"' '/^version[[:space:]]*=/ {print $2; exit}' Cargo.toml)"
-          payload="dist/robrix_${srcver}_${ARCH}.tar.gz"
+          payload="dist/rinx_${srcver}_${ARCH}.tar.gz"
           if [[ ! -f "$payload" ]]; then
             echo "::error::Expected pacman payload at $payload, but it isn't there."
             ls -la dist/ || true
@@ -483,7 +483,7 @@ jobs:
           gh release upload "$TAG" "$pkg" --clobber --repo "${{ github.repository }}"
 
   for_macos:
-    name: Release Robrix for macOS (${{ matrix.os }}, ${{ matrix.arch }})
+    name: Release Rinx for macOS (${{ matrix.os }}, ${{ matrix.arch }})
     needs: [check_tag_version, determine_matrices, create_release]
     if: ${{ always() && ((github.event_name == 'push' && needs.check_tag_version.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.determine_matrices.outputs.run_macos == 'true')) }}
     strategy:
@@ -521,14 +521,14 @@ jobs:
       - name: Upload DMG to Release
         if: ${{ needs.create_release.outputs.release_id != '' }}
         env:
-          GH_TOKEN: ${{ secrets.ROBRIX_RELEASE }}
+          GH_TOKEN: ${{ secrets.RINX_RELEASE }}
         run: |
           DMG_FILE=$(find ./dist -name '*.dmg' -print -quit)
           gh release upload "${{ needs.create_release.outputs.tag }}" "$DMG_FILE" \
             --repo ${{ github.repository }}
 
   for_windows:
-    name: Release Robrix for Windows (${{ matrix.os }}, ${{ matrix.arch }})
+    name: Release Rinx for Windows (${{ matrix.os }}, ${{ matrix.arch }})
     needs: [check_tag_version, determine_matrices, create_release]
     if: ${{ always() && ((github.event_name == 'push' && needs.check_tag_version.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.determine_matrices.outputs.run_windows == 'true')) }}
     strategy:
@@ -547,7 +547,7 @@ jobs:
           CARGO_PACKAGER_SIGNING_KEY: ${{ secrets.CARGO_PACKAGER_SIGNING_KEY }}
           CARGO_PACKAGER_SIGNING_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGNING_PASSWORD }}
         with:
-          github_token: ${{ secrets.ROBRIX_RELEASE }}
+          github_token: ${{ secrets.RINX_RELEASE }}
           packager_formats: nsis
           releaseId: ${{ needs.create_release.outputs.release_id }}
           ## Same as the action's default naming, minus the `-release` mode suffix.
@@ -555,7 +555,7 @@ jobs:
           uploadUpdaterJson: false
 
   for_android:
-    name: Release Robrix for Android (aarch64)
+    name: Release Rinx for Android (aarch64)
     needs: [check_tag_version, create_release]
     if: ${{ always() && ((github.event_name == 'push' && needs.check_tag_version.result == 'success') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_android_aarch64 == 'true')) }}
     runs-on: ubuntu-22.04
@@ -581,16 +581,16 @@ jobs:
             --config profile.dev.strip=true
             --config profile.dev.debug-assertions=false
         with:
-          github_token: ${{ secrets.ROBRIX_RELEASE }}
+          github_token: ${{ secrets.RINX_RELEASE }}
           args: --target aarch64-linux-android
-          app_name: Robrix
+          app_name: Rinx
           releaseId: ${{ needs.create_release.outputs.release_id }}
           ## Same as the action's default naming, minus the `-release` mode suffix.
           asset_name_template: __APP__-__VERSION__-__PLATFORM__-__ARCH__.__EXT__
           uploadUpdaterJson: false
 
   for_ios:
-    name: Release Robrix for iOS
+    name: Release Rinx for iOS
     needs: [check_tag_version, create_release]
     if: ${{ always() && ((github.event_name == 'push' && needs.check_tag_version.result == 'success') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_ios == 'true')) }}
     runs-on: macos-15
@@ -637,7 +637,7 @@ jobs:
         env:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
-          PROFILE_FILE="$RUNNER_TEMP/robrix-profile.mobileprovision"
+          PROFILE_FILE="$RUNNER_TEMP/rinx-profile.mobileprovision"
           echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_FILE"
           security cms -D -i "$PROFILE_FILE" > /tmp/profile.plist
           UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /tmp/profile.plist)
@@ -673,7 +673,7 @@ jobs:
       - name: Upload IPA to Release
         if: ${{ needs.create_release.outputs.release_id != '' }}
         env:
-          GH_TOKEN: ${{ secrets.ROBRIX_RELEASE }}
+          GH_TOKEN: ${{ secrets.RINX_RELEASE }}
         run: |
           IPA_FILE=$(find target/apple/makepad-apple-app/aarch64-apple-ios/release -name '*.ipa' -print -quit)
           if [[ -z "$IPA_FILE" ]]; then

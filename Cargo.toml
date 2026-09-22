@@ -1,15 +1,15 @@
 [package]
-name = "robrix"
-authors = ["Kevin Boos <kevinaboos@gmail.com>", "Robius Project Maintainers"]
-description = "A powerful multi-platform Matrix chat client written in Rust using Makepad + Robius app dev framework."
-documentation = "https://docs.rs/robrix"
+name = "rinx"
+authors = ["OctoSense Contributors", "Kevin Boos <kevinaboos@gmail.com>", "Robius Project Maintainers"]
+description = "A native Matrix messenger with a WeChat-style UI, Moments, and scoped article mini apps."
+documentation = "https://github.com/OctoSense-org/Rinx#readme"
 edition = "2024" ## mostly just to allow let-chains
-homepage = "https://robius.rs/"
+homepage = "https://github.com/OctoSense-org/Rinx"
 keywords = ["matrix", "chat", "client", "robius", "makepad"]
-license = "MIT"
+license = "Apache-2.0"
 readme = "README.md"
 categories = ["gui"]
-repository = "https://github.com/project-robius/robrix"
+repository = "https://github.com/OctoSense-org/Rinx"
 version = "1.0.0-beta.1"
 metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 
@@ -114,7 +114,7 @@ aws-lc-rs = { version = "1.13", optional = true, features = ["prebuilt-nasm"] }
 percent-encoding = { version = "2.3", optional = true }
 ## The following reqwest 0.12 features were taken from the tsp_sdk's `Cargo.toml` file.
 ## This is only needed for the optional TSP feature; the matrix-sdk uses reqwest 0.13 internally,
-## which is re-exported as `matrix_sdk::reqwest` and used by regular (non-TSP) Robrix code.
+## which is re-exported as `matrix_sdk::reqwest` and used by regular (non-TSP) Rinx code.
 reqwest = { version = "0.12", default-features = false, optional = true, features = [
     "rustls-tls-native-roots",
     "json",
@@ -138,7 +138,7 @@ webpki-root-certs = "1"
 default = ["html_preview"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
 html_preview = ["dep:makepad-html-renderer"]
-# Compatibility for existing Robrix build commands.
+# Compatibility for existing Rinx build commands.
 article_blitz = ["html_preview"]
 ## Enables experimental support for using TSP wallets.
 tsp = ["dep:tsp_sdk", "dep:quinn", "dep:aws-lc-rs", "dep:percent-encoding", "dep:reqwest"]
@@ -256,33 +256,33 @@ debug-assertions = false
 version_code = "auto"
 
 
-## Robrix has some plist keys that need to be merged into Makepad's generated iOS Info.plist.
+## Rinx has some plist keys that need to be merged into Makepad's generated iOS Info.plist.
 [package.metadata.makepad.ios]
 info_plist = "packaging/ios/Info.additions.plist"
 
 
 ## Configuration for `cargo packager`
 [package.metadata.packager]
-product_name = "Robrix"
-identifier = "rs.robius.robrix"
+product_name = "Rinx"
+identifier = "org.octosense.rinx"
 category = "SocialNetworking"
 authors = [
     "Project Robius <contact@robius.rs>",
     "Kevin Boos <kevinaboos@gmail.com>",
 ]
-publisher = "GOSIM Foundation"
-license_file = "LICENSE-MIT"
+publisher = "OctoSense"
+license_file = "LICENSE"
 copyright = "Copyright 2023-2026, Project Robius"
-homepage = "https://github.com/project-robius/robrix"
+homepage = "https://github.com/OctoSense-org/Rinx"
 ### Note: there is an 80-character max for the one-line summary.
-description = "A powerful multi-platform Matrix chat client written from scratch in Rust"
+description = "A native Matrix messenger derived from Robrix, with scoped mini apps"
 ### Note: there is an 80-character max for each line of the `long_description`.
 long_description = """
-Robrix is a powerful open-source Matrix chat client written in pure Rust
+Rinx is a native Matrix messenger derived from Robrix, written in Rust
 using the Makepad UI framework (https://github.com/makepad/makepad)
 and the Project Robius app dev framework and platform abstractions
 (https://github.com/project-robius).
-Robrix runs on all major desktop and mobile platforms:
+Rinx runs on all major desktop and mobile platforms:
 macOS, Windows, Linux, Android, and iOS.
 """
 icons = [
@@ -296,7 +296,7 @@ icons = [
 ]
 out_dir = "./dist"
 
-## Here, we define the list of resource directories for both Makepad and Robrix.
+## Here, we define the list of resource directories for both Makepad and Rinx.
 ## The `src` directory is based on `./dist/` as the `out_dir` (above), which is where the
 ## `robius-packaging-commands` tool outputs the resources that it discovers after each build.
 ## See the README from the `robius-packaging-commands` repo for more details.
@@ -308,11 +308,14 @@ resources = [
     { src = "./dist/resources/makepad_fonts_chinese_regular", target = "makepad_fonts_chinese_regular" },
     { src = "./dist/resources/makepad_fonts_chinese_regular_2", target = "makepad_fonts_chinese_regular_2" },
     { src = "./dist/resources/makepad_fonts_emoji", target = "makepad_fonts_emoji" },
-    # Robrix resources
-    { src = "./dist/resources/robrix", target = "robrix" },
+    # Rinx resources and inherited license notices
+    { src = "./LICENSE", target = "licenses/LICENSE" },
+    { src = "./LICENSE-MIT", target = "licenses/LICENSE-MIT" },
+    { src = "./NOTICE", target = "licenses/NOTICE" },
+    { src = "./dist/resources/rinx", target = "rinx" },
 ]
 
-## We use the `robius-packaging-commands` tool to build the entire Robrix app project,
+## We use the `robius-packaging-commands` tool to build the entire Rinx app project,
 ## which properly configures the release build settings for each target platform
 ## (e.g., it sets the `MAKEPAD`/`MAKEPAD_PACKAGE_DIR` env vars to the appropriate value).
 ## Note: `geoclue-2.0` has to be declared by hand. It's a D-Bus service that `robius-location`
@@ -320,46 +323,55 @@ resources = [
 before-each-package-command = """
 robius-packaging-commands before-each-package \
     --force-makepad \
-    --binary-name robrix \
-    --path-to-binary ./target/release/robrix \
+    --binary-name rinx \
+    --path-to-binary ./target/release/rinx \
     --add-deb-dep geoclue-2.0
 """
 
 ## This is not yet implemented, so remove it.
 # deep_link_protocols = [
 #     { schemes = [
-#         "robrix",
+#         "rinx",
 #         "matrix",
 #     ], role = "viewer" }, ## `name` is left as default
 # ]
 
 [package.metadata.packager.deb]
 depends = "./dist/depends_deb.txt"
-desktop_template = "./packaging/robrix.desktop"
+desktop_template = "./packaging/rinx.desktop"
 section = "utils"
 
 ## These metainfo and licensing files are needed for package manager compliance.
 [package.metadata.packager.deb.files]
-"./packaging/rs.robius.robrix.metainfo.xml" = "/usr/share/metainfo/rs.robius.robrix.metainfo.xml"
-"./packaging/debian-copyright" = "/usr/share/doc/robrix/copyright"
-"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/doc/robrix/THIRD-PARTY-NOTICES.html"
+"./packaging/org.octosense.rinx.metainfo.xml" = "/usr/share/metainfo/org.octosense.rinx.metainfo.xml"
+"./packaging/debian-copyright" = "/usr/share/doc/rinx/copyright"
+"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/doc/rinx/THIRD-PARTY-NOTICES.html"
+"./LICENSE" = "/usr/share/doc/rinx/LICENSE"
+"./LICENSE-MIT" = "/usr/share/doc/rinx/LICENSE-MIT"
+"./NOTICE" = "/usr/share/doc/rinx/NOTICE"
 
 [package.metadata.packager.appimage.files]
-"./packaging/rs.robius.robrix.metainfo.xml" = "/usr/share/metainfo/rs.robius.robrix.metainfo.xml"
-"./packaging/debian-copyright" = "/usr/share/doc/robrix/copyright"
-"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/doc/robrix/THIRD-PARTY-NOTICES.html"
+"./packaging/org.octosense.rinx.metainfo.xml" = "/usr/share/metainfo/org.octosense.rinx.metainfo.xml"
+"./packaging/debian-copyright" = "/usr/share/doc/rinx/copyright"
+"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/doc/rinx/THIRD-PARTY-NOTICES.html"
+"./LICENSE" = "/usr/share/doc/rinx/LICENSE"
+"./LICENSE-MIT" = "/usr/share/doc/rinx/LICENSE-MIT"
+"./NOTICE" = "/usr/share/doc/rinx/NOTICE"
 
 [package.metadata.packager.pacman.files]
-"./packaging/rs.robius.robrix.metainfo.xml" = "/usr/share/metainfo/rs.robius.robrix.metainfo.xml"
-"./packaging/debian-copyright" = "/usr/share/licenses/robrix/copyright"
-"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/licenses/robrix/THIRD-PARTY-NOTICES.html"
+"./packaging/org.octosense.rinx.metainfo.xml" = "/usr/share/metainfo/org.octosense.rinx.metainfo.xml"
+"./packaging/debian-copyright" = "/usr/share/licenses/rinx/copyright"
+"./licenses/THIRD-PARTY-NOTICES.html" = "/usr/share/licenses/rinx/THIRD-PARTY-NOTICES.html"
+"./LICENSE" = "/usr/share/licenses/rinx/LICENSE"
+"./LICENSE-MIT" = "/usr/share/licenses/rinx/LICENSE-MIT"
+"./NOTICE" = "/usr/share/licenses/rinx/NOTICE"
 
 [package.metadata.packager.macos]
 minimum_system_version = "11.0"
 frameworks = []
 info_plist_path = "./packaging/macos/Info.plist"
 entitlements = "./packaging/macos/Entitlements.plist"
-signing_identity = "Developer ID Application: GOSIM FOUNDATION LTD. (HMX6XGJZ3R)"
+# Set signing_identity through your own release environment.
 
 
 ## Configuration for `cargo packager`'s generation of a macOS `.dmg`.

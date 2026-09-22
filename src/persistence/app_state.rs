@@ -128,7 +128,7 @@ pub fn load_window_state(window_ref: WindowRef, cx: &mut Cx) -> anyhow::Result<(
         dvec2(inner_size.0, inner_size.1),
         dvec2(position.0, position.1),
         is_fullscreen,
-        "Robrix".to_string(),
+        "Rinx".to_string(),
     );
     Ok(())
 }

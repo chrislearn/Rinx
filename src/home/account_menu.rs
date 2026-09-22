@@ -10,7 +10,7 @@
 //!
 //! robrix2's version also lists every *other* logged-in account as a switch row, plus a
 //! "Log Into More Accounts" item. Both depend on robrix2's multi-account layer
-//! (`account_manager` and `request_switch_account`), which upstream Robrix does not
+//! (`account_manager` and `request_switch_account`), which upstream Rinx does not
 //! have — it holds exactly one session. Those rows are therefore not rendered here; the
 //! card keeps the same shape so they can slot back in if multi-account is ever ported.
 //!

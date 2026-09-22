@@ -11,14 +11,14 @@ fn main() {
     // when cross-compiling (e.g., building for Android on a Windows CI runner).
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
-    // On macOS, we can run Robrix as an ad-hoc codesigned app,
+    // On macOS, we can run Rinx as an ad-hoc codesigned app,
     // which allows certain system features to work (speech recognition, location, etc).
     // See also the `.cargo/config.toml` file that overrides what `cargo run` does.
     if target_os == "macos" {
         let plist = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
             .join("packaging/macos/Info.plist");
         println!("cargo:rerun-if-changed=packaging/macos/Info.plist");
-        println!("cargo:rustc-link-arg-bin=robrix=-Wl,-sectcreate,__TEXT,__info_plist,{}", plist.display());
+        println!("cargo:rustc-link-arg-bin=rinx=-Wl,-sectcreate,__TEXT,__info_plist,{}", plist.display());
     }
 
     if target_os == "windows" {
@@ -30,33 +30,33 @@ fn main() {
             // "Unknown publisher" in the UAC/SmartScreen install prompt
             // (CompanyName/LegalCopyright are empty by default), and the
             // ProductName/FileDescription fall back to the lowercase crate
-            // name "robrix" instead of the product name.
-            res.set("CompanyName", "GOSIM Foundation");
-            res.set("ProductName", "Robrix");
-            res.set("FileDescription", "Robrix - Matrix chat client");
+            // name "rinx" instead of the product name.
+            res.set("CompanyName", "OctoSense");
+            res.set("ProductName", "Rinx");
+            res.set("FileDescription", "Rinx - Matrix chat client");
             res.set("LegalCopyright", "Copyright - 2023-2026 Project Robius");
             res.compile().expect("Failed to compile Windows resources");
         }
     }
 
-    // Get version info about Robrix, the matrix SDK, and testflight.
+    // Get version info about Rinx, the matrix SDK, and testflight.
     println!("cargo:rerun-if-changed=Cargo.lock");
     let (sdk_version, sdk_git_rev, sdk_url) = read_matrix_sdk_info();
     println!("cargo:rustc-env=MATRIX_SDK_VERSION={sdk_version}");
     println!("cargo:rustc-env=MATRIX_SDK_GIT_REV={sdk_git_rev}");
     println!("cargo:rustc-env=MATRIX_SDK_URL={sdk_url}");
 
-    let (robrix_git_rev, robrix_url) = read_robrix_git_info();
-    println!("cargo:rustc-env=ROBRIX_GIT_COMMIT_HASH={robrix_git_rev}");
-    println!("cargo:rustc-env=ROBRIX_GIT_COMMIT_URL={robrix_url}");
+    let (rinx_git_rev, rinx_url) = read_rinx_git_info();
+    println!("cargo:rustc-env=RINX_GIT_COMMIT_HASH={rinx_git_rev}");
+    println!("cargo:rustc-env=RINX_GIT_COMMIT_URL={rinx_url}");
 
     println!("cargo:rerun-if-env-changed=TESTFLIGHT_BUILD_NUMBER");
     let testflight_build = std::env::var("TESTFLIGHT_BUILD_NUMBER").unwrap_or_default();
     println!("cargo:rustc-env=TESTFLIGHT_BUILD_NUMBER={testflight_build}");
 }
 
-/// Returns Robrix's own current git commit info as a commit hash and a permalink.
-fn read_robrix_git_info() -> (String, String) {
+/// Returns Rinx's own current git commit info as a commit hash and a permalink.
+fn read_rinx_git_info() -> (String, String) {
     // Tell cargo to re-run when the git-tracked HEAD changes.
     println!("cargo:rerun-if-changed=.git/HEAD");
     if let Ok(head) = std::fs::read_to_string(".git/HEAD") {
@@ -79,7 +79,7 @@ fn read_robrix_git_info() -> (String, String) {
         return (String::new(), String::new());
     }
     let short_rev: String = full_sha.chars().take(8).collect();
-    let url = format!("https://github.com/project-robius/robrix/tree/{full_sha}");
+    let url = format!("https://github.com/OctoSense-org/Rinx/tree/{full_sha}");
     (short_rev, url)
 }
 

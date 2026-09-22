@@ -24,7 +24,7 @@ def main():
     room = fixture["rooms"]["emma"]
     app = NativeApp(root)
     result = {"passed": False, "platform": "macOS", "evidence": str(app.output), "checks": []}
-    body = "PingFang Hello Robrix\n中文聊天：你好，世界！\n繁體中文：訊息與聯絡人 👋\n" + app.output.name[:8]
+    body = "PingFang Hello Rinx\n中文聊天：你好，世界！\n繁體中文：訊息與聯絡人 👋\n" + app.output.name[:8]
     incoming = "English and 中文\n简体中文，繁體中文。🙂"
     try:
         app.start()
@@ -48,7 +48,7 @@ def main():
         app.request("/k", c="A", cmd=1, wait=1)
         app.request("/t", t=body, wait=1)
         app.capture("pingfang-composer-raw")
-        app.wait_text("PingFang Hello Robrix", pixels=True)
+        app.wait_text("PingFang Hello Rinx", pixels=True)
         app.wait_text("你好", pixels=True)
         app.capture("pingfang-composer")
         result["checks"].append("mixed_english_chinese_composer_rendered")

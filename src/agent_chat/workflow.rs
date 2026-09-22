@@ -2,7 +2,7 @@
 //!
 //! Two sets are offered in the message input's `/` popup, and both are sent
 //! as **plain text** for the agents (or the hagency backend) to interpret.
-//! Robrix does not act on them itself; listing them here is an autocomplete
+//! Rinx does not act on them itself; listing them here is an autocomplete
 //! convenience and keeps the client's own command parser from rejecting them
 //! as unknown.
 //!

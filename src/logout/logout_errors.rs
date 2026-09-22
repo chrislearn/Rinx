@@ -25,7 +25,7 @@ pub enum RecoverableError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnrecoverableError {
     /// Key components (e.g., the client or sync service) have been cleared
-    /// during a logout attempt, so Robrix cannot continue executing properly.
+    /// during a logout attempt, so Rinx cannot continue executing properly.
     ComponentsCleared,
     /// Failed after point of no return
     PostPointOfNoReturnFailure(String),

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# End-to-end check of the Robrix AUR package, on any Linux box with docker.
+# End-to-end check of the Rinx AUR package, on any Linux box with docker.
 #
 #   ./packaging/aur/validate.sh --tag v1.0.0-alpha.2
 #   ./packaging/aur/validate.sh --tag v1.0.0-alpha.3 --with-binfmt
@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RENDER="$SCRIPT_DIR/render-pkgbuild.sh"
 
 tag=''
-repo='project-robius/robrix'
+repo='OctoSense-org/Rinx'
 arches='x86_64 aarch64'
 with_binfmt=0
 keep=0
@@ -140,7 +140,7 @@ for arch in $arches; do
     mkdir -p "$out"
     cp "$render_dir/PKGBUILD" "$out/"
     ## makepkg only wants the payload for its own CARCH, so copy just that one.
-    cp "$render_dir"/robrix_*_"${arch}".tar.gz "$out/"
+    cp "$render_dir"/rinx_*_"${arch}".tar.gz "$out/"
 
     cat > "$out/run.sh" <<'INNER'
 #!/bin/bash
@@ -172,7 +172,7 @@ echo "--- namcap PKGBUILD ---"
 namcap PKGBUILD | tee namcap-pkgbuild.txt || true
 
 echo "--- makepkg ---"
-sudo -u builder env PACKAGER="Robrix validate.sh <it@gosim.org>" \
+sudo -u builder env PACKAGER="Rinx contributors <https://github.com/OctoSense-org/Rinx>" \
     makepkg --force --noconfirm --nodeps
 
 pkg="$(ls ./*.pkg.tar.zst)"
@@ -189,16 +189,16 @@ pacman -U --noconfirm "$pkg"
 pacman -Qi "$pkgname" | sed -n '1,10p' | sed 's/^/    /'
 
 echo "--- installed files ---"
-for f in /usr/bin/robrix /usr/share/applications/robrix.desktop \
+for f in /usr/bin/rinx /usr/share/applications/rinx.desktop \
          "/usr/share/licenses/${pkgname}/copyright" \
          "/usr/share/licenses/${pkgname}/THIRD-PARTY-NOTICES.html" \
-         /usr/lib/robrix/robrix/resources; do
+         /usr/lib/rinx/rinx/resources; do
     if [[ -e "$f" ]]; then echo "    ok  $f"; else echo "    MISSING $f"; echo "FILES-MISSING"; fi
 done
 
-echo "--- ldd /usr/bin/robrix ---"
-ldd /usr/bin/robrix | sed 's/^/    /'
-if ldd /usr/bin/robrix | grep -q 'not found'; then
+echo "--- ldd /usr/bin/rinx ---"
+ldd /usr/bin/rinx | sed 's/^/    /'
+if ldd /usr/bin/rinx | grep -q 'not found'; then
     echo "LDD-MISSING-LIBS"
 fi
 

@@ -126,7 +126,7 @@ tell application "Finder"
         set icon size of theViewOptions to 128
         set background picture of theViewOptions to file ".background:background.png"
 
-        set position of item "Robrix.app" of container window to {200, 250}
+        set position of item "Rinx.app" of container window to {200, 250}
         set position of item "Applications" of container window to {760, 250}
 
         close

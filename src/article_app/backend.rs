@@ -35,7 +35,7 @@ impl ArticleContent {
             .get("m.new_content")
             .unwrap_or(content)
             .get(ARTICLE_KEY)
-            .ok_or("Not a Robrix article")?;
+            .ok_or("Not a Rinx article")?;
         if serde_json::to_vec(value).map_err(|e| e.to_string())?.len() > 55_000 {
             return Err("Article is too large".into());
         }

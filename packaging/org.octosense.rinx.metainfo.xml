@@ -1,34 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>rs.robius.robrix</id>
+  <id>org.octosense.rinx</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>Apache-2.0</project_license>
 
-  <name>Robrix</name>
+  <name>Rinx</name>
   <summary>Powerful Matrix chat with dockable tabs for many rooms at once</summary>
 
   <description>
     <p>
-      Robrix is a powerful, sleek Matrix chat client written from scratch in Rust.
+      Rinx is a native Matrix messenger derived from Robrix, written in Rust.
       It brings some cool new features to the world of Matrix, like our signature
       "dockable tabs" layout that lets you view and interact with multiple rooms or threads
       simultaneously. This works just like your favorite multi-tab IDE or web browser,
       letting you keep tabs on as many conversations as you want.
     </p>
     <p>
-      Robrix stays sleek and smooth even under heavy usage. We designed it to be fast and light
+      Rinx stays sleek and smooth even under heavy usage. We designed it to be fast and light
       (but also feature-rich), thanks to the Makepad UI toolkit and the Robius app dev framework,
       which we've also written from scratch
       It's fully native on every platform: no Electron, no underlying web engine,
       no JavaScript, and no cruft.
       Scrolling through many rooms at once with millions of messages each is no problem.
       Native sliding sync logs you in quickly, and your rooms list fully syncs without a long wait.
-      We also went to great lengths to ensure that Robrix's room timeline view is
+      We also went to great lengths to ensure that Rinx's room timeline view is
       consistent and predictable; it won't unexpectedly jump around while loading messages,
       images, or other room content. We've always found this to be annoying in other chat apps.
     </p>
     <p>
-      Robrix runs on all other major platforms too: Android, iOS, macOS, and Windows,
+      Rinx runs on all other major platforms too: Android, iOS, macOS, and Windows,
       where you can get the same flexible UI and powerful featureset, even on mobile.
     </p>
     <p>
@@ -39,7 +39,7 @@
       across the world. It's basically like email, but fully encrypted and real-time.
       No ads, no analytics, no data brokers.
     </p>
-    <p>Robrix supports nearly all the main Matrix client features you'd expect:</p>
+    <p>Rinx supports nearly all the main Matrix client features you'd expect:</p>
     <ul>
       <li>End-to-end encryption (E2EE) + verification for secure chat across public, private, and DM rooms</li>
       <li>Fast login and room updates via native sliding sync</li>
@@ -56,23 +56,23 @@
       <li>Offline mode with a persistent local event cache</li>
     </ul>
     <p>
-      Robrix is free and open source. Contributions, bug reports, and feature requests are more than welcome.
+      Rinx is free and open source. Contributions, bug reports, and feature requests are more than welcome.
     </p>
   </description>
 
-  <launchable type="desktop-id">robrix.desktop</launchable>
-  <pkgname>robrix</pkgname>
+  <launchable type="desktop-id">rinx.desktop</launchable>
+  <pkgname>rinx</pkgname>
 
-  <developer id="rs.robius">
+  <developer id="org.octosense">
     <name translate="no">Project Robius</name>
   </developer>
   <developer_name translate="no">Project Robius</developer_name>
 
-  <url type="homepage">https://github.com/project-robius/robrix</url>
-  <url type="bugtracker">https://github.com/project-robius/robrix/issues</url>
-  <url type="vcs-browser">https://github.com/project-robius/robrix</url>
-  <url type="contribute">https://github.com/project-robius/robrix</url>
-  <url type="contact">https://github.com/project-robius/robrix/issues</url>
+  <url type="homepage">https://github.com/OctoSense-org/Rinx</url>
+  <url type="bugtracker">https://github.com/OctoSense-org/Rinx/issues</url>
+  <url type="vcs-browser">https://github.com/OctoSense-org/Rinx</url>
+  <url type="contribute">https://github.com/OctoSense-org/Rinx</url>
+  <url type="contact">https://github.com/OctoSense-org/Rinx/issues</url>
 
   <categories>
     <category>Network</category>
@@ -96,7 +96,7 @@
   </keywords>
 
   <provides>
-    <binary>robrix</binary>
+    <binary>rinx</binary>
   </provides>
 
   <supports>

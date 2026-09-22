@@ -25,7 +25,7 @@ def main():
     base = fixture["url"]
     sender, recipient = fixture["users"]["nora"], fixture["users"]["leo"]
     run = uuid.uuid4().hex
-    room = checked(base, "POST", "createRoom", {"name": "Robrix isolated soak " + run[:8], "preset": "private_chat", "invite": [recipient["user_id"]]}, sender["access_token"])["room_id"]
+    room = checked(base, "POST", "createRoom", {"name": "Rinx isolated soak " + run[:8], "preset": "private_chat", "invite": [recipient["user_id"]]}, sender["access_token"])["room_id"]
     checked(base, "POST", f"join/{room}", {}, recipient["access_token"])
     started = time.monotonic()
     deadline = started + args.minutes * 60

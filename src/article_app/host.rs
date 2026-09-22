@@ -1,4 +1,4 @@
-//! Robrix owns the login lifecycle, filesystem root and Matrix client.
+//! Rinx owns the login lifecycle, filesystem root and Matrix client.
 //! Shared article crates have no dependency back into this application.
 use std::{path::Path, sync::LazyLock};
 use article_core::host::{ArticleHost, ArticlePublisher, Capability, ConsentGrant, SessionAuthority};

@@ -1,4 +1,4 @@
-# Publishes the official Robrix AUR package.
+# Publishes the official Rinx AUR package.
 #
 # Deliberately not a job in release.yml. That workflow creates every release as a
 # draft, and a draft's asset URLs 404 for everyone but the token holder, so a
@@ -122,7 +122,7 @@ jobs:
           fi
 
           ## The AUR wants a package-source license in the repo, separate from
-          ## Robrix's own. Arch's 0BSD text, verbatim.
+          ## Rinx's own. Arch's 0BSD text, verbatim.
           cp packaging/aur/aur-repo-LICENSE work/LICENSE
 
           echo "pkgname=$(packaging/aur/render-pkgbuild.sh --print-pkgname)" >> "$GITHUB_OUTPUT"
@@ -255,7 +255,7 @@ jobs:
 
       - name: Commit and push
         env:
-          KEY: ${{ secrets.ROBRIX_AUR_SSH_KEY }}
+          KEY: ${{ secrets.RINX_AUR_SSH_KEY }}
           PKGNAME: ${{ needs.render.outputs.pkgname }}
           TAG: ${{ needs.render.outputs.tag }}
           PKGVER: ${{ needs.render.outputs.pkgver }}
@@ -263,7 +263,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$KEY" ]]; then
-            echo "::error::ROBRIX_AUR_SSH_KEY is unset. It must hold the passphrase-less private key registered on the project's AUR account."
+            echo "::error::RINX_AUR_SSH_KEY is unset. It must hold the passphrase-less private key registered on the project's AUR account."
             exit 1
           fi
 

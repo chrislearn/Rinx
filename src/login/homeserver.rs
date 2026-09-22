@@ -129,7 +129,7 @@ where
     client
         .matrix_auth()
         .login_sso(open)
-        .initial_device_display_name("Robrix")
+        .initial_device_display_name("Rinx")
         .request_refresh_token()
         .await?;
     Ok(())

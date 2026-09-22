@@ -43,7 +43,7 @@ impl ArticlePackage {
         .map_err(|_| "Invalid article app")?;
         let builtin = Self::builtin();
         if package.app_id != builtin.app_id || package.source_hash != builtin.source_hash || !matches!(package.version, 1 | 2) {
-            return Err("This article app needs a compatible Robrix update.".into());
+            return Err("This article app needs a compatible Rinx update.".into());
         }
         Ok(package)
     }
@@ -61,7 +61,7 @@ impl ArticlePackage {
     }
 }
 
-/// Matrix identity is kept by the Robrix adapter; consent is host-independent.
+/// Matrix identity is kept by the Rinx adapter; consent is host-independent.
 #[derive(Clone, Debug)]
 pub struct Grant {
     pub owner: OwnedUserId,
