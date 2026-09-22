@@ -63,16 +63,16 @@
   <launchable type="desktop-id">rinx.desktop</launchable>
   <pkgname>rinx</pkgname>
 
-  <developer id="org.octosense">
-    <name translate="no">Project Robius</name>
+  <developer id="io.github.upstreamlabs">
+    <name translate="no">Upstream Labs</name>
   </developer>
-  <developer_name translate="no">Project Robius</developer_name>
+  <developer_name translate="no">Upstream Labs</developer_name>
 
-  <url type="homepage">https://github.com/OctoSense-org/Rinx</url>
-  <url type="bugtracker">https://github.com/OctoSense-org/Rinx/issues</url>
-  <url type="vcs-browser">https://github.com/OctoSense-org/Rinx</url>
-  <url type="contribute">https://github.com/OctoSense-org/Rinx</url>
-  <url type="contact">https://github.com/OctoSense-org/Rinx/issues</url>
+  <url type="homepage">https://github.com/upstreamlabs/Rinx</url>
+  <url type="bugtracker">https://github.com/upstreamlabs/Rinx/issues</url>
+  <url type="vcs-browser">https://github.com/upstreamlabs/Rinx</url>
+  <url type="contribute">https://github.com/upstreamlabs/Rinx</url>
+  <url type="contact">https://github.com/upstreamlabs/Rinx/issues</url>
 
   <categories>
     <category>Network</category>

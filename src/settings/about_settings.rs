@@ -5,10 +5,10 @@
 use makepad_widgets::*;
 use crate::{app::PositiveConfirmationModalAction, shared::{confirmation_modal::ConfirmationModalContent, popup_list::{enqueue_popup_notification, PopupKind}}, sliding_sync::{MatrixRequest, submit_async_request}, utils::open_url};
 
-const HOMEPAGE_URL: &str = "https://github.com/OctoSense-org/Rinx";
-const PRIVACY_POLICY_URL: &str = "https://github.com/OctoSense-org/Rinx/blob/main/docs/privacy.md";
-const SOURCE_URL: &str = "https://github.com/OctoSense-org/Rinx";
-const NEW_ISSUE_URL: &str = "https://github.com/OctoSense-org/Rinx/issues/new";
+const HOMEPAGE_URL: &str = "https://github.com/upstreamlabs/Rinx";
+const PRIVACY_POLICY_URL: &str = "https://github.com/upstreamlabs/Rinx/blob/main/docs/privacy.md";
+const SOURCE_URL: &str = "https://github.com/upstreamlabs/Rinx";
+const NEW_ISSUE_URL: &str = "https://github.com/upstreamlabs/Rinx/issues/new";
 
 const ROBRIX_VERSION: &str = env!("CARGO_PKG_VERSION");
 const RINX_GIT_COMMIT_HASH: &str = env!("RINX_GIT_COMMIT_HASH");

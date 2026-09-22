@@ -30,7 +30,7 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-REPO="${RELEASE_REPO:-OctoSense-org/Rinx}"
+REPO="${RELEASE_REPO:-upstreamlabs/Rinx}"
 echo "==> Uploading secrets to $REPO"
 errors=0
 

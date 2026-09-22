@@ -371,9 +371,9 @@ impl Widget for MobileSettings {
         }
         if self.view.navigation_bar_button(cx, ids!(logout_row)).clicked(actions) { cx.action(LogoutConfirmModalAction::Open); }
         for (path, url) in [
-            (ids!(help_row), "https://github.com/OctoSense-org/Rinx/issues/new"),
-            (ids!(website_row), "https://github.com/OctoSense-org/Rinx"), (ids!(policy_row), "https://github.com/OctoSense-org/Rinx/blob/main/docs/privacy.md"),
-            (ids!(source_row), "https://github.com/OctoSense-org/Rinx"),
+            (ids!(help_row), "https://github.com/upstreamlabs/Rinx/issues/new"),
+            (ids!(website_row), "https://github.com/upstreamlabs/Rinx"), (ids!(policy_row), "https://github.com/upstreamlabs/Rinx/blob/main/docs/privacy.md"),
+            (ids!(source_row), "https://github.com/upstreamlabs/Rinx"),
         ] { if self.view.navigation_bar_button(cx, path).clicked(actions) { utils::open_url(url); } }
         if let Some(app) = scope.data.get_mut::<AppState>() {
             let prefs = &mut app.app_prefs;

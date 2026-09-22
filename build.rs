@@ -31,7 +31,7 @@ fn main() {
             // (CompanyName/LegalCopyright are empty by default), and the
             // ProductName/FileDescription fall back to the lowercase crate
             // name "rinx" instead of the product name.
-            res.set("CompanyName", "OctoSense");
+            res.set("CompanyName", "Upstream Labs");
             res.set("ProductName", "Rinx");
             res.set("FileDescription", "Rinx - Matrix chat client");
             res.set("LegalCopyright", "Copyright - 2023-2026 Project Robius");
@@ -79,7 +79,7 @@ fn read_rinx_git_info() -> (String, String) {
         return (String::new(), String::new());
     }
     let short_rev: String = full_sha.chars().take(8).collect();
-    let url = format!("https://github.com/OctoSense-org/Rinx/tree/{full_sha}");
+    let url = format!("https://github.com/upstreamlabs/Rinx/tree/{full_sha}");
     (short_rev, url)
 }
 

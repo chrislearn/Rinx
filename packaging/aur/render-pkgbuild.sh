@@ -28,7 +28,7 @@ PKGNAME='rinx'
 ## Upstream's own name, which is what cargo-packager names the payload after and
 ## what the payload's own /usr/lib and /usr/share/licenses paths use.
 APPNAME='rinx'
-DEFAULT_REPO='OctoSense-org/Rinx'
+DEFAULT_REPO='upstreamlabs/Rinx'
 ## Arches we know how to publish, in the order they get emitted.
 CANDIDATE_ARCHES='x86_64 aarch64'
 

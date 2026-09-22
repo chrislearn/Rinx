@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RENDER="$SCRIPT_DIR/render-pkgbuild.sh"
 
 tag=''
-repo='OctoSense-org/Rinx'
+repo='upstreamlabs/Rinx'
 arches='x86_64 aarch64'
 with_binfmt=0
 keep=0
@@ -172,7 +172,7 @@ echo "--- namcap PKGBUILD ---"
 namcap PKGBUILD | tee namcap-pkgbuild.txt || true
 
 echo "--- makepkg ---"
-sudo -u builder env PACKAGER="Rinx contributors <https://github.com/OctoSense-org/Rinx>" \
+sudo -u builder env PACKAGER="Rinx contributors <https://github.com/upstreamlabs/Rinx>" \
     makepkg --force --noconfirm --nodeps
 
 pkg="$(ls ./*.pkg.tar.zst)"

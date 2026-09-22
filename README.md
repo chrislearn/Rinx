@@ -1,6 +1,6 @@
 # Rinx
 
-A native Matrix messenger from [OctoSense](https://github.com/OctoSense-org), with a WeChat-style interface, English/Chinese support, Moments, and scoped mini apps.
+A native Matrix messenger from [Upstream Labs](https://github.com/upstreamlabs), with a WeChat-style interface, English/Chinese support, Moments, and scoped mini apps.
 
 Rinx is an independent continuation of [`OctoSense-org/robrix2`'s `wechat-ui` branch](https://github.com/OctoSense-org/robrix2/tree/wechat-ui), starting at `16913e0c6f0397b4ed1272b7dcd421935521d5f3`. That branch's commit history is preserved here. Development now lives on this repository's **`main`** branch.
 
@@ -21,7 +21,7 @@ Install Rust and CMake. The repository pins Rust 1.98.0. On macOS:
 
 ```sh
 brew install cmake
-git clone https://github.com/OctoSense-org/Rinx.git
+git clone https://github.com/upstreamlabs/Rinx.git
 cd Rinx
 cargo run --locked --features agent_chat
 ```
