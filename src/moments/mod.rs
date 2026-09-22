@@ -2,6 +2,7 @@
 pub mod backend;
 pub mod model;
 pub mod ui;
+pub mod window;
 #[cfg(test)]
 mod live_tests;
 
@@ -15,4 +16,5 @@ pub fn is_moments(room: &matrix_sdk::Room) -> bool {
 
 pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
     ui::script_mod(vm);
+    window::script_mod(vm);
 }

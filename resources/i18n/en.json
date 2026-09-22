@@ -945,5 +945,8 @@
   "Unable to render HTML/CSS preview.": "Unable to render HTML/CSS preview.",
   "Another article preview is still rendering.": "Another article preview is still rendering.",
   "This operation was not authorized.": "This operation was not authorized.",
-  "Built on Robrix · Apache-2.0": "Built on Robrix · Apache-2.0"
+  "Built on Robrix · Apache-2.0": "Built on Robrix · Apache-2.0",
+  "Open each chat in its own tab (desktop)": "Open each chat in its own tab (desktop)",
+  "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>",
+  "Thread": "Thread"
 }

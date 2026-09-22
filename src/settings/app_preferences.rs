@@ -13,6 +13,11 @@ pub struct AppPreferences {
     /// or falls back to the default automatic width-based layout.
     #[serde(default, deserialize_with = "crate::utils::deserialize_or_default")]
     pub view_mode: ViewModeOverride,
+    /// * If `false` (default), the desktop layout shows one chat at a time to the right
+    ///   of the rooms list, like WeChat desktop: selecting a room replaces the open chat.
+    /// * If `true`, each opened room gets its own dock tab (the classic Robrix layout).
+    #[serde(default, deserialize_with = "crate::utils::deserialize_or_default")]
+    pub tabbed_chats: bool,
     /// * If `true` (default), plain Enter sends the message (Shift+Enter inserts a newline).
     /// * If `false`, Cmd+Enter (Apple platforms) / Ctrl+Enter (other platforms) sends the
     ///   message and plain Enter inserts a newline. This is only relevant for physical keyboards;
@@ -48,6 +53,7 @@ impl Default for AppPreferences {
     fn default() -> Self {
         Self {
             view_mode: ViewModeOverride::default(),
+            tabbed_chats: false,
             send_on_enter: true,
             thumbnail_max_height: ThumbnailMaxHeight::default(),
             ui_zoom: UiZoom::default(),
@@ -67,6 +73,12 @@ impl AppPreferences {
     pub fn on_view_mode_changed(&self, cx: &mut Cx) {
         cx.global::<AppPreferencesGlobal>().0.view_mode = self.view_mode;
         cx.action(AppPreferencesAction::ViewModeChanged(self.view_mode));
+    }
+
+    /// Broadcasts the current `tabbed_chats` value to the desktop dock.
+    pub fn on_tabbed_chats_changed(&self, cx: &mut Cx) {
+        cx.global::<AppPreferencesGlobal>().0.tabbed_chats = self.tabbed_chats;
+        cx.action(AppPreferencesAction::TabbedChatsChanged(self.tabbed_chats));
     }
 
     /// Broadcasts the current `send_on_enter` value to listening widgets.
@@ -180,6 +192,7 @@ impl AppPreferences {
     /// doesn't clobber our runtime heap overrides.
     pub fn broadcast_all(&self, cx: &mut Cx) {
         self.on_view_mode_changed(cx);
+        self.on_tabbed_chats_changed(cx);
         self.on_send_on_enter_changed(cx);
         self.on_thumbnail_max_height_changed(cx);
         self.on_ui_zoom_changed(cx);
@@ -409,6 +422,7 @@ impl Default for UiZoom {
 #[derive(Debug, Clone)]
 pub enum AppPreferencesAction {
     ViewModeChanged(ViewModeOverride),
+    TabbedChatsChanged(bool),
     SendOnEnterChanged(bool),
     UiZoomChanged(UiZoom),
 }
