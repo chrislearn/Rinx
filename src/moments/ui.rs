@@ -1378,13 +1378,17 @@ fn date(timestamp: u64) -> String {
         .unwrap_or_default()
 }
 impl MomentsPanelRef {
-    pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MomentsAction) {
+    /// Applies `action` to this panel.
+    ///
+    /// `modal` is the modal hosting this panel, which is opened or closed to match;
+    /// it's `None` when the panel lives in its own window instead.
+    pub fn action(&self, cx: &mut Cx, modal: Option<&ModalRef>, action: &MomentsAction) {
         let Some(mut inner) = self.borrow_mut() else {
             return;
         };
         if matches!(action, MomentsAction::Close) {
             inner.reset(cx);
-            modal.close(cx);
+            if let Some(modal) = modal { modal.close(cx); }
             return;
         }
         inner.reset(cx);
@@ -1395,7 +1399,7 @@ impl MomentsPanelRef {
         inner.pending = Service::current()
             .and_then(|s| s.pending().ok().flatten())
             .filter(|p| p.confirmed.is_none());
-        modal.open(cx);
+        if let Some(modal) = modal { modal.open(cx); }
         match action {
             MomentsAction::Open { author } => {
                 inner.author = author.clone();

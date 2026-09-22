@@ -267,6 +267,20 @@ script_mod! {
             body: #(crate::i18n::tr("<ul><li>By default, the app layout auto-adapts based on width.</li></ul>")) i18n_body: "<ul><li>By default, the app layout auto-adapts based on width.</li></ul>"
         }
 
+        tabbed_chats_toggle := ToggleFlat {
+            margin: Inset{left: 6.5, top: 5, bottom: 4}
+            padding: Inset { left: 15}
+            active: false,
+            draw_bg +: { size: 21 }
+            text: #(crate::i18n::tr("Open each chat in its own tab (desktop)")) i18n_text: "Open each chat in its own tab (desktop)"
+            draw_text +: {
+                text_style: mod.widgets.SETTINGS_BOLD_TEXT_STYLE {},
+            }
+        }
+        mod.widgets.SettingsSectionDescription {
+            body: #(crate::i18n::tr("<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>")) i18n_body: "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>"
+        }
+
 
         View {
             width: Fill, height: Fit
@@ -544,6 +558,18 @@ impl AppSettings {
             }
         }
 
+        if let Some(tabbed) = self.view.check_box(cx, ids!(tabbed_chats_toggle)).changed(actions) {
+            if tabbed != app_state.app_prefs.tabbed_chats {
+                app_state.app_prefs.tabbed_chats = tabbed;
+                app_state.app_prefs.on_tabbed_chats_changed(cx);
+                enqueue_popup_notification(
+                    "Updated chat tabs setting.",
+                    PopupKind::Success,
+                    Some(3.0),
+                );
+            }
+        }
+
         let ui_zoom_minus = self.view.button(cx, ids!(ui_zoom_minus_button));
         let ui_zoom_plus = self.view.button(cx, ids!(ui_zoom_plus_button));
         let ui_zoom_input = self.view.text_input(cx, ids!(ui_zoom_input));
@@ -763,6 +789,8 @@ impl AppSettings {
 
         self.view.check_box(cx, ids!(show_read_receipts_toggle))
             .set_active(cx, prefs.show_read_receipts, Animate::No);
+        self.view.check_box(cx, ids!(tabbed_chats_toggle))
+            .set_active(cx, prefs.tabbed_chats, Animate::No);
         #[cfg(feature = "agent_chat")]
         self.view.check_box(cx, ids!(agent_chat_preferences.agent_chat_toggle))
             .set_active(cx, prefs.agent_chat_enabled, Animate::No);

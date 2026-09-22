@@ -4,6 +4,7 @@
 use std::{borrow::Cow, cell::RefCell, ops::{DerefMut, Range}, sync::Arc};
 use crate::mini_app::{MiniAppCardWidgetRefExt, SharedMiniApp};
 use crate::forwarding::{ForwardAction, ForwardBundle, ForwardCardWidgetRefExt, ForwardMessage};
+use crate::home::mobile_chat_info::MobileChatInfoWidgetExt;
 
 use hashbrown::{HashMap, HashSet};
 use imbl::Vector;
@@ -872,6 +873,44 @@ script_mod! {
         flow: Down,
         spacing: 0.0
 
+        // A WeChat-style title bar naming the open chat. Only the desktop dock's
+        // single-pane template enables it, where no tab bar shows the room name.
+        desktop_chat_header := SolidView {
+            visible: false
+            width: Fill, height: 52
+            flow: Down
+            show_bg: true
+            draw_bg.color: (COLOR_PRIMARY)
+
+            View {
+                width: Fill, height: Fill
+                flow: Right
+                padding: Inset{left: 20, right: 8}
+                align: Align{y: 0.5}
+                desktop_chat_title := Label {
+                    width: Fill, height: Fit
+                    flow: Flow.Right{wrap: false}
+                    draw_text +: {
+                        color: #x191919
+                        text_style: theme.font_bold {font_size: 13}
+                    }
+                    text: ""
+                }
+                // Opens the chat info panel (members, history, notifications), as in WeChat.
+                desktop_chat_info_button := RobrixNeutralIconButton {
+                    width: 44, height: 36
+                    padding: 0
+                    align: Align{x: 0.5, y: 0.5}
+                    spacing: 0
+                    text: "···"
+                    draw_text +: {color: #x191919 text_style: theme.font_bold {font_size: 16}}
+                    draw_bg +: {color: #x00000000 color_hover: #x0000000d color_down: #x0000001a border_size: 0}
+                    icon_walk: Walk{width: 0 height: 0}
+                }
+            }
+            LineH { draw_bg.color: #x00000014 }
+        }
+
         room_screen_wrapper := SolidView {
             width: Fill, height: Fill,
             flow: Overlay,
@@ -905,6 +944,24 @@ script_mod! {
             // The top space should be displayed as an overlay at the top of the timeline.
             top_space := mod.widgets.TopSpace { }
 
+            // The desktop chat info panel, sliding over the right side of the timeline.
+            // Toggled by `desktop_chat_info_button`; dismissed by Escape or a click outside it.
+            desktop_chat_info_panel := View {
+                visible: false
+                width: Fill, height: Fill
+                flow: Right
+                align: Align{x: 1.0}
+                desktop_chat_info_card := SolidView {
+                    width: 340, height: Fill
+                    flow: Right
+                    show_bg: true
+                    draw_bg.color: #x00000014
+                    // A 1px left border, drawn by the card's background peeking through.
+                    View { width: 1, height: Fill }
+                    desktop_chat_info := MobileChatInfo {}
+                }
+            }
+
             // The user profile sliding pane should be displayed on top of other "static" subviews
             // (on top of all other views that are always visible).
             user_profile_sliding_pane := mod.widgets.UserProfileSlidingPane { }
@@ -916,6 +973,7 @@ script_mod! {
             // The popup menu for uploading/sending other content to this room,
             // which is controlled by actions from the RoomInputBar.
             room_input_popup_menu := RoomInputPopupMenu { }
+
 
 
             /*
@@ -1141,6 +1199,7 @@ impl Widget for RoomScreen {
         if self.tl_state.is_none() && self.room_name_id.is_none() {
             return;
         }
+        self.handle_desktop_chat_info(cx, event);
 
         let room_screen_widget_uid = self.widget_uid();
         let RoomScreenWidgetRefs {
@@ -1511,8 +1570,12 @@ impl Widget for RoomScreen {
         // ensuring they are not mistakenly handled by other RoomScreen widget instances.
         // When an overlay pane is shown, all "interactive" user inputs are only forwarded to it.
         // The popup menu allows events to fall through, but they do dismiss it.
+        // Input over the desktop chat info panel belongs to it alone, not to the timeline beneath it.
+        let is_over_chat_info_panel = !is_pane_shown && self.is_over_desktop_chat_info(cx, event);
         let mut actions_generated_within_this_room_screen = cx.capture_actions(|cx| {
-            if is_pane_shown && utils::is_interactive_hit_event(event) {
+            if is_over_chat_info_panel {
+                self.view.view(cx, ids!(desktop_chat_info_panel)).handle_event(cx, event, &mut Scope::empty());
+            } else if is_pane_shown && utils::is_interactive_hit_event(event) {
                 if loading_pane.is_currently_shown(cx) {
                     loading_pane.handle_event(cx, event, &mut Scope::empty());
                 } else {
@@ -1615,6 +1678,7 @@ impl Widget for RoomScreen {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        self.update_desktop_chat_header(cx);
         // If the room isn't loaded yet, we show the restore status label only.
         if !self.is_loaded {
             let Some(room_name) = &self.room_name_id else {
@@ -3649,6 +3713,72 @@ impl RoomScreen {
     }
 
     /// Sets this `RoomScreen` widget to display the timeline for the given room.
+    /// Opens, closes or dismisses the desktop chat info panel.
+    fn handle_desktop_chat_info(&mut self, cx: &mut Cx, event: &Event) {
+        if !self.view.view(cx, ids!(desktop_chat_header)).visible() { return }
+        let panel = self.view.view(cx, ids!(desktop_chat_info_panel));
+        if let Event::Actions(actions) = event
+            && self.view.button(cx, ids!(desktop_chat_info_button)).clicked(actions)
+        {
+            let show = !panel.visible();
+            if show && let Some(room_name_id) = self.room_name_id.clone() {
+                self.view.mobile_chat_info(cx, ids!(desktop_chat_info)).show(cx, room_name_id);
+            }
+            self.set_desktop_chat_info_visible(cx, show);
+            return;
+        }
+        if !panel.visible() { return }
+        let dismiss = match event {
+            Event::KeyDown(KeyEvent { key_code: KeyCode::Escape, .. }) => true,
+            // A click anywhere else in this room screen (outside the panel and its button)
+            // closes the panel, like WeChat. Clicks within a member's profile pane don't count.
+            Event::MouseDown(e) if !self.view.user_profile_sliding_pane(cx, ids!(user_profile_sliding_pane)).is_currently_shown(cx) => {
+                let card = self.view.view(cx, ids!(desktop_chat_info_card)).area().rect(cx);
+                let button = self.view.button(cx, ids!(desktop_chat_info_button)).area().rect(cx);
+                self.view.area().rect(cx).contains(e.abs)
+                    && !card.contains(e.abs)
+                    && !button.contains(e.abs)
+            }
+            _ => false,
+        };
+        if dismiss {
+            self.set_desktop_chat_info_visible(cx, false);
+        }
+    }
+
+    /// Whether `event` is pointer input located over the open desktop chat info panel.
+    fn is_over_desktop_chat_info(&self, cx: &mut Cx, event: &Event) -> bool {
+        let abs = match event {
+            Event::Scroll(e) => e.abs,
+            Event::MouseDown(e) => e.abs,
+            Event::MouseMove(e) => e.abs,
+            Event::MouseUp(e) => e.abs,
+            _ => return false,
+        };
+        self.view.view(cx, ids!(desktop_chat_info_panel)).visible()
+            && self.view.view(cx, ids!(desktop_chat_info_card)).area().rect(cx).contains(abs)
+    }
+
+    fn set_desktop_chat_info_visible(&mut self, cx: &mut Cx, visible: bool) {
+        self.view.view(cx, ids!(desktop_chat_info_panel)).set_visible(cx, visible);
+        self.view.redraw(cx);
+    }
+
+    /// Fills in the desktop single-pane title bar, if this instance has one enabled.
+    fn update_desktop_chat_header(&mut self, cx: &mut Cx) {
+        let header = self.view.view(cx, ids!(desktop_chat_header));
+        if !header.visible() { return }
+        let Some(room_name_id) = self.room_name_id.as_ref() else { return };
+        let title = match self.timeline_kind {
+            Some(TimelineKind::Thread { .. }) => format!("{room_name_id} · {}", crate::i18n::tr("Thread")),
+            _ => room_name_id.to_string(),
+        };
+        let label = header.label(cx, ids!(desktop_chat_title));
+        if label.text() != title {
+            label.set_text(cx, &title);
+        }
+    }
+
     pub fn set_displayed_room(
         &mut self,
         cx: &mut Cx,
@@ -3679,6 +3809,7 @@ impl RoomScreen {
         }
 
         self.hide_timeline();
+        self.set_desktop_chat_info_visible(cx, false);
         // Reset the the state of the inner loading pane.
         self.loading_pane(cx, ids!(loading_pane)).hide(cx);
         // Reset the user profile sliding pane so a previous room's open profile
