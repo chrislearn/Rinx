@@ -945,5 +945,8 @@
   "Unable to render HTML/CSS preview.": "无法生成 HTML/CSS 排版预览。",
   "Another article preview is still rendering.": "另一篇文章仍在生成预览，请稍后重试。",
   "This operation was not authorized.": "此操作尚未获得授权。",
-  "Built on Robrix · Apache-2.0": "致敬 Robrix · Apache-2.0"
+  "Built on Robrix · Apache-2.0": "致敬 Robrix · Apache-2.0",
+  "Open each chat in its own tab (desktop)": "每个聊天在单独的标签页中打开（桌面版）",
+  "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>关闭时，桌面版在聊天列表右侧只显示一个聊天，选择其他聊天会替换当前聊天。</li></ul>",
+  "Thread": "话题"
 }
