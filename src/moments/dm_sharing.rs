@@ -36,6 +36,8 @@ const PROFILE_VALUE: &str = "dm_contacts";
 const FIRST_RUN: Duration = Duration::from_secs(60);
 const LOOP_INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// How long a contact's profile lookup is trusted before asking again.
+/// A contact who opts in later isn't left waiting for this: their own Rinx invites us,
+/// and accepting that invitation re-checks them right away (see `sync_dm_sharing`).
 const PROFILE_TTL: Duration = Duration::from_secs(30 * 60);
 
 /// Cached answers to "does this contact share Moments with DM contacts?".
@@ -118,6 +120,11 @@ impl Service {
                 && contacts.contains(&invite.inviter_id)
             {
                 self.invitation(room.room_id(), true).await?;
+                // Their invitation shows they share now; forget any cached "no" so that
+                // they are invited back below, rather than after the cache expires.
+                if let Some(cache) = SHARES.lock().unwrap().as_mut() {
+                    cache.remove(&invite.inviter_id);
+                }
             }
         }
 
