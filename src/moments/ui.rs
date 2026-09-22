@@ -139,6 +139,12 @@ script_mod! {
             composer_audience := Body {draw_text.color: #x576b95}
             Hint {text: #(crate::i18n::tr("Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers.")) i18n_text: "Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers."}
             moments_body := TextInput {width: Fill height: 150 empty_text: #(crate::i18n::tr("What's on your mind?")) i18n_empty_text: "What's on your mind?" is_multiline: true}
+            // Thumbnails of the photos/videos picked for this post, in a 3x3 grid like WeChat.
+            compose_album := View {width: Fill height: Fit flow: Down spacing: 4 visible: false
+                row0 := View {width: Fill height: 96 flow: Right spacing: 4 c0 := Photo{height: 96} c1 := Photo{height: 96} c2 := Photo{height: 96}}
+                row1 := View {width: Fill height: 96 flow: Right spacing: 4 c3 := Photo{height: 96} c4 := Photo{height: 96} c5 := Photo{height: 96}}
+                row2 := View {width: Fill height: 96 flow: Right spacing: 4 c6 := Photo{height: 96} c7 := Photo{height: 96} c8 := Photo{height: 96}}
+            }
             selected_media := Hint {}
             View {width: Fill height: 40 flow: Right spacing: 8
                 moments_add_media := ActionButton {text: #(crate::i18n::tr("Add photo / video")) i18n_text: "Add photo / video"}
@@ -263,6 +269,9 @@ pub struct MomentsPanel {
     comments: Vec<Entry>,
     #[rust]
     paths: Vec<PathBuf>,
+    /// The `paths` currently loaded into the composer's thumbnail grid.
+    #[rust]
+    album_paths: Vec<PathBuf>,
     #[rust]
     media: Option<MediaCache>,
     #[rust]
@@ -432,6 +441,35 @@ impl MomentsPanel {
         }
         self.redraw(cx);
     }
+    /// Shows the picked photos/videos as thumbnails in the composer,
+    /// reloading them from disk only when the selection changes.
+    fn sync_compose_album(&mut self, cx: &mut Cx) {
+        if self.album_paths == self.paths {
+            return;
+        }
+        self.album_paths = self.paths.clone();
+        let count = self.paths.len();
+        self.view(cx, ids!(compose_album)).set_visible(cx, count > 0);
+        for (id, n) in [(ids!(compose_album.row0), 0), (ids!(compose_album.row1), 3), (ids!(compose_album.row2), 6)] {
+            self.view(cx, id).set_visible(cx, count > n);
+        }
+        let slots = [ids!(c0), ids!(c1), ids!(c2), ids!(c3), ids!(c4), ids!(c5), ids!(c6), ids!(c7), ids!(c8)];
+        for (i, id) in slots.iter().enumerate() {
+            let photo = self.text_or_image(cx, *id);
+            photo.set_visible(cx, i < count);
+            let Some(path) = self.paths.get(i) else { continue };
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            // Videos (or anything the image loader can't decode) show their file name instead.
+            let shown = photo.show_image(cx, None, |cx, image| {
+                image.load_image_file_by_path(cx, path)?;
+                Ok::<_, ImageError>(image.size_in_pixels(cx).unwrap_or((1, 1)))
+            });
+            if shown.is_err() {
+                photo.show_text(cx, name);
+            }
+        }
+    }
+
     fn pick_media(&mut self) {
         if self.paths.len() >= MAX_MEDIA {
             self.status = crate::i18n::tr("Choose at most nine photos or videos.").into();
@@ -1086,6 +1124,7 @@ impl Widget for MomentsPanel {
                         .join(", ")
                 }).to_string())]),
         );
+        self.sync_compose_album(cx);
         self.label(cx, ids!(selected_media)).set_text(
             cx,
             &crate::i18n::format("{0} / 9 selected\n{1}", &[("0", (self.paths.len()).to_string()), ("1", (self.paths
