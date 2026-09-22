@@ -344,6 +344,8 @@
   "Missing mini app": "Missing mini app",
   "Moment": "Moment",
   "Moments": "Moments",
+  "Moments couldn't refresh. Check the service or network, then retry.": "Moments couldn't refresh. Check the service or network, then retry.",
+  "Moments may be out of date. Check the service or network.": "Moments may be out of date. Check the service or network.",
   "Moments · {invites} invitation{0}": "Moments · {invites} invitation{0}",
   "Mon": "Mon",
   "Monday": "Monday",

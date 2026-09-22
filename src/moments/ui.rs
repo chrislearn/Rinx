@@ -39,7 +39,10 @@ enum Page {
 }
 #[derive(Clone, Debug)]
 enum Command {
-    Refresh(bool),
+    Refresh {
+        older: bool,
+        origin: RefreshOrigin,
+    },
     Prepare,
     RetrySetup,
     Audience,
@@ -59,6 +62,57 @@ enum Command {
     Seen(Vec<OwnedEventId>),
     FileTransfer(bool),
 }
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RefreshOrigin {
+    Initial,
+    Automatic,
+    Manual,
+    FollowUp,
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CommandFeedback {
+    Default,
+    Silent,
+    Refresh(RefreshOrigin),
+}
+impl Command {
+    fn feedback(&self) -> CommandFeedback {
+        match self {
+            Self::Refresh { origin, .. } => CommandFeedback::Refresh(*origin),
+            Self::Seen(_) => CommandFeedback::Silent,
+            _ => CommandFeedback::Default,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RefreshFailureNotice {
+    None,
+    InlineUnavailable,
+    ImmediateWarning,
+    StaleWarning,
+}
+const BACKGROUND_REFRESH_WARNING_THRESHOLD: u8 = 3;
+
+fn refresh_failure_notice(
+    origin: RefreshOrigin,
+    has_loaded_feed: bool,
+    consecutive_failures: u8,
+    warning_shown: bool,
+) -> RefreshFailureNotice {
+    if !has_loaded_feed {
+        return RefreshFailureNotice::InlineUnavailable;
+    }
+    if origin == RefreshOrigin::Manual {
+        return RefreshFailureNotice::ImmediateWarning;
+    }
+    if matches!(origin, RefreshOrigin::Automatic | RefreshOrigin::FollowUp)
+        && consecutive_failures >= BACKGROUND_REFRESH_WARNING_THRESHOLD
+        && !warning_shown
+    {
+        return RefreshFailureNotice::StaleWarning;
+    }
+    RefreshFailureNotice::None
+}
 #[derive(Clone, Debug)]
 enum Outcome {
     Feed(Feed),
@@ -71,6 +125,7 @@ enum Outcome {
 struct Completed {
     owner: OwnedUserId,
     request: u64,
+    feedback: CommandFeedback,
     result: Result<Outcome, String>,
 }
 #[derive(Clone, Debug)]
@@ -282,6 +337,14 @@ pub struct MomentsPanel {
     #[rust]
     status: String,
     #[rust]
+    refresh_notice: String,
+    #[rust]
+    has_loaded_feed: bool,
+    #[rust]
+    consecutive_refresh_failures: u8,
+    #[rust]
+    refresh_warning_shown: bool,
+    #[rust]
     back_swipe: BackSwipe,
 }
 fn next_request() -> u64 {
@@ -344,32 +407,86 @@ impl MomentsPanel {
         self.request = next_request();
         self.session = next_request();
         self.status.clear();
+        self.refresh_notice.clear();
+        self.has_loaded_feed = false;
+        self.consecutive_refresh_failures = 0;
+        self.refresh_warning_shown = false;
         self.text_input(cx, ids!(moments_body)).set_text(cx, "");
         self.text_input(cx, ids!(moments_comment)).set_text(cx, "");
     }
+    fn refresh_succeeded(&mut self, origin: RefreshOrigin) {
+        self.has_loaded_feed = true;
+        self.consecutive_refresh_failures = 0;
+        self.refresh_warning_shown = false;
+        self.refresh_notice.clear();
+        if origin != RefreshOrigin::Automatic {
+            self.status.clear();
+        }
+    }
+    fn refresh_failed(&mut self, origin: RefreshOrigin, error: &str) {
+        log!("Moments refresh failed ({origin:?}): {error}");
+        self.consecutive_refresh_failures = self.consecutive_refresh_failures.saturating_add(1);
+        match refresh_failure_notice(
+            origin,
+            self.has_loaded_feed,
+            self.consecutive_refresh_failures,
+            self.refresh_warning_shown,
+        ) {
+            RefreshFailureNotice::None => {}
+            RefreshFailureNotice::InlineUnavailable => {
+                self.refresh_notice = crate::i18n::tr(
+                    "Moments couldn't refresh. Check the service or network, then retry.",
+                )
+                .into();
+            }
+            RefreshFailureNotice::ImmediateWarning => {
+                crate::shared::popup_list::enqueue_popup_notification(
+                    crate::i18n::tr(
+                        "Moments couldn't refresh. Check the service or network, then retry.",
+                    ),
+                    crate::shared::popup_list::PopupKind::Warning,
+                    Some(6.0),
+                );
+            }
+            RefreshFailureNotice::StaleWarning => {
+                self.refresh_warning_shown = true;
+                crate::shared::popup_list::enqueue_popup_notification(
+                    crate::i18n::tr(
+                        "Moments may be out of date. Check the service or network.",
+                    ),
+                    crate::shared::popup_list::PopupKind::Warning,
+                    Some(8.0),
+                );
+            }
+        }
+    }
     fn run(&mut self, cx: &mut Cx, command: Command) {
-        if self.busy && (self.mutating || matches!(command, Command::Refresh(_))) {
+        let feedback = command.feedback();
+        let is_refresh = matches!(feedback, CommandFeedback::Refresh(_));
+        if self.busy && (self.mutating || is_refresh) {
             return;
         }
         let Some(service) = Service::current() else {
             return;
         };
         self.busy = true;
-        self.mutating = !matches!(command, Command::Refresh(_));
+        self.mutating = !is_refresh;
         self.request = next_request();
         let request = self.request;
         let owner = service.owner.clone();
         let feed = self.feed.clone();
-        self.status = match &command {
-            Command::Send(_) => crate::i18n::tr("Encrypting and publishing…"),
-            Command::FileTransfer(_) => crate::i18n::tr("Opening private File Transfer…"),
-            _ => crate::i18n::tr("Updating Moments…"),
+        if feedback == CommandFeedback::Default {
+            self.status = match &command {
+                Command::Send(_) => crate::i18n::tr("Encrypting and publishing…"),
+                Command::FileTransfer(_) => crate::i18n::tr("Opening private File Transfer…"),
+                _ => crate::i18n::tr("Updating Moments…"),
+            }
+            .into();
         }
-        .into();
         spawn_async_task(async move {
             let result=async {
                 Ok(match command {
-                    Command::Refresh(older)=>Outcome::Feed(service.load(feed,older).await?),
+                    Command::Refresh{older,..}=>Outcome::Feed(service.load(feed,older).await?),
                     Command::Prepare=>{let id=if let Some(p)=service.pending()?.filter(|p|p.confirmed.is_none()){p.room}else{service.ensure_timeline().await?};Outcome::Ready(service.validate(&id).await?)},
                     Command::RetrySetup=>{let id=service.retry_timeline_setup().await?;Outcome::Ready(service.validate(&id).await?)},
                     Command::Audience=>{let id=if let Some(p)=service.pending()?.filter(|p|p.confirmed.is_none()){p.room}else{service.ensure_timeline().await?};Outcome::Ready(service.validate(&id).await?)},
@@ -398,6 +515,7 @@ impl MomentsPanel {
             Cx::post_action(Completed {
                 owner,
                 request,
+                feedback,
                 result,
             });
         });
@@ -557,10 +675,15 @@ impl Widget for MomentsPanel {
         }
         if self.timer.is_event(event).is_some()
             && !self.busy
-            && self.status.is_empty()
             && matches!(self.page, Page::Feed | Page::Details)
         {
-            self.run(cx, Command::Refresh(false));
+            self.run(
+                cx,
+                Command::Refresh {
+                    older: false,
+                    origin: RefreshOrigin::Automatic,
+                },
+            );
         }
         self.view.handle_event(cx, event, scope);
         if matches!(event, Event::Signal) {
@@ -579,10 +702,31 @@ impl Widget for MomentsPanel {
                     .and_then(|s| s.pending().ok().flatten())
                     .filter(|p| p.confirmed.is_none());
                 match &done.result {
-                    Err(e) => self.status = crate::i18n::format("{e} Refresh or retry to continue.", &[("e", (e).to_string())]),
+                    Err(e) => match done.feedback {
+                        CommandFeedback::Refresh(origin) => self.refresh_failed(origin, e),
+                        CommandFeedback::Silent => {
+                            log!("Silent Moments operation failed: {e}");
+                        }
+                        CommandFeedback::Default => {
+                            self.status = crate::i18n::format(
+                                "{e} Refresh or retry to continue.",
+                                &[("e", (e).to_string())],
+                            )
+                        }
+                    },
                     Ok(Outcome::Feed(feed)) => {
                         self.feed = feed.clone();
-                        self.status = feed.errors.join("\n");
+                        if let CommandFeedback::Refresh(origin) = done.feedback {
+                            if feed.errors.is_empty() {
+                                self.refresh_succeeded(origin);
+                            } else {
+                                self.refresh_failed(origin, &feed.errors.join("\n"));
+                                self.has_loaded_feed = true;
+                            }
+                        } else {
+                            self.status = feed.errors.join("\n");
+                            self.has_loaded_feed = true;
+                        }
                     }
                     Ok(Outcome::Ready(t)) => {
                         self.timeline = Some(t.clone());
@@ -602,9 +746,17 @@ impl Widget for MomentsPanel {
                         }
                     }
                     Ok(Outcome::Changed) => {
-                        self.status = crate::i18n::tr("Updated.").into();
+                        if done.feedback != CommandFeedback::Silent {
+                            self.status = crate::i18n::tr("Updated.").into();
+                        }
                         if self.page == Page::Details || self.page == Page::Feed {
-                            self.run(cx, Command::Refresh(false));
+                            self.run(
+                                cx,
+                                Command::Refresh {
+                                    older: false,
+                                    origin: RefreshOrigin::FollowUp,
+                                },
+                            );
                         }
                     }
                     Ok(Outcome::Sent) => {
@@ -616,7 +768,13 @@ impl Widget for MomentsPanel {
                             self.paths.clear();
                         }
                         self.text_input(cx, ids!(moments_comment)).set_text(cx, "");
-                        self.run(cx, Command::Refresh(false));
+                        self.run(
+                            cx,
+                            Command::Refresh {
+                                older: false,
+                                origin: RefreshOrigin::FollowUp,
+                            },
+                        );
                     }
                     Ok(Outcome::Transfer(id)) => {
                         cx.widget_action(
@@ -660,10 +818,22 @@ impl Widget for MomentsPanel {
         match self.page {
             Page::Feed => {
                 if self.button(cx, ids!(moments_refresh)).clicked(actions) {
-                    self.run(cx, Command::Refresh(false));
+                    self.run(
+                        cx,
+                        Command::Refresh {
+                            older: false,
+                            origin: RefreshOrigin::Manual,
+                        },
+                    );
                 }
                 if self.button(cx, ids!(moments_more)).clicked(actions) {
-                    self.run(cx, Command::Refresh(true));
+                    self.run(
+                        cx,
+                        Command::Refresh {
+                            older: true,
+                            origin: RefreshOrigin::Manual,
+                        },
+                    );
                 }
                 if self.button(cx, ids!(moments_compose)).clicked(actions) {
                     self.page = Page::Compose;
@@ -676,7 +846,13 @@ impl Widget for MomentsPanel {
                 }
                 if self.button(cx, ids!(moments_invites)).clicked(actions) {
                     self.page = Page::Invitations;
-                    self.run(cx, Command::Refresh(false));
+                    self.run(
+                        cx,
+                        Command::Refresh {
+                            older: false,
+                            origin: RefreshOrigin::Manual,
+                        },
+                    );
                 }
                 let list = self.portal_list(cx, ids!(moments_feed));
                 let mut used = BTreeSet::new();
@@ -1023,6 +1199,8 @@ impl Widget for MomentsPanel {
                 .count();
         let status = if !self.status.is_empty() {
             self.status.clone()
+        } else if !self.refresh_notice.is_empty() {
+            self.refresh_notice.clone()
         } else if unavailable > 0 {
             crate::i18n::format("{unavailable} encrypted events unavailable. Refresh after recovering keys.", &[("unavailable", (unavailable).to_string())])
         } else if unvisited > 0 {
@@ -1033,6 +1211,14 @@ impl Widget for MomentsPanel {
         self.label(cx, ids!(moments_status)).set_text(cx, &status);
         self.label(cx, ids!(moments_status))
             .set_visible(cx, !status.is_empty());
+        self.button(cx, ids!(moments_refresh)).set_text(
+            cx,
+            if self.refresh_notice.is_empty() {
+                crate::i18n::tr("Refresh")
+            } else {
+                crate::i18n::tr("Retry")
+            },
+        );
         let invites: Vec<_> = self
             .feed
             .timelines
@@ -1399,7 +1585,13 @@ impl MomentsPanelRef {
         match action {
             MomentsAction::Open { author } => {
                 inner.author = author.clone();
-                inner.run(cx, Command::Refresh(false));
+                inner.run(
+                    cx,
+                    Command::Refresh {
+                        older: false,
+                        origin: RefreshOrigin::Initial,
+                    },
+                );
             }
             MomentsAction::Compose { text } => {
                 inner.page = Page::Compose;
@@ -1412,5 +1604,46 @@ impl MomentsPanelRef {
             }
             MomentsAction::Close => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refresh_failures_are_quiet_until_background_threshold() {
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Automatic, true, 1, false),
+            RefreshFailureNotice::None
+        );
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Automatic, true, 2, false),
+            RefreshFailureNotice::None
+        );
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Automatic, true, 3, false),
+            RefreshFailureNotice::StaleWarning
+        );
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Automatic, true, 4, true),
+            RefreshFailureNotice::None
+        );
+    }
+
+    #[test]
+    fn initial_and_manual_failures_remain_actionable() {
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Initial, false, 1, false),
+            RefreshFailureNotice::InlineUnavailable
+        );
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::Manual, true, 1, false),
+            RefreshFailureNotice::ImmediateWarning
+        );
+        assert_eq!(
+            refresh_failure_notice(RefreshOrigin::FollowUp, true, 3, false),
+            RefreshFailureNotice::StaleWarning
+        );
     }
 }
