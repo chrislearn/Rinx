@@ -1,5 +1,6 @@
 //! Personal publishing on Matrix. Never shares a room with File Transfer.
 pub mod backend;
+pub mod dm_sharing;
 pub mod model;
 pub mod ui;
 pub mod window;

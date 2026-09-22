@@ -28,6 +28,9 @@ pub struct Preferences {
     pub hidden: BTreeSet<OwnedUserId>,
     #[serde(default)]
     pub seen: BTreeSet<OwnedEventId>,
+    /// Share this account's Moments with its DM contacts; see `super::dm_sharing`.
+    #[serde(default)]
+    pub share_with_dm_contacts: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ComposerDraft {
@@ -509,6 +512,13 @@ impl Service {
         self.writable(&room, true).await?;
         let mut prefs = self.preferences().await?;
         prefs.timeline = Some(room);
+        self.save_preferences(&prefs).await
+    }
+    /// Applies `update` to the saved preferences.
+    pub(super) async fn update_preferences(&self, update: impl FnOnce(&mut Preferences)) -> Result<()> {
+        let _lock = WRITES.lock().await;
+        let mut prefs = self.preferences().await?;
+        update(&mut prefs);
         self.save_preferences(&prefs).await
     }
     pub async fn hide(&self, author: OwnedUserId, hidden: bool) -> Result<()> {

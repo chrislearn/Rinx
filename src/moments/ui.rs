@@ -58,6 +58,7 @@ enum Command {
     Hide(OwnedUserId, bool),
     Seen(Vec<OwnedEventId>),
     FileTransfer(bool),
+    ShareWithDmContacts(bool),
 }
 #[derive(Clone, Debug)]
 enum Outcome {
@@ -204,6 +205,22 @@ script_mod! {
             }
         }
         audience_page := View {visible: false width: Fill height: Fill flow: Down padding: 16 spacing: 12
+            // Share with DM contacts, like WeChat's friend circle; see `super::dm_sharing`.
+            View {width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
+                Body {width: Fill text: #(crate::i18n::tr("Share with everyone I chat with 1-on-1")) i18n_text: "Share with everyone I chat with 1-on-1"}
+                share_dm_contacts := ToggleFlat {
+                    width: 46 height: 28 padding: 0 text: "" label_walk: Walk{width: 0 height: 0}
+                    draw_bg +: {pixel: fn() {
+                        let sdf = Sdf2d.viewport(self.pos * self.rect_size)
+                        sdf.box(0.0, 0.0, 46.0, 28.0, 14.0)
+                        sdf.fill((#xdcdcdc).mix(#x07c160, self.active))
+                        sdf.circle(14.0 + 18.0 * self.active, 14.0, 12.0)
+                        sdf.fill(#xffffff)
+                        return sdf.result
+                    }}
+                }
+            }
+            Hint {text: #(crate::i18n::tr("DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.")) i18n_text: "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way."}
             Hint {text: #(crate::i18n::tr("One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received.")) i18n_text: "One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received."}
             audience_name := Body {draw_text.color: #x576b95}
             setup_recovery := View {visible: false width: Fill height: Fit flow: Down spacing: 6
@@ -416,6 +433,7 @@ impl MomentsPanel {
                     Command::Invitation(room,accept)=>{service.invitation(&room,accept).await?;let mut feed=feed;feed.timelines.remove(&room);Outcome::Feed(service.load(feed,false).await?)},
                     Command::Choose(room)=>{service.choose(room.clone()).await?;Outcome::Ready(service.validate(&room).await?)},
                     Command::Hide(author,hidden)=>{service.hide(author,hidden).await?;Outcome::Feed(service.load(feed,false).await?)},
+                    Command::ShareWithDmContacts(share)=>{service.set_share_with_dm_contacts(share).await?;Outcome::Feed(service.load(feed,false).await?)},
                     Command::Seen(ids)=>{service.mark_seen(ids).await?;Outcome::Changed},
                     Command::FileTransfer(new)=>Outcome::Transfer(if new {service.new_file_transfer().await?}else{service.file_transfer().await?}),
                 })
@@ -962,6 +980,9 @@ impl Widget for MomentsPanel {
                 }
             }
             Page::Audience => {
+                if let Some(share) = self.check_box(cx, ids!(share_dm_contacts)).changed(actions) {
+                    self.run(cx, Command::ShareWithDmContacts(share));
+                }
                 if self.button(cx, ids!(moments_retry_setup)).clicked(actions) {
                     self.run(cx, Command::RetrySetup);
                 }
@@ -1151,6 +1172,11 @@ impl Widget for MomentsPanel {
             .map(|o| self.feed.own(o).into_iter().cloned().collect())
             .unwrap_or_default();
         let hidden: Vec<_> = self.feed.preferences.hidden.iter().cloned().collect();
+        // Mirror the saved preference, unless a change to it is still being applied.
+        let share_toggle = self.check_box(cx, ids!(share_dm_contacts));
+        if !self.busy && share_toggle.active(cx) != self.feed.preferences.share_with_dm_contacts {
+            share_toggle.set_active(cx, self.feed.preferences.share_with_dm_contacts, Animate::No);
+        }
         self.label(cx, ids!(audience_name)).set_text(
             cx,
             &self
