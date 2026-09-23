@@ -1039,5 +1039,9 @@
   "Lay out multiple images automatically": "Lay out multiple images automatically",
   "Images added one after another form a grid. Selected images stay on this device until you publish.": "Images added one after another form a grid. Selected images stay on this device until you publish.",
   "Saved as source only": "Saved as source only",
-  "Can't publish yet: {0}": "Can't publish yet: {0}"
+  "Can't publish yet: {0}": "Can't publish yet: {0}",
+  "Insert table": "Insert table",
+  "Choose the table size": "Choose the table size",
+  "{0} rows × {1} columns": "{0} rows × {1} columns",
+  "Column {0}": "Column {0}"
 }
