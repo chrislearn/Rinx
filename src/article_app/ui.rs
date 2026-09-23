@@ -3895,3 +3895,4 @@ mod tests {
         assert_eq!(image_insertion("![a](asset:a)\n\n", img, false), format!("{img}\n\n"));
     }
 }
+
