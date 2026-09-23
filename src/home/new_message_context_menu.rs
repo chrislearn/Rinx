@@ -116,6 +116,12 @@ script_mod! {
                 text: "" // set dynamically to "Pin Message" or "Unpin Message"
             }
 
+            copy_selection_button := mod.widgets.ContextMenuButton {
+                visible: false
+                draw_icon +: { svg: (ICON_COPY) }
+                text: #(crate::i18n::tr("Copy Selected Text")) i18n_text: "Copy Selected Text"
+            }
+
             copy_text_button := mod.widgets.ContextMenuButton {
                 draw_icon +: { svg: (ICON_COPY) }
                 text: #(crate::i18n::tr("Copy Text")) i18n_text: "Copy Text"
@@ -273,6 +279,8 @@ pub struct MessageDetails {
     pub should_be_highlighted: bool,
     /// The abilities that the user has on this message.
     pub abilities: MessageAbilities,
+    /// Selection snapshot from this message, captured before menu focus clears it.
+    pub selected_text: Option<String>,
 }
 
 impl MessageDetails {
@@ -440,6 +448,12 @@ impl WidgetMatchEvent for NewMessageContextMenu {
             }
             close_menu = true;
         }
+        else if self.button(cx, ids!(copy_selection_button)).clicked(actions) {
+            if let Some(text) = details.selected_text.as_ref() {
+                cx.widget_action(details.room_screen_widget_uid, MessageAction::CopySelectedText(text.clone()));
+            }
+            close_menu = true;
+        }
         else if self.button(cx, ids!(copy_text_button)).clicked(actions) {
             cx.widget_action(
                 details.room_screen_widget_uid, 
@@ -555,6 +569,9 @@ impl NewMessageContextMenu {
         let show_edit = details.abilities.contains(MessageAbilities::CanEdit);
         let show_pin: bool;
         let show_copy_text = true;
+        let show_copy_selection = details.selected_text.as_ref().is_some_and(|text| !text.is_empty());
+        self.button(cx, ids!(copy_selection_button)).set_visible(cx, show_copy_selection);
+        self.button(cx, ids!(copy_selection_button)).reset_hover(cx);
         let show_copy_html = details.abilities.contains(MessageAbilities::HasHtml);
         let show_copy_link = details.abilities.contains(MessageAbilities::HasEventId);
         let show_view_source = details.abilities.contains(MessageAbilities::HasEventId);
@@ -624,6 +641,7 @@ impl NewMessageContextMenu {
             + show_edit as usize
             + show_pin as usize
             + show_copy_text as usize
+            + show_copy_selection as usize
             + show_copy_html as usize
             + show_copy_link as usize
             + show_view_source as usize

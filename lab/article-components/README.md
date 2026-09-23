@@ -89,8 +89,9 @@ for the standalone evidence.
 Remaining boundaries: this is shared Rust code, not an OctoSense application
 package. That host still needs its own adapters and runtime validation. The
 Blitz view is a static bitmap: no selection, link interaction or accessibility
-text. It displays the structured editor's generated HTML/CSS; arbitrary public
-HTML import, style-preserving round trips and arbitrary HTML WYSIWYG editing are
-not implemented. CPU work is on a worker, with input/resource/output budgets,
+text. It displays generated article HTML/CSS. The later
+[Markdown/HTML importer](../article-editor/markdown-compatibility.md) preserves
+source and renders inert article markup. Style-preserving HTML/CSS round trips
+and arbitrary HTML WYSIWYG editing are not implemented. CPU work is on a worker, with input/resource/output budgets,
 but is not a process sandbox. iOS/device and WeChat 9/10 visual parity are not
 claimed by these tests.

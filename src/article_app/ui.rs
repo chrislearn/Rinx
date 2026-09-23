@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 use article_core::editing::EditHistory;
+use article_makepad::body_selection::{ArticleSelection, SelectionUpdate};
+use article_makepad::content::Images as PreviewImages;
 #[cfg(feature = "html_preview")]
 use makepad_html_renderer::makepad::HtmlViewWidgetExt;
 use makepad_widgets::*;
@@ -51,6 +53,11 @@ enum Page {
 }
 #[derive(Clone, Debug)]
 enum ResultAction {
+    RemoteImages { instance: String, key: String, images: article_makepad::content::Images },
+    Imported {
+        instance: String,
+        result: Result<Option<Document>, String>,
+    },
     #[cfg(feature = "html_preview")]
     CssPreview {
         instance: String,
@@ -101,7 +108,7 @@ script_mod! {
     mod.widgets.ArticleButton = RobrixNeutralIconButton {grab_key_focus: false height: 42 padding: Inset{left: 12 right: 12} draw_text +: {color: #x333333 text_style: theme.font_regular{font_size: 12}} draw_bg +: {color: #xffffff color_hover: #xf2f5f3 color_down: #xe7f2e9 border_radius: 6}}
     mod.widgets.ArticlePrimary = mod.widgets.ArticleButton {width: Fill height: 46 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #x07c160 color_hover: #x06ad56 color_down: #x05984b} draw_text +: {color: #xffffff color_hover: #xffffff color_down: #xffffff}}
     mod.widgets.ArticleInput = TextInput {width: Fill height: 44 draw_bg +: {color: #xffffff color_hover: #xffffff color_focus: #xffffff color_empty: #xffffff border_color: #xe5e5e5 border_color_focus: #x07c160} draw_text +: {color: #x191919 color_focus: #x191919 color_hover: #x191919 text_style: theme.font_regular{font_size: 14}}}
-    mod.widgets.ArticleHtml = Html {width: Fill height: Fit padding: 0 font_size: 14 font_color: #x191919 draw_text.color: #x191919 text_style_normal: theme.font_regular{font_size: 14} text_style_bold: theme.font_bold{font_size: 14} text_style_italic: theme.font_italic{font_size: 14} text_style_bold_italic: theme.font_bold_italic{font_size: 14}}
+    mod.widgets.ArticleHtml = Html {selectable: true width: Fill height: Fit padding: 0 font_size: 14 font_color: #x191919 draw_text.color: #x191919 text_style_normal: theme.font_regular{font_size: 14} text_style_bold: theme.font_bold{font_size: 14} text_style_italic: theme.font_italic{font_size: 14} text_style_bold_italic: theme.font_bold_italic{font_size: 14} rmath := ArticleMath {} rdiagram := ArticleDiagram {} rimage := ArticleImage {} remoji := ArticleEmoji {} rcode := ArticleCode {} rcell := ArticleCell {}}
     mod.widgets.ArticleRich = ArticleRichInput {width: Fill height: Fit is_multiline: true flow: Flow.Right{wrap: true} padding: Inset{top: 4 bottom: 12 left: 0 right: 0} empty_text: #(crate::i18n::tr("Write your article…")) draw_bg +: {color: #x00000000 color_hover: #x00000000 color_focus: #x00000000 color_down: #x00000000 color_empty: #x00000000 border_size: 0} draw_text +: {color: #x191919 color_hover: #x191919 color_focus: #x191919 text_style: theme.font_regular{font_size: 14}} draw_bold.text_style: theme.font_bold{font_size: 14} draw_italic.text_style: theme.font_italic{font_size: 14} draw_bold_italic.text_style: theme.font_bold_italic{font_size: 14}}
     mod.widgets.ArticleThemeTile = NavigationBarButton {width: Fill height: 210 flow: Down align: Align{x: 0.0 y: 0.0} padding: 12 spacing: 8
         draw_bg +: {color: instance(#xffffff) border_size: 1.0 border_color: #xe0e0e0 get_color: fn() {return self.color}}
@@ -158,6 +165,7 @@ script_mod! {
                 }
             }
             article_new := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("New article")) i18n_text: "New article"}
+            article_import := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Import Markdown or HTML file")) i18n_text: "Import Markdown or HTML file"}
             article_share := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Share app")) i18n_text: "Share app"}
         }
         editor := View {visible: false width: Fill height: Fill flow: Right align: Align{x: 0.5}
@@ -186,6 +194,11 @@ script_mod! {
                     block_remove := mod.widgets.ArticleButton {text: "−" width: 38}
                 }
                 article_blocks := PortalList {width: Fill height: Fill
+                    SourceBlock := View {width: Fill height: Fit flow: Down spacing: 6 padding: Inset{top: 8 bottom: 12}
+                        rendered := View {width: Fill height: Fit body := mod.widgets.ArticleHtml {}}
+                        source_editor := View {visible: false width: Fill height: Fit rich := mod.widgets.ArticleRich {}}
+                        source_toggle := mod.widgets.ArticleButton {height: 28 text: #(crate::i18n::tr("Edit source")) draw_text.text_style: theme.font_regular{font_size: 11}}
+                    }
                     TextBlock := View {width: Fill height: Fit flow: Right spacing: 8
                         prefix := Label {visible: false width: 16 height: Fit padding: Inset{top: 5} draw_text +: {color: #x07a858 text_style: theme.font_regular{font_size: 14}}}
                         rich := mod.widgets.ArticleRich {}
@@ -203,7 +216,7 @@ script_mod! {
                     article_images := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Images")) i18n_text: "Images"}
                     article_theme := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Style")) i18n_text: "Style"}
                     article_cover := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Cover")) i18n_text: "Cover"}
-                    article_source := mod.widgets.ArticleButton {text: "Markdown"}
+                    article_source := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Source")) i18n_text: "Source"}
                 }
                 article_preview := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Full preview")) i18n_text: "Full preview"}
             }
@@ -219,8 +232,11 @@ script_mod! {
             }
         }
         source := View {visible: false width: Fill height: Fill flow: Down padding: 18 spacing: 12
-            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Markdown source · your theme and cover are preserved")) i18n_text: "Markdown source · your theme and cover are preserved"}
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Markdown / HTML source · your theme and cover are preserved")) i18n_text: "Markdown / HTML source · your theme and cover are preserved"}
             article_markdown := mod.widgets.ArticleInput {height: Fill is_multiline: true flow: Flow.Right{wrap: true}}
+            source_report := ScrollYView {visible: false width: Fill height: 160 flow: Down
+                source_issues := mod.widgets.ArticleLabel {draw_text +: {color: #x996020 text_style: theme.font_regular{font_size: 12}}}
+            }
             source_apply := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Apply and return to visual editing")) i18n_text: "Apply and return to visual editing"}
         }
         images := View {visible: false width: Fill height: Fill flow: Down padding: 20 spacing: 14
@@ -284,7 +300,7 @@ script_mod! {
         preview := SolidView {visible: false width: Fill height: Fill flow: Down padding: 20 spacing: 12 draw_bg.color: #xffffff
             preview_title := mod.widgets.ArticleLabel {draw_text.text_style: theme.font_bold{font_size: 18}}
             preview_author := mod.widgets.ArticleLabel {draw_text.color: #x777777}
-            article_reader := PortalList {width: Fill height: Fill
+            article_reader := PortalList {selectable: true width: Fill height: Fill
                 Text := View {width: Fill height: Fit flow: Down padding: Inset{bottom: 12} body := mod.widgets.ArticleHtml {}}
                 Image := View {width: Fill height: Fit flow: Down spacing: 6 padding: Inset{bottom: 16}
                     picture := Image {width: Fill height: 220 fit: ImageFit.Smallest}
@@ -381,6 +397,8 @@ pub struct ArticlePanel {
     #[rust]
     history: EditHistory,
     #[rust]
+    body_selection: ArticleSelection,
+    #[rust]
     viewport_width: f64,
     #[rust]
     css_request: String,
@@ -413,15 +431,82 @@ pub struct ArticlePanel {
     reader_only: bool,
     #[rust]
     reader_assets: ReaderAssets,
+    #[rust] preview_images: PreviewImages,
+    #[rust] preview_image_key: String,
+    #[rust] images_loading: bool,
+    #[rust] native_preview: Vec<article_core::markdown_render::RenderedBlock>,
+    #[rust] native_editor: Vec<article_core::markdown_render::RenderedBlock>,
+    #[rust] editing_source_block: Option<String>,
+    #[rust] native_preview_key: String,
+    #[rust] reader_select_all: bool,
     #[rust]
     image_bindings: ImageBindings,
     #[rust]
     remote_article: Option<ArticleContent>,
 }
 impl ArticlePanel {
+    fn navigate_anchor(&mut self,cx:&mut Cx,fragment:&str) {
+        self.prepare_native_preview();
+        let anchor=article_core::render::decode_fragment(fragment);
+        let blocks=if self.page==Page::Edit {&self.native_editor}else{&self.native_preview};
+        let index=if anchor.is_empty(){Some(0)}else{blocks.iter().position(|b|b.anchors.iter().any(|id|id==&anchor))};
+        if let Some(index)=index {
+            let editing=self.page==Page::Edit;
+            let cover=usize::from(!editing && self.doc.cover.as_ref().is_some_and(|c|c.show_in_article));
+            self.portal_list(cx,if editing {ids!(article_blocks)}else{ids!(article_reader)}).set_first_id_and_scroll(index+cover,0.0);
+            self.redraw(cx);
+        }
+    }
+    fn prepare_native_preview(&mut self) {
+        if self.doc.is_html_source() && self.page!=Page::Edit { return; }
+        let source=self.doc.markdown();
+        let key=format!("{}:{}:{}:{:?}:{}:{}:{}",self.doc.id,blake3::hash(source.as_bytes()),self.preview_image_key,self.doc.theme,self.preview_images.len(),self.doc.large_type,self.page==Page::Edit);
+        if key==self.native_preview_key { return; }
+        let mut images=(*self.preview_images).clone();
+        for id in self.doc.asset_ids() {
+            let key=format!("asset:{id}");
+            if !images.contains_key(&key) {
+                let bytes=self.reader_assets.get(&id).cloned().or_else(||self.grant.as_ref().and_then(|g|storage::asset_bytes(crate::app_data_dir(),g,&id).ok()));
+                if let Some(image)=bytes.and_then(|b|article_makepad::content::prepare_image(&b).ok()) { images.insert(key,image); }
+            }
+        }
+        for (url,id) in &self.doc.resource_bindings {
+            if let Some(image)=images.get(&format!("asset:{id}")).cloned() {images.insert(url.clone(),image);}
+        }
+        self.preview_images=std::sync::Arc::new(images);
+        let mut renderer=article_makepad::content::NativeRenderer {images:&self.preview_images,size:if self.doc.large_type {16.0}else{14.0},ink:self.doc.theme.colors().1};
+        if self.page==Page::Edit {
+            self.native_editor=article_core::markdown_render::render_editor(&self.doc,&mut renderer);
+        } else {
+            self.native_preview=article_core::markdown_render::render(&source,&mut renderer);
+        }
+        self.native_preview_key=key;
+    }
+    fn ensure_preview_images(&mut self) {
+        let Some(grant) = self.grant.as_ref() else { return; };
+        let urls = article_core::render::image_requests(&self.doc);
+        let key = format!("{}:{}", self.doc.id, blake3::hash(urls.join("\n").as_bytes()).to_hex());
+        if self.preview_image_key == key { return; }
+        self.preview_image_key = key.clone();
+        self.preview_images = Default::default();
+        self.images_loading = !urls.is_empty();
+        if urls.is_empty() { return; }
+        let instance = grant.instance.clone();
+        spawn_async_task(async move {
+            let images = super::remote_images::load(urls).await;
+            Cx::post_action(ResultAction::RemoteImages { instance, key, images });
+        });
+    }
+
     #[cfg(feature = "html_preview")]
     fn start_css_preview(&mut self, cx: &mut Cx) {
         if !self.editable() || self.pending { return; }
+        self.ensure_preview_images();
+        if self.images_loading {
+            self.show(cx, Page::CssPreview);
+            self.status(cx, "Loading article images…");
+            return;
+        }
         let Some(grant) = self.grant.clone() else { return; };
         let area = self.portal_list(cx, ids!(article_reader)).area();
         let options = makepad_html_renderer::RenderOptions {
@@ -440,12 +525,54 @@ impl ArticlePanel {
         self.html_view(cx, ids!(css_preview_bitmap)).clear(cx);
         self.html_view(cx, ids!(css_preview_bitmap)).scroll_to(cx, 0.0);
         self.status(cx, "Rendering HTML/CSS preview…");
-        self.css_session = Some(super::preview::start(document, grant, options, move |result| {
+        self.css_session = Some(super::preview::start(document, self.preview_images.clone(), grant, options, move |result| {
             Cx::post_action(ResultAction::CssPreview { instance: instance.clone(), request: request.clone(), result });
         }));
     }
     fn status(&self, cx: &mut Cx, s: &str) {
         self.label(cx, ids!(article_status)).set_text(cx, tr(s));
+    }
+    fn source_report(&self, cx: &mut Cx, source: &str) {
+        use article_core::markdown::{inspect, Effect, Feature};
+        let issues = if self.doc.is_html_source() { Vec::new() } else { inspect(source) };
+        self.view(cx, ids!(source_report)).set_visible(cx, !issues.is_empty());
+        let chinese = crate::i18n::language() == crate::i18n::Language::Chinese;
+        let mut lines = vec![tr("Images, tables, highlighted code, emoji, math and supported diagrams render in the editor and preview. Use Edit source on a block to change its Markdown. Metadata stays in Source.").to_owned()];
+        for issue in issues {
+            let feature = match issue.feature {
+                Feature::Html => "Embedded HTML",
+                Feature::InlineCode => "Inline code",
+                Feature::CodeBlock => "Code blocks",
+                Feature::ExternalImage => "Images outside the article library",
+                Feature::NonHttpsLink => "Links other than HTTPS",
+                Feature::NestedList => "Nested lists",
+                Feature::NestedQuote => "Nested quotes",
+                Feature::HeadingLevel => "Heading levels other than H2/H3",
+                Feature::OrderedListStart => "Custom list start numbers",
+                Feature::Table => "Markdown tables",
+                Feature::TaskList => "Task lists",
+                Feature::Strikethrough => "Strikethrough",
+                Feature::FrontMatter => "YAML metadata",
+                Feature::Math => "Math formulas",
+                Feature::TableOfContents => "Table of contents markers",
+                Feature::PageBreak => "Page break markers",
+                Feature::EmojiShortcode => "Emoji shortcodes",
+                Feature::LinkedImage => "Linked images",
+                Feature::Footnote => "Footnotes",
+                Feature::Alert => "Alerts",
+                Feature::DescriptionList => "Description lists",
+            };
+            let effect = match issue.effect {
+                Effect::SourceBlock => "kept in a source block",
+                Effect::Literal => "displayed as source text",
+            };
+            lines.push(if chinese {
+                format!("第 {} 行：{}（{}）", issue.line, tr(feature), tr(effect))
+            } else {
+                format!("Line {}: {} ({})", issue.line, tr(feature), tr(effect))
+            });
+        }
+        self.label(cx, ids!(source_issues)).set_text(cx, &lines.join("\n"));
     }
     fn allowed(&self) -> bool {
         self.grant
@@ -465,13 +592,14 @@ impl ArticlePanel {
         self.save_timer = cx.start_timeout(0.7);
         self.status(cx, "Unsaved changes");
         self.refresh_document(cx);
+        if self.page == Page::Edit { self.ensure_preview_images(); }
     }
     fn save(&mut self, cx: &mut Cx) -> bool {
         if !self.editable() {
             return false;
         }
         let Some(g) = &self.grant else { return false };
-        match storage::save_document(crate::app_data_dir(), g, &self.doc) {
+        match storage::save_document_with_source(crate::app_data_dir(), g, &self.doc, self.library.source_for(&self.doc.id)) {
             Ok(()) => {
                 self.dirty = false;
                 self.status(cx, "Draft saved on this device");
@@ -546,6 +674,9 @@ impl ArticlePanel {
             self.html_view(cx, ids!(css_preview_bitmap)).clear(cx);
         }
         self.page = page;
+        self.native_preview_key.clear();
+        self.reader_select_all=false;
+        if matches!(page, Page::Edit | Page::Preview | Page::Reader) { self.ensure_preview_images(); }
         self.button(cx, ids!(article_done)).set_visible(
             cx,
             matches!(page, Page::Theme | Page::Cover | Page::ImageSettings),
@@ -579,7 +710,7 @@ impl ArticlePanel {
             Page::Consent => "Authorize app",
             Page::Library => "Article studio",
             Page::Edit => "Edit article",
-            Page::Source => "Markdown source",
+            Page::Source => "Markdown / HTML source",
             Page::Images => "Insert images",
             Page::ImageSettings => "Image settings",
             Page::Link => "Link",
@@ -612,7 +743,7 @@ impl ArticlePanel {
             .set_visible(cx, page == Page::Edit);
         self.button(cx, ids!(preview_check))
             .set_visible(cx, page == Page::Preview && !self.reader_only);
-        self.button(cx, ids!(css_preview_open)).set_visible(cx, cfg!(feature = "html_preview") && page == Page::Preview && !self.reader_only);
+        self.button(cx, ids!(css_preview_open)).set_visible(cx, cfg!(feature = "html_preview") && self.doc.is_html_source() && page == Page::Preview && !self.reader_only);
         self.status(cx, "");
         self.refresh_document(cx);
         self.view.redraw(cx);
@@ -666,9 +797,11 @@ impl ArticlePanel {
         self.view.redraw(cx);
     }
     fn bind(&mut self, cx: &mut Cx) {
+        self.body_selection.reset();
+        self.editing_source_block = None;
         let state = super::model::Draft {
             title: self.doc.title.clone(),
-            markdown: self.doc.markdown(),
+            markdown: self.library.source_for(&self.doc.id).map(str::to_owned).unwrap_or_else(|| self.doc.markdown()),
         };
         match super::model::realize_editor(
             &state,
@@ -846,6 +979,28 @@ impl ArticlePanel {
             });
         if let Err(e) = result {
             self.status(cx, &e.to_string())
+        }
+    }
+    fn import_file(&mut self, cx: &mut Cx) {
+        if self.dirty && !self.save(cx) { return; }
+        let Some(grant) = self.grant.clone().filter(|_| self.editable()) else { return };
+        self.pending = true;
+        let result = robius_file_picker::FileDialog::new()
+            .add_filter("Markdown and HTML", &["md", "markdown", "html", "htm", "txt"])
+            .pick_file(move |picked| {
+                let result = match picked {
+                    Ok(None) => Ok(None),
+                    Ok(Some(file)) => file.into_local_file().map_err(|e| e.to_string()).and_then(|file| {
+                        let name = file.display_name().or_else(|| file.path().file_name().and_then(|s| s.to_str())).unwrap_or("article.md");
+                        storage::read_import(&grant, file.path(), name).map(Some)
+                    }),
+                    Err(error) => Err(error.to_string()),
+                };
+                Cx::post_action(ResultAction::Imported { instance: grant.instance, result });
+            });
+        if let Err(error) = result {
+            self.pending = false;
+            self.status(cx, &error.to_string());
         }
     }
     fn preview(&mut self, cx: &mut Cx) {
@@ -1101,7 +1256,11 @@ impl ArticlePanel {
                     self.show(cx, Page::Library)
                 }
             }
-            Page::Source => self.show(cx, Page::Edit),
+            Page::Source => {
+                if self.save(cx) {
+                    self.show(cx, Page::Edit);
+                }
+            },
             Page::CssPreview => {
                 self.pending = false;
                 self.css_request.clear();
@@ -1132,6 +1291,11 @@ impl Widget for ArticlePanel {
         if !self.active {
             return;
         }
+        // Flush the debounce before the window/app stops delivering timers.
+        // save() rechecks the current account and consent before writing.
+        if self.dirty && matches!(event, Event::Background | Event::WindowCloseRequested(_) | Event::Shutdown) {
+            self.save(cx);
+        }
         if self.owner.as_ref() != current_user_id().as_ref()
             || self
                 .grant
@@ -1142,16 +1306,62 @@ impl Widget for ArticlePanel {
             cx.action(ArticleAction::Close);
             return;
         }
+        if self.page == Page::Edit && self.editable() && self.editing_source_block.is_none() {
+            let list = self.portal_list(cx, ids!(article_blocks));
+            match self.body_selection.handle_event(cx, event, &list, &mut self.doc, &mut self.history) {
+                SelectionUpdate::Changed => { self.changed(cx); return; }
+                SelectionUpdate::Handled => { return; }
+                SelectionUpdate::Pass => {}
+            }
+        }
+        if matches!(self.page,Page::Preview|Page::Reader) && !self.doc.is_html_source() {
+            if let Event::KeyDown(key)=event {
+                if key.key_code==KeyCode::KeyA && key.modifiers.is_primary() {
+                    self.reader_select_all=true;
+                    self.redraw(cx);
+                    return;
+                }
+            }
+            if let Event::TextCopy(copy)=event {
+                if self.reader_select_all {
+                    *copy.response.borrow_mut()=Some(self.native_preview.iter().map(|b|b.text.as_str()).collect::<Vec<_>>().join("\n\n"));
+                    return;
+                }
+            }
+            if matches!(event,Event::MouseDown(_)) {self.reader_select_all=false;}
+        }
         self.view.handle_event(cx, event, scope);
+        if self.page == Page::Edit && self.editing_source_block.is_none() && matches!(event, Event::MouseDown(_) | Event::MouseUp(_)) {
+            let list = self.portal_list(cx, ids!(article_blocks));
+            self.body_selection.after_event(cx, &list, &self.doc);
+        }
         if self.save_timer.is_event(event).is_some() && self.dirty && !self.pending {
             self.save(cx);
         }
         if let Event::Actions(actions) = event {
             for action in actions {
-                if matches!(self.page, Page::Preview | Page::Reader) {
+                if matches!(self.page, Page::Edit | Page::Preview | Page::Reader) {
                     if let HtmlLinkAction::Clicked { url, .. } = action.as_widget_action().cast() {
-                        if validate_link(&url).is_ok() {
+                        if let Some(anchor)=url.strip_prefix('#') {
+                            self.navigate_anchor(cx,anchor);
+                        } else if url.is_empty() {
+                            self.navigate_anchor(cx,"");
+                        } else if article_core::render::valid_link(&url) && matches!(url::Url::parse(&url).ok().as_ref().map(url::Url::scheme),Some("http"|"https"|"mailto")) {
                             crate::utils::open_url(&url);
+                        } else if article_core::render::valid_link(&url) {
+                            if !self.reader_only {
+                                if let Some(grant)=self.grant.as_ref() {
+                                    match storage::read_relative(grant,&self.doc.id,&url) {
+                                        Ok(document)=>{
+                                            self.doc=document;self.load_library(cx);self.bind(cx);
+                                            self.portal_list(cx,ids!(article_reader)).set_first_id_and_scroll(0,0.0);
+                                            self.show(cx,Page::Preview);
+                                            if let Some((_,anchor))=url.split_once('#') {self.navigate_anchor(cx,anchor);}
+                                        }
+                                        Err(error)=>self.status(cx,&error),
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1161,7 +1371,9 @@ impl Widget for ArticlePanel {
                 let instance = match result {
                     #[cfg(feature = "html_preview")]
                     ResultAction::CssPreview { instance, .. } => instance,
-                    ResultAction::Image { instance, .. }
+                    ResultAction::RemoteImages { instance, .. }
+                    | ResultAction::Image { instance, .. }
+                    | ResultAction::Imported { instance, .. }
                     | ResultAction::Published { instance, .. }
                     | ResultAction::Shared { instance, .. }
                     | ResultAction::Read { instance, .. }
@@ -1171,6 +1383,40 @@ impl Widget for ArticlePanel {
                     continue;
                 }
                 match result {
+                    ResultAction::RemoteImages { key, images, .. } => {
+                        if key != &self.preview_image_key || !self.allowed() { continue; }
+                        self.preview_images = images.clone();
+                        self.native_preview_key.clear();
+                        self.images_loading = false;
+                        self.view.redraw(cx);
+                        #[cfg(feature = "html_preview")]
+                        if self.page == Page::CssPreview { self.start_css_preview(cx); }
+                    }
+                    ResultAction::Imported { result, .. } => {
+                        self.pending = false;
+                        if !self.editable() { continue; }
+                        match result {
+                            Ok(Some(document)) => {
+                                let Some(grant) = &self.grant else { continue };
+                                if let Err(error) = storage::save_document_with_source(crate::app_data_dir(), grant, document, None) {
+                                    self.status(cx, &error);
+                                    continue;
+                                }
+                                self.doc = document.clone();
+                                self.dirty = false;
+                                self.selected_publication = None;
+                                self.operation = None;
+                                self.history.clear();
+                                self.load_library(cx);
+                                self.bind(cx);
+                                self.portal_list(cx, ids!(article_reader)).set_first_id_and_scroll(0, 0.0);
+                                self.show(cx, Page::Preview);
+                                self.status(cx, "File imported and saved on this device");
+                            }
+                            Ok(None) => (),
+                            Err(error) => self.status(cx, error),
+                        }
+                    }
                     #[cfg(feature = "html_preview")]
                     ResultAction::CssPreview { request, result, .. } => {
                         if *request != self.css_request || self.page != Page::CssPreview || !self.allowed() { continue; }
@@ -1273,6 +1519,7 @@ impl Widget for ArticlePanel {
                     ResultAction::Media { id, result, .. } => match result {
                         Ok(bytes) => {
                             self.reader_assets.insert(id.clone(), bytes.clone());
+                            self.native_preview_key.clear();
                             self.view.redraw(cx);
                         }
                         Err(e) => self.status(cx, e),
@@ -1346,6 +1593,9 @@ impl Widget for ArticlePanel {
                 self.save(cx);
             }
             if self.page == Page::Library {
+                if self.button(cx, ids!(article_import)).clicked(actions) {
+                    self.import_file(cx);
+                }
                 for (id, tab) in [
                     (id!(drafts_tab), 0),
                     (id!(published_tab), 1),
@@ -1458,6 +1708,13 @@ impl Widget for ArticlePanel {
                         continue;
                     }
                     self.active_block = index;
+                    if item.button(cx, ids!(source_toggle)).clicked(actions) {
+                        let id = &self.doc.blocks[index].id;
+                        self.editing_source_block = if self.editing_source_block.as_ref() == Some(id) { None } else { Some(id.clone()) };
+                        self.body_selection.reset();
+                        cx.set_key_focus(Area::Empty);
+                        self.redraw(cx);
+                    }
                     let input = item.article_rich_input(cx, ids!(rich));
                     if input.changed(actions).is_some() {
                         if let Some((text, marks)) = input.content() {
@@ -1479,6 +1736,23 @@ impl Widget for ArticlePanel {
                 }
                 for (id, bold) in [(id!(article_bold), true), (id!(article_italic), false)] {
                     if self.button(cx, &[id]).clicked(actions) {
+                        if let Some(selection) = self.body_selection.selection {
+                            let (start, _) = selection.ordered();
+                            let flags = self.doc.blocks[start.block].flags_at(start.byte);
+                            self.checkpoint();
+                            for (index, block) in self.doc.blocks.iter_mut().enumerate() {
+                                if let Some(range) = selection.range(index, block.text.len()).filter(|r| !r.is_empty()) {
+                                    let _ = block.format(range, if bold { Some(!flags.0) } else { None },
+                                        if bold { None } else { Some(!flags.1) }, None);
+                                }
+                            }
+                            self.changed(cx);
+                            continue;
+                        }
+                        if self.doc.blocks.get(self.active_block).is_some_and(|b| matches!(b.kind, BlockKind::Markdown | BlockKind::Html)) {
+                            self.status(cx, "Edit this block's formatting in its source.");
+                            continue;
+                        }
                         let item = self.portal_list(cx, ids!(article_blocks)).item(
                             cx,
                             self.active_block,
@@ -1505,6 +1779,10 @@ impl Widget for ArticlePanel {
                     (id!(article_list), BlockKind::Bullet),
                 ] {
                     if self.button(cx, &[id]).clicked(actions) {
+                        if self.doc.blocks.get(self.active_block).is_some_and(|b| matches!(b.kind, BlockKind::Markdown | BlockKind::Html)) {
+                            self.status(cx, "Edit this block's formatting in its source.");
+                            continue;
+                        }
                         self.checkpoint();
                         if let Some(block) = self.doc.blocks.get_mut(self.active_block) {
                             if block.kind != BlockKind::Image {
@@ -1569,6 +1847,10 @@ impl Widget for ArticlePanel {
                     }
                 }
                 if self.button(cx, ids!(article_link)).clicked(actions) {
+                    if self.doc.blocks.get(self.active_block).is_some_and(|b| matches!(b.kind, BlockKind::Markdown | BlockKind::Html)) {
+                        self.status(cx, "Edit this block's formatting in its source.");
+                        return;
+                    }
                     let item = self.portal_list(cx, ids!(article_blocks)).item(
                         cx,
                         self.active_block,
@@ -1601,11 +1883,12 @@ impl Widget for ArticlePanel {
                 if self.button(cx, ids!(article_source)).clicked(actions) {
                     let source = self
                         .library
-                        .legacy_source
-                        .clone()
+                        .source_for(&self.doc.id)
+                        .map(str::to_owned)
                         .unwrap_or_else(|| self.doc.markdown());
                     self.text_input(cx, ids!(article_markdown))
                         .set_text(cx, &source);
+                    self.source_report(cx, &source);
                     self.show(cx, Page::Source);
                 }
                 if self.button(cx, ids!(article_preview)).clicked(actions)
@@ -1654,6 +1937,17 @@ impl Widget for ArticlePanel {
                     }
                 }
             }
+            if self.page == Page::Source {
+                if let Some(text) = self.text_input(cx, ids!(article_markdown)).changed(actions) {
+                    self.source_report(cx, &text);
+                    self.library.source_drafts.insert(self.doc.id.clone(), text);
+                    self.doc.modified = now();
+                    self.dirty = true;
+                    cx.stop_timer(self.save_timer);
+                    self.save_timer = cx.start_timeout(0.7);
+                    self.status(cx, "Unsaved changes");
+                }
+            }
             if self.page == Page::Source && self.button(cx, ids!(source_apply)).clicked(actions) {
                 let text = self.text_input(cx, ids!(article_markdown)).text();
                 let mut state = super::model::Draft {
@@ -1661,7 +1955,11 @@ impl Widget for ArticlePanel {
                     markdown: String::new(),
                 };
                 let result = super::model::apply_input(&mut state, "markdown_changed", &text)
-                    .and_then(|()| Document::from_markdown(&state.title, &state.markdown));
+                    .and_then(|()| if self.doc.is_html_source() {
+                        Document::from_html(&state.title, &state.markdown)
+                    } else {
+                        Document::from_markdown(&state.title, &state.markdown)
+                    });
                 match result {
                     Ok(mut doc) => {
                         let mut matched_images = std::collections::HashSet::new();
@@ -1681,17 +1979,28 @@ impl Widget for ArticlePanel {
                                 }
                             }
                         }
-                        self.checkpoint();
-                        self.doc.blocks = doc.blocks;
-                        self.library.legacy_source = None;
-                        if let Some(grant) = &self.grant {
-                            let _ = storage::update(crate::app_data_dir(), grant, |lib| {
-                                lib.legacy_source = None;
-                                Ok(())
-                            });
+                        // Commit the import and source removal before navigating:
+                        // opening the image library can reload storage immediately.
+                        // A failed write must leave both editing forms intact.
+                        let mut imported = self.doc.clone();
+                        imported.blocks = doc.blocks;
+                        imported.reference_definitions = doc.reference_definitions;
+                        imported.retain_source(&state.markdown);
+                        imported.modified = now();
+                        let Some(grant) = &self.grant else { return };
+                        if let Err(error) = storage::save_document_with_source(
+                            crate::app_data_dir(), grant, &imported, None,
+                        ) {
+                            self.status(cx, &error);
+                            return;
                         }
+                        self.checkpoint();
+                        self.doc = imported;
+                        self.library.clear_source(&self.doc.id);
+                        self.dirty = false;
+                        self.operation = None;
+                        cx.stop_timer(self.save_timer);
                         self.bind(cx);
-                        self.changed(cx);
                         self.show(cx, Page::Edit);
                     }
                     Err(e) => self.status(cx, &e),
@@ -1998,6 +2307,7 @@ impl Widget for ArticlePanel {
         script_apply_eval!(cx, paper, {width: #(paper_width)});
         self.view(cx, ids!(editor_sidebar)).set_visible(cx, wide);
         self.view(cx, ids!(editor_inspector)).set_visible(cx, wide);
+        if matches!(self.page,Page::Edit|Page::Preview|Page::Reader) {self.prepare_native_preview();}
         while let Some(item) = self.view.draw_walk(cx, scope, walk).step() {
             let uid = item.widget_uid();
             let library = uid == self.portal_list(cx, ids!(article_library)).widget_uid();
@@ -2012,7 +2322,7 @@ impl Widget for ArticlePanel {
                 } else if blocks {
                     self.doc.blocks.len()
                 } else if reader {
-                    self.doc.blocks.len() + usize::from(cover.is_some())
+                    (if self.doc.is_html_source(){self.doc.blocks.len()}else{self.native_preview.len()}) + usize::from(cover.is_some())
                 } else if themes {
                     2
                 } else if images {
@@ -2068,6 +2378,7 @@ impl Widget for ArticlePanel {
                             continue;
                         };
                         let template = match block.kind {
+                            BlockKind::Markdown | BlockKind::Html => id!(SourceBlock),
                             BlockKind::Image => id!(Picture),
                             BlockKind::Divider => id!(Rule),
                             _ => id!(TextBlock),
@@ -2081,6 +2392,22 @@ impl Widget for ArticlePanel {
                                 * (block.width as f64 / 100.0);
                             let mut image = row.image(cx, ids!(picture));
                             script_apply_eval!(cx,image,{width: #(width)});
+                        } else if matches!(block.kind, BlockKind::Markdown | BlockKind::Html) {
+                            let editing = self.editing_source_block.as_ref() == Some(&block.id);
+                            let rendered = self.native_editor.get(index);
+                            let empty = rendered.is_none_or(|b| b.html.trim().is_empty());
+                            row.view(cx, ids!(rendered)).set_visible(cx, !editing && !empty);
+                            row.view(cx, ids!(source_editor)).set_visible(cx, editing);
+                            row.button(cx, ids!(source_toggle)).set_text(cx, tr(if editing { "Render block" } else if empty { "Edit metadata" } else { "Edit source" }));
+                            if editing {
+                                let input = row.article_rich_input(cx, ids!(rich));
+                                article_makepad::presentation::style_input(cx, input.clone(), &self.doc, block);
+                                self.body_selection.apply_to_input(cx, index, &input, &self.doc);
+                            } else if let Some(rendered) = rendered {
+                                let mut html = row.html(cx, ids!(body));
+                                article_makepad::presentation::style_html(cx, html.clone(), &self.doc);
+                                html.set_text(cx, &article_makepad::content::native_html(&rendered.html));
+                            }
                         } else if block.kind != BlockKind::Divider {
                             let prefix = row.label(cx, ids!(prefix));
                             prefix.set_text(
@@ -2100,10 +2427,36 @@ impl Widget for ArticlePanel {
                                 ),
                             );
                             let input = row.article_rich_input(cx, ids!(rich));
-                            article_makepad::presentation::style_input(cx, input, &self.doc, block);
+                            article_makepad::presentation::style_input(cx, input.clone(), &self.doc, block);
+                            let empty_body = article_makepad::presentation::show_body_placeholder(&self.doc, index);
+                            input.set_empty_text(cx, if empty_body { tr("Write your article…").to_owned() } else { String::new() });
+                            self.body_selection.apply_to_input(cx, index, &input, &self.doc);
                         }
+                        cx.global::<article_makepad::content_view::DrawingImages>().0=self.preview_images.clone();
                         row.draw_all(cx, &mut Scope::empty());
+                        cx.global::<article_makepad::content_view::DrawingImages>().0=Default::default();
+                        let input = row.article_rich_input(cx, ids!(rich));
+                        self.body_selection.after_draw(cx, index, &input);
                     } else if reader {
+                        let cover_count=usize::from(cover.is_some());
+                        if !self.doc.is_html_source() && index>=cover_count {
+                            if let Some(block)=self.native_preview.get(index-cover_count) {
+                                let row=list.item(cx,index,id!(Text));
+                                let mut html=row.html(cx,ids!(body));
+                                article_makepad::presentation::style_html(cx,html.clone(),&self.doc);
+                                html.set_text(cx,&article_makepad::content::native_html(&block.html));
+                                cx.global::<article_makepad::content_view::DrawingImages>().0=self.preview_images.clone();
+                                let previous_len=row.selection_text_len();
+                                if self.reader_select_all {row.selection_select_all();}
+                                row.draw_all(cx,&mut Scope::empty());
+                                if self.reader_select_all && row.selection_text_len()!=previous_len {
+                                    row.selection_select_all();
+                                    row.redraw(cx);
+                                }
+                                cx.global::<article_makepad::content_view::DrawingImages>().0=Default::default();
+                            }
+                            continue;
+                        }
                         let block = if cover.is_some() {
                             if index == 0 {
                                 None
@@ -2157,9 +2510,14 @@ impl Widget for ArticlePanel {
                         } else if let Some(block) = block {
                             let mut html = row.html(cx, ids!(body));
                             article_makepad::presentation::style_html(cx, html.clone(), &self.doc);
-                            html.set_text(cx, &block.html());
+                            let mut renderer = article_makepad::content::NativeRenderer {
+                                images: &self.preview_images, size: if self.doc.large_type {16.0} else {14.0}, ink: self.doc.theme.colors().1,
+                            };
+                            html.set_text(cx, &article_makepad::content::native_html(&self.doc.block_html_with_renderer(block, &mut renderer)));
                         }
+                        cx.global::<article_makepad::content_view::DrawingImages>().0 = self.preview_images.clone();
                         row.draw_all(cx, &mut Scope::empty());
+                        cx.global::<article_makepad::content_view::DrawingImages>().0 = Default::default();
                     } else if themes {
                         let row = list.item(cx, index, id!(Theme));
                         for (offset, id) in [id!(left), id!(right)].into_iter().enumerate() {
@@ -2249,6 +2607,9 @@ impl ArticlePanelRef {
                 panel.operation = None;
                 panel.selected_publication = None;
                 panel.reader_assets.clear();
+                panel.preview_images = Default::default();
+                panel.preview_image_key.clear();
+                panel.images_loading = false;
                 panel.image_bindings.borrow_mut().clear();
                 panel.remote_article = None;
                 panel.sharing = false;
@@ -2289,6 +2650,9 @@ impl ArticlePanelRef {
                 panel.doc = Document::default();
                 panel.library = Library::default();
                 panel.reader_assets.clear();
+                panel.preview_images = Default::default();
+                panel.preview_image_key.clear();
+                panel.images_loading = false;
                 panel.image_bindings.borrow_mut().clear();
                 panel.remote_article = None;
                 panel.operation = None;

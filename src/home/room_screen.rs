@@ -36,7 +36,7 @@ use crate::{
     },
     room::{BasicRoomDetails, reply_preview::{CollapsiblePreviewRef, CollapsiblePreviewWidgetRefExt}, room_input_bar::{RoomInputBarState, RoomInputBarWidgetRefExt}, typing_notice::TypingNoticeWidgetExt},
     shared::{
-        attachment_download::{enqueue_already_downloading_notification, DownloadDisplayState, DownloadKind, DownloadableAttachment, PendingDownload, PendingDownloadState, TimelineUpdateSenderOption, TransferKind, media_source_mxc, start_attachment_download, start_attachment_share}, avatar::{AvatarState, AvatarWidgetRefExt}, confirmation_modal::ConfirmationModalContent, context_menu::ContextMenuClosed, file_upload_modal::FileUploadAttemptId, hover_highlight::handle_hover_hit, html_or_plaintext::{HtmlOrPlaintextRef, HtmlOrPlaintextWidgetRefExt, RobrixHtmlLinkAction}, image_viewer::{ImageViewerAction, ImageViewerMetaData, LoadState}, jump_to_bottom_button::{JumpToBottomButtonWidgetExt, UnreadMessageCount, SCROLL_TO_BOTTOM_SPEED}, popup_list::{PopupKind, enqueue_popup_notification}, restore_status_view::RestoreStatusViewWidgetExt, room_input_popup_menu::{RoomInputPopupMenuAction, RoomInputPopupMenuRef, RoomInputPopupMenuWidgetExt}, styles::*, text_or_image::{TextOrImageAction, TextOrImageRef, TextOrImageWidgetRefExt}, timestamp::TimestampWidgetRefExt
+        attachment_download::{enqueue_already_downloading_notification, DownloadDisplayState, DownloadKind, DownloadableAttachment, PendingDownload, PendingDownloadState, TimelineUpdateSenderOption, TransferKind, media_source_mxc, start_attachment_download, start_attachment_share}, avatar::{AvatarState, AvatarWidgetRefExt}, confirmation_modal::ConfirmationModalContent, context_menu::ContextMenuClosed, file_upload_modal::FileUploadAttemptId, hover_highlight::handle_hover_hit, html_or_plaintext::{HtmlOrPlaintextRef, HtmlOrPlaintextWidgetExt, HtmlOrPlaintextWidgetRefExt, RobrixHtmlLinkAction}, image_viewer::{ImageViewerAction, ImageViewerMetaData, LoadState}, jump_to_bottom_button::{JumpToBottomButtonWidgetExt, UnreadMessageCount, SCROLL_TO_BOTTOM_SPEED}, popup_list::{PopupKind, enqueue_popup_notification}, restore_status_view::RestoreStatusViewWidgetExt, room_input_popup_menu::{RoomInputPopupMenuAction, RoomInputPopupMenuRef, RoomInputPopupMenuWidgetExt}, styles::*, text_or_image::{TextOrImageAction, TextOrImageRef, TextOrImageWidgetRefExt}, timestamp::TimestampWidgetRefExt
     },
     sliding_sync::{BackwardsPaginateUntilEventRequest, MatrixRequest, PaginationDirection, TimelineEndpoints, TimelineKind, TimelineRequestSender, UserPowerLevels, submit_async_request, take_timeline_endpoints, TimelineEndpointsRecreated}, utils::{self, MEDIA_THUMBNAIL_FORMAT, RoomNameId, unix_time_millis_to_datetime}
 };
@@ -379,7 +379,7 @@ script_mod! {
                     agent_badge := mod.widgets.AgentBadge {}
                 }
 
-                message := HtmlOrPlaintext { }
+                message := HtmlOrPlaintext { selectable: true }
                 mini_app_card := mod.widgets.MiniAppCard {}
                 forward_card := mod.widgets.ForwardCard {}
                 agent_approval_card := mod.widgets.AgentApprovalCard {}
@@ -422,6 +422,7 @@ script_mod! {
             width: Fill height: Fit flow: Down padding: 10
             draw_bg +: {color: #xffffff border_radius: 5}
             message := HtmlOrPlaintext {
+                selectable: true
                 plaintext_view +: {pt_label +: {draw_text +: {color: #x191919 text_style: theme.font_regular {font_size: 12.5}}}}
                 html_view +: {html +: {font_size: 12.5 font_color: #x191919}}
             }
@@ -486,7 +487,7 @@ script_mod! {
             width: Fill height: Fit flow: Down
             caption_view := View {
                 visible: false width: Fill height: Fit margin: Inset{bottom: 5}
-                caption := HtmlOrPlaintext {}
+                caption := HtmlOrPlaintext { selectable: true }
             }
             image := TextOrImage {
                 image_view +: {image +: {height: Fit{max: FitBound.Abs(280.0)}}}
@@ -554,7 +555,7 @@ script_mod! {
                 flow: Down,
                 padding: Inset{ left: 10.0 }
 
-                message := HtmlOrPlaintext { }
+                message := HtmlOrPlaintext { selectable: true }
                 mini_app_card := mod.widgets.MiniAppCard {}
                 forward_card := mod.widgets.ForwardCard {}
                 agent_approval_card := mod.widgets.AgentApprovalCard {}
@@ -592,7 +593,7 @@ script_mod! {
                         visible: false,
                         width: Fill, height: Fit,
                         margin: Inset{ bottom: 5.0 }
-                        caption := HtmlOrPlaintext {}
+                        caption := HtmlOrPlaintext { selectable: true }
                     }
                     image := TextOrImage {
                         image_view +: { image +: {
@@ -628,7 +629,7 @@ script_mod! {
                         visible: false,
                         width: Fill, height: Fit,
                         margin: Inset{ bottom: 5.0 }
-                        caption := HtmlOrPlaintext {}
+                        caption := HtmlOrPlaintext { selectable: true }
                     }
                     image := TextOrImage {
                         image_view +: { image +: {
@@ -3003,6 +3004,9 @@ impl RoomScreen {
                             Some(5.0),
                         );
                     }
+                }
+                MessageAction::CopySelectedText(text) => {
+                    cx.copy_to_clipboard(text);
                 }
                 MessageAction::CopyText(details) => {
                     let Some(tl) = self.tl_state.as_ref() else { return };
@@ -5507,6 +5511,7 @@ fn populate_message_view(
             timeline_kind.thread_root_event_id().is_some(),
         ),
         should_be_highlighted: event_tl_item.is_highlighted() || has_room_mention,
+        selected_text: None,
     };
     let download_state = download_info.as_ref()
         .and_then(|info| {
@@ -6795,6 +6800,8 @@ pub enum MessageAction {
     Unpin(MessageDetails),
     /// The user clicked the "copy text" button on a message.
     CopyText(MessageDetails),
+    /// Copies a snapshot captured before the context menu takes keyboard focus.
+    CopySelectedText(String),
     /// The user clicked the "copy HTML" button on a message.
     CopyHtml(MessageDetails),
     /// The user clicked the "copy link" button on a message.
@@ -7246,7 +7253,12 @@ impl Message {
             ))
     }
 
-    fn open_context_menu(&mut self, cx: &mut Cx, room_screen_widget_uid: WidgetUid, details: MessageDetails, abs_pos: DVec2) {
+    fn open_context_menu(&mut self, cx: &mut Cx, room_screen_widget_uid: WidgetUid, mut details: MessageDetails, abs_pos: DVec2) {
+        let body = self.view.html_or_plaintext(cx, ids!(content.message));
+        let caption = self.view.html_or_plaintext(cx, ids!(content.message.caption_view.caption));
+        let selected = body.selected_text(cx);
+        let selected = if selected.is_empty() { caption.selected_text(cx) } else { selected };
+        details.selected_text = (!selected.is_empty()).then_some(selected);
         self.is_context_menu_open = true;
         cx.widget_action(
             room_screen_widget_uid,
@@ -7296,6 +7308,8 @@ impl Message {
         if self.details.as_ref().is_none_or(|d| d.timeline_event_id != details.timeline_event_id) {
             self.is_context_menu_open = false;
             self.pressed_touch_uid = None;
+            self.view.html_or_plaintext(cx, ids!(content.message)).clear_selection(cx);
+            self.view.html_or_plaintext(cx, ids!(content.message.caption_view.caption)).clear_selection(cx);
             self.animator_cut(cx, ids!(bg_hover.off));
         }
 

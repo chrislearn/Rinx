@@ -5,6 +5,7 @@ use article_makepad::rich_input;
 mod host;
 #[cfg(feature = "html_preview")]
 mod preview;
+mod remote_images;
 mod storage;
 pub(crate) mod backend;
 pub mod ui;

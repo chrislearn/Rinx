@@ -721,6 +721,16 @@ impl WidgetMatchEvent for MainDesktopUI {
             // Handle RoomsList actions, which are updates from the rooms list.
             match widget_action.cast_ref() {
                 RoomsListAction::Selected(selected_room) => {
+                    // Contacts can open a DM or a group while the chat dock is
+                    // covered. Restore the home dock before selecting that room.
+                    let from_contacts = scope.data.get::<AppState>().is_some_and(|app| app.selected_tab == SelectedTab::Contacts);
+                    if from_contacts {
+                        if self.selected_space.is_some() {
+                            let app_state = scope.data.get_mut::<AppState>().unwrap();
+                            self.switch_dock_to_space(cx, app_state, None);
+                        }
+                        cx.action(NavigationBarAction::GoToHome);
+                    }
                     // Note that this cannot be performed within draw_walk() as the draw flow prevents from
                     // performing actions that would trigger a redraw, and the Dock internally performs (and expects)
                     // a redraw to be happening in order to draw the tab content.

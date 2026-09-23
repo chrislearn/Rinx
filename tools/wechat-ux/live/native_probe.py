@@ -12,11 +12,17 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 from seed import checked
+
+
+class NativeUserIntervention(RuntimeError):
+    """Automation stopped permanently because the person took control."""
 
 
 class NativeApp:
@@ -29,13 +35,70 @@ class NativeApp:
         self.output = self.root / "native-runs" / uuid.uuid4().hex
         self.size = size
         self.auto_login = auto_login
+        self._activity_checked = False
+        self._user_seq = None
+        self._interrupted = None
+
+    def _interrupt(self, reason):
+        if self._interrupted is None:
+            self._interrupted = reason
+            self.trace.append({"automation_interrupted": reason, "at": time.time()})
+        raise NativeUserIntervention(reason)
+
+    def _check_user_seq(self, headers):
+        if self._user_seq is None:
+            return
+        for key in ("X-Makepad-User-Seq-Start", "X-Makepad-User-Seq"):
+            value = headers.get(key)
+            if value is None or value != str(self._user_seq):
+                self._interrupt("Native user activity changed or became unverifiable; leaving the instance running")
+
+    def _request_json(self, route, params):
+        url = self.base + route + ("?" + urllib.parse.urlencode(params) if params else "")
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                self._check_user_seq(response.headers)
+                return json.load(response), response.headers
+        except urllib.error.HTTPError as error:
+            if error.code == 409:
+                self._interrupt("Makepad refused automation after native user activity; leaving the instance running")
+            self._check_user_seq(error.headers)
+            raise
+
+    def _ensure_activity_guard(self):
+        if self._activity_checked:
+            return
+        try:
+            activity, headers = self._request_json("/activity", {})
+        except urllib.error.HTTPError as error:
+            # Older SDKs do not implement /activity or sequence headers.
+            # A newer server's error must never silently disable its guard.
+            if error.code != 404 or any(error.headers.get(key) is not None for key in
+                                       ("X-Makepad-User-Seq", "X-Makepad-User-Seq-Start")):
+                raise
+            self._activity_checked = True
+            self.trace.append({"activity_guard": "legacy_sdk_unavailable", "at": time.time()})
+            return
+        sequence = activity.get("user_seq")
+        if type(sequence) is not int or sequence < 0 or type(activity.get("user_active")) is not bool:
+            raise RuntimeError("Invalid Makepad activity response; refusing unguarded automation")
+        self._user_seq = sequence
+        self._check_user_seq(headers)
+        if activity["user_active"] or activity.get("held"):
+            self._interrupt("Native user input is active; leaving the instance running")
+        self._activity_checked = True
+        self.trace.append({"activity_guard": "enabled", "user_seq": sequence, "at": time.time()})
 
     def request(self, route, **params):
+        if self._interrupted is not None:
+            raise NativeUserIntervention(self._interrupted)
+        self._ensure_activity_guard()
+        if self._user_seq is not None:
+            params["if_user_seq"] = self._user_seq
         if route in {"/click", "/m", "/mouse", "/k", "/key", "/t", "/text"}:
             self.trace.append({"native_input": route, "parameters": params, "at": time.time()})
-        url = self.base + route + ("?" + urllib.parse.urlencode(params) if params else "")
-        with urllib.request.urlopen(url, timeout=10) as response:
-            return json.load(response)
+        data, _ = self._request_json(route, params)
+        return data
 
     def start(self):
         # An existing bridge may be another developer's app. Never drive/stop it.
@@ -135,17 +198,33 @@ class NativeApp:
     def stop(self):
         if not self.process:
             return
-        if self.process.poll() is None:
+        if self.process.poll() is None and self._interrupted is None:
             try:
                 self.request("/gq")
                 self.process.wait(timeout=10)
+            except NativeUserIntervention:
+                pass
             except (OSError, subprocess.TimeoutExpired):
-                self.process.terminate()
-                try:
-                    self.process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait(timeout=3)
+                if self._activity_checked and self._user_seq is None:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+                        self.process.wait(timeout=3)
+                else:
+                    # Guarded SDKs must also authorize cleanup. Never bypass a
+                    # missing response or a human's intervention with a kill.
+                    try:
+                        self.request("/quit")
+                        self.process.wait(timeout=10)
+                    except NativeUserIntervention:
+                        pass
+                    except (OSError, subprocess.TimeoutExpired):
+                        self.trace.append({"cleanup": "guarded_shutdown_unconfirmed", "at": time.time()})
+        if self.process.poll() is None:
+            print(f"Native instance left running: pid={self.process.pid} {self.base}; "
+                  + (self._interrupted or "guarded shutdown could not be confirmed"), file=sys.stderr)
         self.log.close()
         (self.root / "native-input-trace.json").write_text(json.dumps(self.trace, indent=2))
         (self.output / "trace.json").write_text(json.dumps(self.trace, indent=2))
