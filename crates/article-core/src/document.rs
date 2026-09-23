@@ -488,11 +488,7 @@ impl Document {
         ids.into_iter().collect()
     }
     pub fn stats(&self) -> (usize, usize, usize) {
-        let chars = self
-            .blocks
-            .iter()
-            .map(|b| b.text.chars().filter(|c| !c.is_whitespace()).count())
-            .sum::<usize>();
+        let chars = self.blocks.iter().map(visible_chars).sum::<usize>();
         (chars, (chars / 350 + 1).max(1), self.asset_ids().len() + crate::render::image_requests(self).len())
     }
     pub fn html(&self) -> String {
@@ -690,6 +686,35 @@ impl Document {
         (source, starts)
     }
 }
+/// Characters a reader sees in a block: for blocks kept as Markdown or HTML
+/// source, their text without markup, image references or tags.
+fn visible_chars(block: &Block) -> usize {
+    let count = |s: &str| s.chars().filter(|c| !c.is_whitespace()).count();
+    match block.kind {
+        BlockKind::Markdown => {
+            let mut images = 0usize;
+            let mut chars = 0;
+            for event in Parser::new(&block.text) {
+                match event {
+                    Event::Start(Tag::Image { .. }) => images += 1,
+                    Event::End(TagEnd::Image) => images = images.saturating_sub(1),
+                    Event::Text(text) | Event::Code(text) if images == 0 => chars += count(&text),
+                    _ => {}
+                }
+            }
+            chars
+        }
+        BlockKind::Html => {
+            let mut in_tag = false;
+            block.text.chars().filter(|&c| {
+                match c { '<' => in_tag = true, '>' => { in_tag = false; return false } _ => {} }
+                !in_tag && !c.is_whitespace()
+            }).count()
+        }
+        _ => count(&block.text),
+    }
+}
+
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 100
@@ -740,6 +765,10 @@ mod tests {
         block.asset = None;
         d.blocks.push(block);
         assert_eq!(d.asset_ids(), vec!["asset_2", "asset_3"]);
+        // Their image references and markup are not counted as text.
+        d.blocks.push(Block::new(BlockKind::Markdown, "**粗体** and `x`"));
+        d.blocks.push(Block::new(BlockKind::Html, "<p>ab <b>c</b></p>"));
+        assert_eq!(d.stats().0, 2 + 3 + 1 + 3);
     }
     #[test]
     fn literal_markdown_punctuation_is_not_reinterpreted() {

@@ -688,6 +688,8 @@ pub struct ArticlePanel {
     #[rust] write_loaded: Option<String>,
     #[rust] write_preview: Vec<article_core::markdown_render::RenderedBlock>,
     #[rust] write_preview_key: String,
+    /// The source cursor the split preview last followed.
+    #[rust] write_sync_cursor: Option<usize>,
     /// Debounces re-rendering the live preview while typing.
     #[rust] write_timer: Timer,
     #[rust] write_themes_open: bool,
@@ -749,6 +751,12 @@ fn style_swatch(cx: &mut Cx, swatch: &WidgetRef, theme: Theme, selected: bool) {
     script_apply_eval!(cx, bar, {draw_bg +: {color: #(accent)}});
     let mut name = swatch.label(cx, ids!(name));
     script_apply_eval!(cx, name, {draw_text +: {color: #(name_ink)}});
+}
+
+/// The rendered preview block that shows source line `line` (1-based).
+fn preview_item_for_line(blocks: &[article_core::markdown_render::RenderedBlock], line: usize) -> Option<usize> {
+    if blocks.is_empty() { return None; }
+    Some(blocks.partition_point(|b| b.source_line <= line).saturating_sub(1))
 }
 
 /// The text that inserts `image` after `before` as its own paragraph. With `grid`,
@@ -1128,6 +1136,24 @@ impl ArticlePanel {
         let input = self.text_input(cx, ids!(write_source));
         let text = input.text();
         image_insertion(&text[..input.selection().start().index], image, !self.write_image_grid_off)
+    }
+    /// Keeps the part of the article being edited in view in the split preview.
+    fn follow_write_cursor(&mut self, cx: &mut Cx) {
+        let input = self.text_input(cx, ids!(write_source));
+        let cursor = input.selection().cursor.index;
+        if self.write_sync_cursor == Some(cursor) { return; }
+        self.write_sync_cursor = Some(cursor);
+        let text = input.text();
+        let line = text[..cursor.min(text.len())].matches('\n').count() + 1;
+        let Some(item) = preview_item_for_line(&self.write_preview, line) else { return };
+        let item = item + usize::from(self.write_title_row);
+        let list = self.portal_list(cx, ids!(write_list));
+        let first = list.first_id();
+        // Leave the preview alone while the block is already in view.
+        if item < first || item >= first + list.visible_items().saturating_sub(1).max(1) {
+            list.set_first_id_and_scroll(item, 0.0);
+            self.view.redraw(cx);
+        }
     }
     fn set_write_mode(&mut self, cx: &mut Cx, mode: WriteMode) {
         self.write_mode = mode;
@@ -2387,6 +2413,11 @@ impl Widget for ArticlePanel {
             if matches!(event,Event::MouseDown(_)) {self.reader_select_all=false;}
         }
         self.view.handle_event(cx, event, scope);
+        if self.page == Page::Write && self.write_mode == WriteMode::Split
+            && matches!(event, Event::KeyDown(_) | Event::MouseUp(_) | Event::TextInput(_))
+        {
+            self.follow_write_cursor(cx);
+        }
         if self.page == Page::Edit && self.editing_source_block.is_none() && matches!(event, Event::MouseDown(_) | Event::MouseUp(_)) {
             let list = self.portal_list(cx, ids!(article_blocks));
             self.body_selection.after_event(cx, &list, &self.doc);
@@ -2399,6 +2430,13 @@ impl Widget for ArticlePanel {
             self.view.redraw(cx);
         }
         if self.write_timer.is_event(event).is_some() && self.page == Page::Write {
+            if self.write_mode == WriteMode::Split {
+                // Render the edit now, so the preview can follow the cursor into it.
+                let text = self.write_source_full(cx);
+                self.prepare_write_preview(&text);
+                self.write_sync_cursor = None;
+                self.follow_write_cursor(cx);
+            }
             self.view.redraw(cx);
         }
         if self.page == Page::Write { self.handle_write_drop(cx, event); }
@@ -3755,7 +3793,19 @@ impl ArticlePanelRef {
 
 #[cfg(test)]
 mod tests {
-    use super::{expand_assets, image_insertion, shorten_assets};
+    use super::{expand_assets, image_insertion, preview_item_for_line, shorten_assets};
+
+    #[test]
+    fn the_preview_follows_the_block_holding_the_cursor() {
+        struct Plain;
+        impl article_core::render::Renderer for Plain {}
+        let blocks = article_core::markdown_render::render("# A\n\ntext\n\n## B\n\nmore", &mut Plain);
+        let lines: Vec<usize> = blocks.iter().map(|b| b.source_line).collect();
+        assert_eq!(preview_item_for_line(&blocks, 1), Some(0), "{lines:?}");
+        assert_eq!(preview_item_for_line(&blocks, 4), Some(1), "{lines:?}");
+        assert_eq!(preview_item_for_line(&blocks, 7), Some(blocks.len() - 1), "{lines:?}");
+        assert_eq!(preview_item_for_line(&[], 3), None);
+    }
 
     #[test]
     fn image_ids_are_short_in_the_source_and_full_when_stored() {

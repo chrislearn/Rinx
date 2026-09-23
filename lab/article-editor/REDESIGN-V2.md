@@ -82,6 +82,17 @@ The toolbar was exercised through the instrument: **B** wraps or inserts
   load them. They now count (article-core test). Readers compare the uploaded
   set with `asset_ids`, so older Rinx builds reject articles that contain such
   images, where before those images were silently missing.
+- **Character count:** blocks kept as Markdown or HTML source are counted
+  without markup, image references or tags (article-core test).
+- **Other Matrix clients:** images inside blocks kept as source (image
+  grids) are sent as their uploaded `mxc://` media in the plain-HTML
+  fallback. In encrypted rooms they are sent as their description, as
+  before for other images (backend test).
+- **Preview follows the cursor (split view):** moving the cursor, clicking
+  or typing scrolls the preview to the block being edited, unless that block
+  is already in view. Verified in the app on a 30-section article. Scrolling
+  the source with the wheel alone does not move the preview: the text input
+  does not expose its scroll position.
 - **Unappliable source:** if the writing view's source cannot be applied to
   the article, 发布 is blocked, and the reason is shown in the stats line
   ("暂不能发布：…", "仅保存为源码"). Before, the last applied version
@@ -94,10 +105,6 @@ The toolbar was exercised through the instrument: **B** wraps or inserts
 - **Accent colours:** the quote bar and headings use the ink colour rather
   than the theme accent.
 - **Favourites:** the theme gallery has no favourite stars.
-- **Word count:** it includes the raw Markdown of blocks kept as source,
-  such as image grids, so it runs high for those articles.
-- **Other Matrix clients:** the plain-HTML fallback does not show images
-  that sit in blocks kept as source (image grids). Rinx readers show them.
 - **Dropping image files:** implemented, with an overlay and import at the
   cursor, but **not verified in the running app**: the remote bridge has no
   drag-and-drop route.

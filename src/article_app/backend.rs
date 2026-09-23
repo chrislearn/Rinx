@@ -84,6 +84,20 @@ impl ArticleContent {
         Ok(article)
     }
 }
+/// Shows inline `asset:` images to other Matrix clients as their uploaded media.
+struct WireImages<'a>(&'a BTreeMap<String, RemoteAsset>);
+impl article_core::render::Renderer for WireImages<'_> {
+    fn image(&mut self, image: &article_core::render::ImageRequest<'_>) -> String {
+        match image.url.strip_prefix("asset:").and_then(|id| self.0.get(id)) {
+            Some(RemoteAsset { source: MediaSource::Plain(uri), .. }) => {
+                format!("<img src=\"{}\" alt=\"{}\">", escape(uri.as_str()), escape(image.alt))
+            }
+            // Other clients cannot show encrypted media inline; keep the description.
+            Some(_) => format!("[{}]", escape(if image.alt.is_empty() { "Image" } else { image.alt })),
+            None => article_core::render::image_link(image),
+        }
+    }
+}
 pub fn wire_content(
     doc: &Document,
     version: u64,
@@ -131,6 +145,9 @@ pub fn wire_content(
                     &b.caption
                 })
             ));
+        } else if matches!(b.kind, BlockKind::Markdown | BlockKind::Html) {
+            // Blocks kept as source refer to images inline (for example, image grids).
+            html.push_str(&doc.block_html_with_renderer(b, &mut WireImages(assets)))
         } else {
             html.push_str(&doc.block_html(b))
         }
@@ -755,6 +772,24 @@ mod tests {
         assert!(ArticleContent::parse(&wire_content(&doc, 1, &assets, None).unwrap()).is_ok());
         assets.get_mut(&id).unwrap().asset.width = 0;
         assert!(ArticleContent::parse(&wire_content(&doc, 1, &assets, None).unwrap()).is_err());
+    }
+    #[test]
+    fn images_in_source_blocks_are_sent_to_rinx_readers_and_other_clients() {
+        let id = "b".repeat(64);
+        let mut doc = Document::from_markdown("A", "hello").unwrap();
+        doc.blocks.push(Block::new(BlockKind::Markdown, &format!("![one](asset:{id})\n![two](asset:{id})")));
+        let mut assets = BTreeMap::new();
+        // Readers reject the article while the grid's image is not uploaded.
+        assert!(ArticleContent::parse(&wire_content(&doc, 1, &assets, None).unwrap()).is_err());
+        assets.insert(id.clone(), RemoteAsset {
+            asset: storage::Asset { id: id.clone(), name: "image".into(), width: 1, height: 1, mime: "image/png".into(), bytes: 100 },
+            source: MediaSource::Plain(ruma::owned_mxc_uri!("mxc://example.org/grid")),
+        });
+        let wire = wire_content(&doc, 1, &assets, None).unwrap();
+        assert!(ArticleContent::parse(&wire).is_ok());
+        let html = wire["formatted_body"].as_str().unwrap();
+        assert!(html.contains("<img src=\"mxc://example.org/grid\" alt=\"one\">"), "{html}");
+        assert!(!html.contains("asset:"), "{html}");
     }
     #[test]
     fn hostile_article_and_local_paths_rejected() {
