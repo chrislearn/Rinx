@@ -220,7 +220,7 @@ script_mod! {
                     }}
                 }
             }
-            Hint {text: #(crate::i18n::tr("DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.")) i18n_text: "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way."}
+            Hint {text: #(crate::i18n::tr("DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way.")) i18n_text: "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way."}
             Hint {text: #(crate::i18n::tr("One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received.")) i18n_text: "One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received."}
             audience_name := Body {draw_text.color: #x576b95}
             setup_recovery := View {visible: false width: Fill height: Fit flow: Down spacing: 6

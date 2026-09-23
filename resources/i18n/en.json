@@ -950,5 +950,9 @@
   "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>",
   "Thread": "Thread",
   "Share with everyone I chat with 1-on-1": "Share with everyone I chat with 1-on-1",
-  "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.": "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way."
+  "Share Moments with DM contacts": "Share Moments with DM contacts",
+  "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>": "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>",
+  "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.": "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.",
+  "Could not update Moments sharing: {e}": "Could not update Moments sharing: {e}",
+  "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way.": "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way."
 }
