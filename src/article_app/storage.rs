@@ -125,6 +125,14 @@ pub fn import_image(root: &Path, grant: &Grant, path: &Path, name: &str) -> Resu
     Store::new(&host, &grant.lease).import_image(&bytes, name)
 }
 
+/// Imports image bytes the host already holds, such as a pasted image.
+pub fn import_image_bytes(root: &Path, grant: &Grant, bytes: &[u8], name: &str) -> Result<Asset, String> {
+    use article_core::host::{ArticleHost, Capability};
+    let host = RobrixArticleHost::new(root);
+    host.authorize(&grant.lease, Capability::ImportAssets)?;
+    Store::new(&host, &grant.lease).import_image(bytes, name)
+}
+
 #[cfg(test)]
 mod native_import_tests {
     use super::*;
