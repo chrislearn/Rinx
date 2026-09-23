@@ -699,6 +699,9 @@ pub struct ArticlePanel {
     /// Images inserted since the toast last faded.
     #[rust] write_toast_count: usize,
     #[rust] write_toast_timer: Timer,
+    /// Why the writing view's source could not be applied to the article, if it could not.
+    /// It is still saved as typed, but cannot be published until this is fixed.
+    #[rust] write_error: Option<String>,
     #[rust] write_dragging: bool,
     /// Whether the live preview shows the title above the body: not when the source
     /// already opens with a level-1 heading, which would repeat it.
@@ -764,6 +767,55 @@ fn image_insertion(before: &str, image: &str, grid: bool) -> String {
     };
     let suffix = if grid { "" } else { "\n\n" };
     format!("{prefix}{image}{suffix}")
+}
+
+/// The clipboard's image as PNG bytes, if it holds an image and no text.
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn clipboard_png() -> Option<Vec<u8>> {
+    let mut clipboard = arboard::Clipboard::new().ok()?;
+    if clipboard.get_text().is_ok_and(|t| !t.trim().is_empty()) { return None; }
+    let image = clipboard.get_image().ok()?;
+    let rgba = ::image::RgbaImage::from_raw(image.width as u32, image.height as u32, image.bytes.into_owned())?;
+    let mut png = std::io::Cursor::new(Vec::new());
+    rgba.write_to(&mut png, ::image::ImageFormat::Png).ok()?;
+    Some(png.into_inner())
+}
+
+/// Hex digits of an image's ID shown in the writing view's source.
+const SHORT_ASSET: usize = 8;
+
+/// Rewrites every `asset:<hex>` reference in `source` with `map`.
+fn map_assets(source: &str, map: impl Fn(&str) -> Option<String>) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut rest = source;
+    while let Some(at) = rest.find("asset:") {
+        let (head, tail) = rest.split_at(at + "asset:".len());
+        out.push_str(head);
+        let hex = tail.len() - tail.trim_start_matches(|c: char| c.is_ascii_hexdigit()).len();
+        let id = &tail[..hex];
+        out.push_str(&map(id).unwrap_or_else(|| id.to_owned()));
+        rest = &tail[hex..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Shortens full image IDs to their first digits wherever that prefix is unambiguous.
+fn shorten_assets(source: &str, known: &[String]) -> String {
+    map_assets(source, |id| {
+        let short = id.get(..SHORT_ASSET)?;
+        (id.len() == 64 && known.iter().filter(|k| k.starts_with(short)).all(|k| k == id)).then(|| short.to_owned())
+    })
+}
+
+/// Expands shortened image IDs back to the one known ID they start with.
+fn expand_assets(source: &str, known: &[String]) -> String {
+    map_assets(source, |id| {
+        if id.len() < SHORT_ASSET || id.len() >= 64 { return None; }
+        let mut matches = known.iter().filter(|k| k.starts_with(id));
+        let full = matches.next()?;
+        matches.next().is_none().then(|| full.clone())
+    })
 }
 
 /// How long ago `secs` (Unix time) was, for the article list.
@@ -953,21 +1005,32 @@ impl ArticlePanel {
         script_apply_eval!(cx, style_button, {draw_text +: {color: #(accent) color_hover: #(accent)}});
         let mut fab = self.button(cx, ids!(write_style_fab));
         script_apply_eval!(cx, fab, {draw_text +: {color: #(accent) color_hover: #(accent) color_down: #(accent)}});
-        let saved = tr(if self.dirty { "Editing…" } else { "Saved" });
+        let saved = tr(if self.dirty { "Editing…" } else if self.write_error.is_some() { "Saved as source only" } else { "Saved" });
+        let (stats_ink, stats) = match &self.write_error {
+            Some(e) => (color(0xc05a00), Some(crate::i18n::format("Can't publish yet: {0}", &[("0", tr(e).to_owned())]))),
+            None => (color(0x888888), None),
+        };
+        let mut stats_label = self.label(cx, ids!(write_stats));
+        script_apply_eval!(cx, stats_label, {draw_text +: {color: #(stats_ink)}});
+        if let Some(stats) = stats {
+            stats_label.set_text(cx, &stats);
+            stats_label.set_visible(cx, true);
+        }
         self.label(cx, ids!(write_saved)).set_text(cx, saved);
         self.label(cx, ids!(write_saved_small)).set_text(cx, saved);
         if preview {
-            let text = self.text_input(cx, ids!(write_source)).text();
+            let text = self.write_source_full(cx);
             self.prepare_write_preview(&text);
         }
     }
     /// Loads the document's source into the writing view.
     fn load_write_source(&mut self, cx: &mut Cx) {
         let source = self.library.source_for(&self.doc.id).map(str::to_owned).unwrap_or_else(|| self.doc.markdown());
-        self.text_input(cx, ids!(write_source)).set_text(cx, &source);
+        self.text_input(cx, ids!(write_source)).set_text(cx, &shorten_assets(&source, &self.known_assets()));
         self.text_input(cx, ids!(write_title)).set_text(cx, &self.doc.title);
         self.text_input(cx, ids!(write_title_small)).set_text(cx, &self.doc.title);
         self.write_loaded = Some(self.doc.id.clone());
+        self.write_error = None;
         self.write_preview_key.clear();
         self.portal_list(cx, ids!(write_list)).set_first_id_and_scroll(0, 0.0);
     }
@@ -975,20 +1038,26 @@ impl ArticlePanel {
     /// otherwise keeps it as a source draft. Returns false if nothing could be saved.
     fn flush_write(&mut self, cx: &mut Cx) -> bool {
         if !self.dirty { return true; }
-        let text = self.text_input(cx, ids!(write_source)).text();
+        let text = self.write_source_full(cx);
         match self.apply_source(cx, &text) {
             Ok(()) => {
+                self.write_error = None;
                 self.status(cx, "Draft saved on this device");
                 self.refresh_document(cx);
                 self.ensure_preview_images();
                 true
             }
             // Unsupported or invalid source stays a draft, exactly as typed.
-            Err(_) => self.save(cx),
+            Err(e) => {
+                self.write_error = Some(e);
+                self.view.redraw(cx);
+                self.save(cx)
+            }
         }
     }
     /// Records an edit of the writing view's source.
     fn write_changed(&mut self, cx: &mut Cx, text: String) {
+        let text = expand_assets(&text, &self.known_assets());
         self.library.source_drafts.insert(self.doc.id.clone(), text);
         self.doc.modified = now();
         self.dirty = true;
@@ -1042,6 +1111,18 @@ impl ArticlePanel {
         input.set_selection(cx, Selection { anchor: caret, cursor: caret });
         let text = input.text();
         self.write_changed(cx, text);
+    }
+    /// Image IDs the writing view's source can refer to by a short prefix.
+    fn known_assets(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.library.assets.keys().cloned().collect();
+        ids.extend(self.doc.asset_ids());
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+    /// The writing view's source with full image IDs, as stored and parsed.
+    fn write_source_full(&self, cx: &mut Cx) -> String {
+        expand_assets(&self.text_input(cx, ids!(write_source)).text(), &self.known_assets())
     }
     fn write_image_text(&self, cx: &mut Cx, image: &str) -> String {
         let input = self.text_input(cx, ids!(write_source));
@@ -1768,7 +1849,7 @@ impl ArticlePanel {
             }
         } else if !self.block_mode && !self.replacing_image {
             let alt = asset.name.replace(['[', ']'], "");
-            let image = format!("![{alt}](asset:{})", asset.id);
+            let image = shorten_assets(&format!("![{alt}](asset:{})", asset.id), &self.known_assets());
             let text = self.write_image_text(cx, &image);
             self.insert_write_text(cx, &text);
             self.write_toast_count += 1;
@@ -1793,6 +1874,11 @@ impl ArticlePanel {
         }
     }
     fn pick(&mut self, cx: &mut Cx) {
+        #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+        if !self.selecting_cover && !self.replacing_image && self.page == Page::Write {
+            self.pick_many();
+            return;
+        }
         let Some(grant) = self.grant.clone() else {
             return;
         };
@@ -1827,6 +1913,45 @@ impl ArticlePanel {
         if let Err(e) = result {
             self.status(cx, &e.to_string())
         }
+    }
+    /// Imports an image from the clipboard into the writing view, when the clipboard
+    /// holds an image and no text (desktop only).
+    fn paste_image(&mut self, _cx: &mut Cx) {
+        #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+        {
+            let Some(grant) = self.grant.clone() else { return };
+            let document = self.doc.id.clone();
+            std::thread::spawn(move || {
+                let Some(png) = clipboard_png() else { return };
+                let result = storage::import_image_bytes(crate::app_data_dir(), &grant, &png, "pasted image.png");
+                Cx::post_action(ResultAction::Image { instance: grant.instance, document, cover: false, result });
+            });
+        }
+    }
+    /// Picks one or more images to insert into the writing view (desktop).
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    fn pick_many(&mut self) {
+        let Some(grant) = self.grant.clone() else { return };
+        let document = self.doc.id.clone();
+        let dialog = move || {
+            let files = rfd::FileDialog::new()
+                .add_filter(tr("Images"), &["png", "jpg", "jpeg"])
+                .pick_files()
+                .unwrap_or_default();
+            // Import in order on one thread, so the images are inserted in the order picked.
+            std::thread::spawn(move || {
+                for path in files {
+                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("image").to_owned();
+                    let result = storage::import_image(crate::app_data_dir(), &grant, &path, &name);
+                    Cx::post_action(ResultAction::Image { instance: grant.instance.clone(), document: document.clone(), cover: false, result });
+                }
+            });
+        };
+        // As robius-file-picker does: run the modal dialog from the main queue, outside this event.
+        #[cfg(target_os = "macos")]
+        dispatch2::DispatchQueue::main().exec_async(dialog);
+        #[cfg(not(target_os = "macos"))]
+        std::thread::spawn(dialog);
     }
     fn import_file(&mut self, cx: &mut Cx) {
         if self.dirty && !self.save(cx) { return; }
@@ -1874,7 +1999,9 @@ impl ArticlePanel {
     /// Starts publishing from the writing view: the publish sheet on desktop, or the
     /// 封面与摘要 step on phones (followed by 发布到 and 已发布).
     fn start_publish(&mut self, cx: &mut Cx) {
-        if !self.flush_write(cx) { return; }
+        // Always re-apply, so a source that was saved but could not be applied is caught.
+        self.dirty = true;
+        if !self.flush_write(cx) || self.write_error.is_some() { return; }
         if let Err(e) = self.publish_ready() {
             self.status(cx, &e);
             return;
@@ -2228,6 +2355,21 @@ impl Widget for ArticlePanel {
                 SelectionUpdate::Pass => {}
             }
         }
+        if self.page == Page::Write {
+            if let Event::KeyDown(key) = event {
+                let source = self.text_input(cx, ids!(write_source));
+                if key.modifiers.is_primary() && cx.has_key_focus(source.area()) {
+                    match key.key_code {
+                        KeyCode::KeyB => { self.wrap_write_selection(cx, "**", "**", "bold text"); return; }
+                        KeyCode::KeyI => { self.wrap_write_selection(cx, "*", "*", "italic text"); return; }
+                        KeyCode::KeyK => { self.wrap_write_selection(cx, "[", "](https://)", "link text"); return; }
+                        // Text pastes as usual; an image on the clipboard is imported at the cursor.
+                        KeyCode::KeyV => self.paste_image(cx),
+                        _ => {}
+                    }
+                }
+            }
+        }
         if matches!(self.page,Page::Preview|Page::Reader) && !self.doc.is_html_source() {
             if let Event::KeyDown(key)=event {
                 if key.key_code==KeyCode::KeyA && key.modifiers.is_primary() {
@@ -2373,6 +2515,8 @@ impl Widget for ArticlePanel {
                     } if document == &self.doc.id => match result {
                         Ok(asset) => {
                             self.selecting_cover = *cover;
+                            // Known before the source refers to it, so its short ID resolves.
+                            self.library.assets.insert(asset.id.clone(), asset.clone());
                             self.use_image(cx, asset.clone());
                         }
                         Err(e) => self.status(cx, e),
@@ -3611,7 +3755,24 @@ impl ArticlePanelRef {
 
 #[cfg(test)]
 mod tests {
-    use super::image_insertion;
+    use super::{expand_assets, image_insertion, shorten_assets};
+
+    #[test]
+    fn image_ids_are_short_in_the_source_and_full_when_stored() {
+        let a = format!("abcdef01{}", "1".repeat(56));
+        let b = format!("abcdef01{}", "2".repeat(56));
+        let c = format!("12345678{}", "3".repeat(56));
+        let known = vec![a.clone(), b.clone(), c.clone()];
+        let source = format!("![x](asset:{c}) ![y](asset:{a})");
+        // Unambiguous prefixes shorten; ones shared with another image stay full.
+        let short = shorten_assets(&source, &known);
+        assert_eq!(short, format!("![x](asset:12345678) ![y](asset:{a})"));
+        assert_eq!(expand_assets(&short, &known), source);
+        // Unknown or ambiguous prefixes are left for the parser to reject.
+        assert_eq!(expand_assets("asset:abcdef01 asset:99999999", &known), "asset:abcdef01 asset:99999999");
+        assert_eq!(expand_assets("asset:1234567", &known), "asset:1234567");
+        let _ = b;
+    }
 
     #[test]
     fn images_in_a_row_share_a_paragraph_only_with_the_grid_on() {

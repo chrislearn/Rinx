@@ -1037,5 +1037,7 @@
   "Published to {0}": "已发布到 {0}",
   "{0} images inserted": "已插入 {0} 张图片",
   "Lay out multiple images automatically": "多张图片自动排版",
-  "Images added one after another form a grid. Selected images stay on this device until you publish.": "连续插入的图片会排成网格。所选图片在发布前只保存在本机。"
+  "Images added one after another form a grid. Selected images stay on this device until you publish.": "连续插入的图片会排成网格。所选图片在发布前只保存在本机。",
+  "Saved as source only": "仅保存为源码",
+  "Can't publish yet: {0}": "暂不能发布：{0}"
 }

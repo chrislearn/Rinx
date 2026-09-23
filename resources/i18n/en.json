@@ -1037,5 +1037,7 @@
   "Published to {0}": "Published to {0}",
   "{0} images inserted": "{0} images inserted",
   "Lay out multiple images automatically": "Lay out multiple images automatically",
-  "Images added one after another form a grid. Selected images stay on this device until you publish.": "Images added one after another form a grid. Selected images stay on this device until you publish."
+  "Images added one after another form a grid. Selected images stay on this device until you publish.": "Images added one after another form a grid. Selected images stay on this device until you publish.",
+  "Saved as source only": "Saved as source only",
+  "Can't publish yet: {0}": "Can't publish yet: {0}"
 }

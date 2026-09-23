@@ -474,6 +474,16 @@ impl Document {
             if let Some(a) = &b.asset {
                 ids.insert(a.clone());
             }
+            // Blocks kept as source (such as several images in one paragraph) refer
+            // to images inline; those images are uploaded and verified like the rest.
+            if matches!(b.kind, BlockKind::Markdown | BlockKind::Html) {
+                for rest in b.text.split("asset:").skip(1) {
+                    let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect();
+                    if valid_id(&id) {
+                        ids.insert(id);
+                    }
+                }
+            }
         }
         ids.into_iter().collect()
     }
@@ -724,6 +734,12 @@ mod tests {
         }
         let d = Document::from_markdown("A", "![山谷](asset:asset_1)").unwrap();
         assert_eq!(d.asset_ids(), vec!["asset_1"]);
+        // Images inside blocks kept as Markdown source count too.
+        let mut d = Document::default();
+        let mut block = Block::new(BlockKind::Markdown, "![a](asset:asset_2)\n![b](asset:asset_3)");
+        block.asset = None;
+        d.blocks.push(block);
+        assert_eq!(d.asset_ids(), vec!["asset_2", "asset_3"]);
     }
     #[test]
     fn literal_markdown_punctuation_is_not_reinterpreted() {

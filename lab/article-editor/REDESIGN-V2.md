@@ -62,6 +62,31 @@ Defects found by looking at the side-by-sides and fixed:
 The toolbar was exercised through the instrument: **B** wraps or inserts
 `**…**`, and **H** prefixes the line with `## `.
 
+## Functional additions (after v2 screens)
+
+- **Short image names:** the source shows `asset:` plus the first 8 hex
+  digits of each image ID. It keeps the full ID where two images share that
+  prefix. Storage, parsing and publishing always use full IDs
+  (`shorten_assets` / `expand_assets`, unit-tested). Verified in the app.
+- **Shortcuts:** Cmd/Ctrl+B, I and K wrap the selection in bold, italic or a
+  link. Verified in the app (Cmd+B).
+- **Pasting images (desktop):** Cmd/Ctrl+V with an image and no text on the
+  clipboard imports the image at the cursor. Text pastes as usual. Verified
+  in the app: two pastes in a row render as a two-image grid.
+- **Picking several images (desktop):** 图片 opens a multi-select dialog
+  (rfd), and the images are inserted in the order picked. Not verified in
+  the app: a modal dialog cannot be driven over the bridge.
+- **Publishing fix:** images referenced inside blocks kept as Markdown
+  source (for example, several images in one paragraph) were not counted by
+  `Document::asset_ids`. They were therefore not uploaded, and readers did not
+  load them. They now count (article-core test). Readers compare the uploaded
+  set with `asset_ids`, so older Rinx builds reject articles that contain such
+  images, where before those images were silently missing.
+- **Unappliable source:** if the writing view's source cannot be applied to
+  the article, 发布 is blocked, and the reason is shown in the stats line
+  ("暂不能发布：…", "仅保存为源码"). Before, the last applied version
+  could be published.
+
 ## Known gaps (not yet matching the atlases, or not verified)
 
 - **Source pane:** no line numbers or Markdown syntax colouring; it is a plain
@@ -69,8 +94,10 @@ The toolbar was exercised through the instrument: **B** wraps or inserts
 - **Accent colours:** the quote bar and headings use the ink colour rather
   than the theme accent.
 - **Favourites:** the theme gallery has no favourite stars.
-- **Image references:** these are full `asset:<64-hex>` IDs, not short
-  aliases.
+- **Word count:** it includes the raw Markdown of blocks kept as source,
+  such as image grids, so it runs high for those articles.
+- **Other Matrix clients:** the plain-HTML fallback does not show images
+  that sit in blocks kept as source (image grids). Rinx readers show them.
 - **Dropping image files:** implemented, with an overlay and import at the
   cursor, but **not verified in the running app**: the remote bridge has no
   drag-and-drop route.
