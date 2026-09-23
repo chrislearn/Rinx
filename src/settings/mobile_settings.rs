@@ -151,11 +151,11 @@ script_mod! {
             zoom := ScrollYView {
                 width: Fill height: Fill flow: Down
                 DetailSection {
-                    zoom_small := DetailRow {title.text: #(crate::i18n::tr("Smaller")) title.i18n_text: "Smaller" value.text: "90%"}
+                    zoom_small := DetailRow {title.text: #(crate::i18n::tr("Smaller")) title.i18n_text: "Smaller" value.text: "90%" chevron.visible: false}
                     DetailDivider {}
-                    zoom_default := DetailRow {title.text: #(crate::i18n::tr("Standard")) title.i18n_text: "Standard" value.text: "100%"}
+                    zoom_default := DetailRow {title.text: #(crate::i18n::tr("Standard")) title.i18n_text: "Standard" value.text: "100%" chevron.visible: false}
                     DetailDivider {}
-                    zoom_large := DetailRow {title.text: #(crate::i18n::tr("Larger")) title.i18n_text: "Larger" value.text: "110%"}
+                    zoom_large := DetailRow {title.text: #(crate::i18n::tr("Larger")) title.i18n_text: "Larger" value.text: "110%" chevron.visible: false}
                 }
                 DetailNote {text: #(crate::i18n::tr("Changes the size of text and controls throughout Rinx.")) i18n_text: "Changes the size of text and controls throughout Rinx."}
             }
