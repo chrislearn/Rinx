@@ -319,24 +319,7 @@ impl MatchEvent for App {
                     continue;
                 }
                 Some(LogoutAction::ClearAppState { on_clear_appstate }) =>  {
-                    let modal = self.ui.modal(cx, ids!(moments_modal));
-                    self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), &MomentsAction::Close);
-                    self.moments_window_host(cx).close(cx);
-                    #[cfg(feature = "agent_chat")]
-                    {
-                        crate::agent_chat::reply::clear_session(cx);
-                        let modal = self.ui.modal(cx, ids!(agent_ops_modal));
-                        self.ui.agent_ops_panel(cx, ids!(agent_ops_modal.content)).action(cx, modal, &AgentOpsAction::Close);
-                    }
-                    let modal = self.ui.modal(cx, ids!(article_app_modal));
-                    self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
-                    // Clear and reset all app state to its default.
-                    clear_all_app_state(cx);
-                    self.ui.modal(cx, ids!(verification_modal)).close(cx);
-                    self.app_state = Default::default();
-                    // We also need to broadcast those default values out,
-                    // such that all other widgets can be reset to their default state.
-                    self.app_state.app_prefs.broadcast_all(cx);
+                    self.clear_session_ui(cx);
                     on_clear_appstate.notify_one();
                     continue;
                 }
@@ -360,7 +343,7 @@ impl MatchEvent for App {
                 self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
                 if self.app_state.logged_in {
                     log!("Received LoginAction::LoginFailure while logged in; showing login screen.");
-                    self.app_state.logged_in = false;
+                    self.clear_session_ui(cx);
                     self.update_login_visibility(cx);
                     self.ui.redraw(cx);
                 }
@@ -758,6 +741,31 @@ impl MatchEvent for App {
                 _ => {}
             }
         }
+    }
+}
+
+impl App {
+    fn clear_session_ui(&mut self, cx: &mut Cx) {
+        let modal = self.ui.modal(cx, ids!(moments_modal));
+        self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), &MomentsAction::Close);
+        self.moments_window_host(cx).close(cx);
+        #[cfg(feature = "agent_chat")]
+        {
+            crate::agent_chat::reply::clear_session(cx);
+            let modal = self.ui.modal(cx, ids!(agent_ops_modal));
+            self.ui.agent_ops_panel(cx, ids!(agent_ops_modal.content)).action(cx, modal, &AgentOpsAction::Close);
+        }
+        let modal = self.ui.modal(cx, ids!(article_app_modal));
+        self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
+        let modal = self.ui.modal(cx, ids!(mini_app_modal));
+        self.ui.mini_app_panel(cx, ids!(mini_app_modal.content)).action(cx, modal, &MiniAppAction::Close);
+        let modal = self.ui.modal(cx, ids!(forward_modal));
+        self.ui.forward_panel(cx, ids!(forward_modal.content)).action(cx, modal, &ForwardAction::Close);
+        self.ui.modal(cx, ids!(verification_modal)).close(cx);
+        clear_all_app_state(cx);
+        self.waiting_to_navigate_to_room = None;
+        self.app_state.clear_for_session_end();
+        self.app_state.app_prefs.broadcast_all(cx);
     }
 }
 
@@ -1212,6 +1220,36 @@ pub struct AppState {
     /// App-wide user preferences/settings.
     #[serde(default, deserialize_with = "crate::utils::deserialize_or_default")]
     pub app_prefs: AppPreferences,
+}
+
+impl AppState {
+    fn clear_for_session_end(&mut self) {
+        *self = Self::default();
+    }
+}
+
+#[cfg(test)]
+mod session_state_tests {
+    use super::*;
+
+    #[test]
+    fn expired_session_clears_state_before_another_account_logs_in() {
+        let mut state = AppState::default();
+        state.logged_in = true;
+        state.app_prefs.send_on_enter = false;
+        state.saved_dock_state_home.room_order.push(SelectedRoom::JoinedRoom {
+            room_name_id: RoomNameId::from((
+                Some(matrix_sdk::RoomDisplayName::Named("Private room".into())),
+                ruma::room_id!("!private:example.org").to_owned(),
+            )),
+        });
+
+        state.clear_for_session_end();
+
+        assert!(!state.logged_in);
+        assert!(state.app_prefs.send_on_enter);
+        assert!(state.saved_dock_state_home.room_order.is_empty());
+    }
 }
 
 /// A snapshot of the main dock: all state needed to restore the dock tabs/layout.
