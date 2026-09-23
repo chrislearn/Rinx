@@ -989,10 +989,16 @@
   "Description lists": "定义列表",
   "Use at most 128 images per article.": "每篇文章最多使用 128 张图片。",
   "Thread": "话题",
-  "Open each chat in its own tab (desktop)": "在独立标签页中打开每个聊天（桌面端）",
-  "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>关闭后，桌面布局会在房间列表旁显示一个聊天；选择其他房间时，会替换当前聊天。</li></ul>",
+  "Open each chat in its own tab (desktop)": "每个聊天在单独的标签页中打开（桌面版）",
+  "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>关闭时，桌面版在聊天列表右侧只显示一个聊天，选择其他聊天会替换当前聊天。</li></ul>",
   "Edit source": "编辑源码",
   "Render block": "显示渲染",
   "Edit metadata": "编辑元数据",
-  "Images, tables, highlighted code, emoji, math and supported diagrams render in the editor and preview. Use Edit source on a block to change its Markdown. Metadata stays in Source.": "图片、表格、代码高亮、表情、公式和支持的图表会在编辑器和预览中显示。点击区块的“编辑源码”修改 Markdown。元数据保留在源码中。"
+  "Images, tables, highlighted code, emoji, math and supported diagrams render in the editor and preview. Use Edit source on a block to change its Markdown. Metadata stays in Source.": "图片、表格、代码高亮、表情、公式和支持的图表会在编辑器和预览中显示。点击区块的“编辑源码”修改 Markdown。元数据保留在源码中。",
+  "Share with everyone I chat with 1-on-1": "与所有私聊过的人共享",
+  "Share Moments with DM contacts": "与私聊联系人共享朋友圈",
+  "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>": "<ul><li>默认开启。同样使用 Rinx 的私聊联系人可以看到你的朋友圈，你也可以看到他们的。使用其他应用的人不会收到邀请。</li><li>你的 Matrix 个人资料会显示你开启了此项。</li></ul>",
+  "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.": "默认开启。同样使用 Rinx 的私聊联系人可以看到你的朋友圈，你也可以看到他们的。你的 Matrix 个人资料会显示你开启了此项。",
+  "Could not update Moments sharing: {e}": "无法更新朋友圈共享设置：{e}",
+  "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way.": "同样使用 Rinx 并共享朋友圈的私聊联系人会自动加入你的朋友圈，你也会自动加入他们的。默认开启；你的 Matrix 个人资料会显示你开启了此项。"
 }

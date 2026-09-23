@@ -3508,6 +3508,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
 
         // Listen for updates to the blocked user list.
         subscriber_task_handles.push(handle_blocked_user_list_subscriber(client.clone()));
+        subscriber_task_handles.push(rt.spawn(crate::moments::dm_sharing::dm_sharing_loop()));
         subscriber_task_handles.push(handle_room_notification_subscriber(client.clone()));
 
         // Listen for session changes, e.g., when the access token becomes invalid.

@@ -179,6 +179,8 @@ script_mod! {
                     show_receipts := SwitchRow {title.text: #(crate::i18n::tr("Show Read Receipts")) title.i18n_text: "Show Read Receipts"}
                 }
                 DetailNote {text: #(crate::i18n::tr("When sharing is off, read markers sync only to your own devices. Turn off automatic marking to mark chats as read manually.")) i18n_text: "When sharing is off, read markers sync only to your own devices. Turn off automatic marking to mark chats as read manually."}
+                DetailSection {moments_sharing := SwitchRow {title.text: #(crate::i18n::tr("Share Moments with DM contacts")) title.i18n_text: "Share Moments with DM contacts"}}
+                DetailNote {text: #(crate::i18n::tr("On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.")) i18n_text: "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way."}
                 DetailSection {blocked_row := DetailRow {title.text: #(crate::i18n::tr("Blocked Users")) title.i18n_text: "Blocked Users"}}
             }
             blocked := View {
@@ -295,6 +297,17 @@ impl Widget for MobileSettings {
             self.redraw(cx);
         }
         let Event::Actions(actions) = event else { return; };
+        // Show the Moments sharing setting here rather than in `draw_walk()`:
+        // `set_active` moves the switch through its animator, which has no effect mid-draw.
+        let sharing_toggle = self.view.check_box(cx, ids!(moments_sharing.toggle));
+        let share = crate::moments::dm_sharing::sharing_setting().unwrap_or(true);
+        if sharing_toggle.active(cx) != share {
+            sharing_toggle.set_active(cx, share, Animate::No);
+            self.view.redraw(cx);
+        }
+        if let Some(share) = self.view.check_box(cx, ids!(moments_sharing.toggle)).changed(actions) {
+            crate::moments::dm_sharing::change_sharing_setting(share);
+        }
         for action in actions {
             if matches!(action.downcast_ref::<LogoutAction>(), Some(LogoutAction::LogoutSuccess) | Some(LogoutAction::ClearAppState {..})) {
                 self.profile = None; self.history.clear(); self.page = Page::Settings;
