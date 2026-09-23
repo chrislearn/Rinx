@@ -40,6 +40,8 @@ script_mod! {
         ui: Root {
             // Not a window itself: builds the separate Moments window on demand.
             moments_window_host := MomentsWindowHost {}
+            // Likewise the article editor's window.
+            article_window_host := ArticleWindowHost {}
 
             main_window := Window {
                 window.inner_size: vec2(1280, 800)
@@ -330,6 +332,7 @@ impl MatchEvent for App {
                     }
                     let modal = self.ui.modal(cx, ids!(article_app_modal));
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
+                    self.article_window_host(cx).close(cx);
                     // Clear and reset all app state to its default.
                     clear_all_app_state(cx);
                     self.ui.modal(cx, ids!(verification_modal)).close(cx);
@@ -358,6 +361,7 @@ impl MatchEvent for App {
                 crate::article_app::invalidate_sessions();
                 let modal = self.ui.modal(cx, ids!(article_app_modal));
                 self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
+                self.article_window_host(cx).close(cx);
                 if self.app_state.logged_in {
                     log!("Received LoginAction::LoginFailure while logged in; showing login screen.");
                     self.app_state.logged_in = false;
@@ -396,9 +400,19 @@ impl MatchEvent for App {
                 self.ui.forward_panel(cx, ids!(forward_modal.content)).action(cx, modal, action);
                 continue;
             }
+            // On desktop, the article editor (and reader) opens in its own window;
+            // on mobile, in a full-screen modal.
             if let Some(action) = action.downcast_ref::<ArticleAction>() {
                 let modal = self.ui.modal(cx, ids!(article_app_modal));
-                self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
+                let window_host = self.article_window_host(cx);
+                if matches!(action, ArticleAction::Close) {
+                    self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
+                    window_host.close(cx);
+                } else if crate::home::home_screen::effective_is_desktop(cx) {
+                    window_host.action(cx, action);
+                } else {
+                    self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
+                }
                 continue;
             }
             if let Some(action) = action.downcast_ref::<MiniAppAction>() {
@@ -1002,13 +1016,15 @@ impl App {
                     log!("Main window close requested; persisting runtime state.");
                     self.persist_runtime_state(cx, "main window close request");
                     // The app only quits once its last window closes,
-                    // so take the Moments window down with the main one.
+                    // so take the Moments and article windows down with the main one.
                     self.moments_window_host(cx).close(cx);
+                    self.article_window_host(cx).close(cx);
                 }
             // Not every close goes through a close request first, so also catch the close itself.
             Event::WindowClosed(e)
                 if self.ui.window(cx, ids!(main_window)).window_id() == Some(e.window_id) => {
                     self.moments_window_host(cx).close(cx);
+                    self.article_window_host(cx).close(cx);
                 }
             Event::Foreground => {
                 if !self.lifecycle.is_foreground {
@@ -1028,6 +1044,11 @@ impl App {
     fn moments_window_host(&self, cx: &mut Cx) -> crate::moments::window::MomentsWindowHostRef {
         use crate::moments::window::MomentsWindowHostWidgetRefExt;
         self.ui.widget(cx, ids!(moments_window_host)).as_moments_window_host()
+    }
+
+    fn article_window_host(&self, cx: &mut Cx) -> crate::article_app::window::ArticleWindowHostRef {
+        use crate::article_app::window::ArticleWindowHostWidgetRefExt;
+        self.ui.widget(cx, ids!(article_window_host)).as_article_window_host()
     }
 
     fn persist_runtime_state(&mut self, cx: &mut Cx, reason: &'static str) {

@@ -9,6 +9,7 @@ mod remote_images;
 mod storage;
 pub(crate) mod backend;
 pub mod ui;
+pub mod window;
 pub use model::{ArticlePackage, MSGTYPE};
 pub use ui::{ArticleAction, ArticlePanelWidgetRefExt};
 pub(crate) use model::invalidate_sessions;
@@ -22,4 +23,5 @@ pub fn script_mod(vm:&mut makepad_widgets::ScriptVm) {
         script_eval!(vm, {mod.widgets.HtmlView = mod.widgets.View{}});
     }
     ui::script_mod(vm);
+    window::script_mod(vm);
 }
