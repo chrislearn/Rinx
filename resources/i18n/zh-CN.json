@@ -948,5 +948,7 @@
   "Built on Robrix · Apache-2.0": "致敬 Robrix · Apache-2.0",
   "Open each chat in its own tab (desktop)": "每个聊天在单独的标签页中打开（桌面版）",
   "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>关闭时，桌面版在聊天列表右侧只显示一个聊天，选择其他聊天会替换当前聊天。</li></ul>",
-  "Thread": "话题"
+  "Thread": "话题",
+  "Share with everyone I chat with 1-on-1": "与所有私聊过的人共享",
+  "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.": "同样使用 Rinx 并开启此项的私聊联系人会自动加入你的朋友圈，你也会自动加入他们的。你的 Matrix 个人资料会显示你开启了此项。"
 }

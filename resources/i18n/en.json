@@ -948,5 +948,7 @@
   "Built on Robrix · Apache-2.0": "Built on Robrix · Apache-2.0",
   "Open each chat in its own tab (desktop)": "Open each chat in its own tab (desktop)",
   "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>",
-  "Thread": "Thread"
+  "Thread": "Thread",
+  "Share with everyone I chat with 1-on-1": "Share with everyone I chat with 1-on-1",
+  "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.": "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way."
 }

@@ -28,6 +28,9 @@ pub struct Preferences {
     pub hidden: BTreeSet<OwnedUserId>,
     #[serde(default)]
     pub seen: BTreeSet<OwnedEventId>,
+    /// Share this account's Moments with its DM contacts; see `super::dm_sharing`.
+    #[serde(default)]
+    pub share_with_dm_contacts: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ComposerDraft {
@@ -445,7 +448,9 @@ impl Service {
             json!({"type":"m.room.history_visibility","state_key":"","content":{"history_visibility":"joined"}}),
             json!({"type":"m.room.join_rules","state_key":"","content":{"join_rule":"invite"}}),
         ].iter().map(|v|Raw::new(v).map(Raw::cast_unchecked)).collect::<Result<_,_>>()?;
-        request.power_level_content_override=Some(Raw::new(&json!({"users":{self.owner.as_str():100},"users_default":0,
+        // No "users" entry for the owner: the server's default already gives the creator
+        // full power, and room version 12 (matrix.org's default) rejects listing a creator.
+        request.power_level_content_override=Some(Raw::new(&json!({"users_default":0,
             "events_default":0,"state_default":100,"invite":100,"kick":100,"ban":100,"redact":100,
             "events":{"m.room.name":100,"m.room.topic":100,"m.room.avatar":100,"m.room.power_levels":100,"m.room.join_rules":100,"m.room.history_visibility":100,"m.room.encryption":100}}))?.cast_unchecked());
         self.guard()?;
@@ -509,6 +514,13 @@ impl Service {
         self.writable(&room, true).await?;
         let mut prefs = self.preferences().await?;
         prefs.timeline = Some(room);
+        self.save_preferences(&prefs).await
+    }
+    /// Applies `update` to the saved preferences.
+    pub(super) async fn update_preferences(&self, update: impl FnOnce(&mut Preferences)) -> Result<()> {
+        let _lock = WRITES.lock().await;
+        let mut prefs = self.preferences().await?;
+        update(&mut prefs);
         self.save_preferences(&prefs).await
     }
     pub async fn hide(&self, author: OwnedUserId, hidden: bool) -> Result<()> {
@@ -924,8 +936,9 @@ pub fn timeline_from_state(room: &ruma::RoomId, state: &[Value]) -> Result<Timel
             crate::i18n::tr("Only the author may change timeline settings.")
         );
     }
+    // Room version 12 creators hold full power implicitly and may have no `users` entries at all.
     ensure!(
-        powers["users"].as_object().is_some_and(|users| users
+        powers["users"].as_object().is_none_or(|users| users
             .iter()
             .all(|(u, p)| u == author.as_str() || p.as_i64().unwrap_or(100) < 100)),
         crate::i18n::tr("Only the author may manage this audience.")
@@ -1044,6 +1057,14 @@ mod tests {
         let mut elevated = state.clone();
         elevated[4]["content"]["events"] = json!({"m.room.power_levels":0});
         assert!(timeline_from_state(id, &elevated).is_err());
+        // Room version 12: the creator's power is implicit, so `users` may be empty or absent.
+        let mut v12 = state.clone();
+        v12[4]["content"]["users"] = json!({});
+        assert!(timeline_from_state(id, &v12).is_ok());
+        v12[4]["content"].as_object_mut().unwrap().remove("users");
+        assert!(timeline_from_state(id, &v12).is_ok());
+        v12[4]["content"]["users"] = json!({"@viewer:example.org":100});
+        assert!(timeline_from_state(id, &v12).is_err());
         let mut extra_creator = state.clone();
         extra_creator[0]["content"]["additional_creators"] = json!(["@viewer:example.org"]);
         assert!(timeline_from_state(id, &extra_creator).is_err());
