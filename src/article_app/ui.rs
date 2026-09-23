@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use article_core::editing::EditHistory;
 use article_makepad::body_selection::{ArticleSelection, SelectionUpdate};
 use makepad_widgets::{makepad_draw::text::selection::{Cursor, Selection}, text_input::UndoGroup};
+use super::table_picker::TableSizePickerWidgetRefExt;
 use article_makepad::content::Images as PreviewImages;
 #[cfg(feature = "html_preview")]
 use makepad_html_renderer::makepad::HtmlViewWidgetExt;
@@ -317,6 +318,7 @@ script_mod! {
                                 wb_heading := mod.widgets.ArticleTool {width: Fill text: "H" draw_text.text_style: theme.font_bold{font_size: 14}}
                                 wb_quote := mod.widgets.ArticleTool {width: Fill text: "❝"}
                                 wb_bullet := mod.widgets.ArticleTool {width: Fill text: "•"}
+                                wb_table := mod.widgets.ArticleTool {width: Fill text: "⊞"}
                                 wb_image := mod.widgets.ArticleTool {width: Fill text: #(crate::i18n::tr("Image")) i18n_text: "Image"}
                                 wb_link := mod.widgets.ArticleTool {width: Fill text: #(crate::i18n::tr("Link")) i18n_text: "Link"}
                             }
@@ -362,6 +364,13 @@ script_mod! {
             }
             SolidView {width: Fill height: 1 draw_bg.color: #xe5e5e5}
             write_stats := mod.widgets.ArticleLabel {padding: Inset{left: 16 top: 8 bottom: 8} draw_text +: {color: #x888888 text_style: theme.font_regular{font_size: 11}}}
+          }
+          // Table size picker (⊞), placed under the button that opened it.
+          write_table_popup := View {visible: false width: Fill height: Fill flow: Down
+            write_table_card := RoundedView {width: Fit height: Fit flow: Down padding: 14 spacing: 10 draw_bg +: {color: #xffffff border_size: 1.0 border_color: #xdddddd border_radius: 8.0}
+              mod.widgets.ArticleLabel {width: Fit text: #(crate::i18n::tr("Insert table")) i18n_text: "Insert table" draw_text.text_style: theme.font_bold{font_size: 13}}
+              write_table_picker := mod.widgets.TableSizePicker {}
+            }
           }
           // Phone preview: opens the style sheet.
           write_style_fab_box := View {visible: false width: Fill height: Fill align: Align{x: 1.0 y: 1.0} padding: Inset{right: 16 bottom: 64}
@@ -1155,6 +1164,34 @@ impl ArticlePanel {
             self.view.redraw(cx);
         }
     }
+    /// Opens the table size picker under the button that opened it, or closes it.
+    fn toggle_table_popup(&mut self, cx: &mut Cx, button: LiveId) {
+        let popup = self.view(cx, ids!(write_table_popup));
+        if popup.visible() {
+            self.close_table_popup(cx);
+            return;
+        }
+        self.widget(cx, ids!(write_table_picker)).as_table_size_picker().reset(cx);
+        // The popup overlays the whole writing view, whose top-left is the source pane's.
+        let origin = self.view(cx, ids!(write_source_pane)).area().rect(cx).pos;
+        let rect = self.button(cx, &[button]).area().rect(cx);
+        let desktop = button == id!(wt_table);
+        if let Some(mut view) = popup.borrow_mut() {
+            // Desktop: drop down from the toolbar button. Phone: centred above the bottom toolbar.
+            view.layout.align = if desktop { Align { x: 0.0, y: 0.0 } } else { Align { x: 0.5, y: 1.0 } };
+            view.layout.padding = if desktop {
+                Inset { left: (rect.pos.x - origin.x - 12.0).max(8.0), top: rect.pos.y + rect.size.y - origin.y + 4.0, right: 0.0, bottom: 0.0 }
+            } else {
+                Inset { left: 0.0, top: 0.0, right: 0.0, bottom: 72.0 }
+            };
+        }
+        popup.set_visible(cx, true);
+        self.view.redraw(cx);
+    }
+    fn close_table_popup(&mut self, cx: &mut Cx) {
+        self.view(cx, ids!(write_table_popup)).set_visible(cx, false);
+        self.view.redraw(cx);
+    }
     fn set_write_mode(&mut self, cx: &mut Cx, mode: WriteMode) {
         self.write_mode = mode;
         self.view.redraw(cx);
@@ -1189,8 +1226,19 @@ impl ArticlePanel {
         if self.button(cx, ids!(wt_bullet)).clicked(actions) || self.button(cx, ids!(wb_bullet)).clicked(actions) { self.prefix_write_lines(cx, |_| "- ".into()); }
         if self.button(cx, ids!(wt_numbered)).clicked(actions) { self.prefix_write_lines(cx, |i| format!("{}. ", i + 1)); }
         if self.button(cx, ids!(wt_rule)).clicked(actions) { self.insert_write_text(cx, "\n\n---\n\n"); }
-        if self.button(cx, ids!(wt_table)).clicked(actions) {
-            self.insert_write_text(cx, "\n\n| 列 1 | 列 2 |\n| --- | --- |\n|  |  |\n\n");
+        for id in [id!(wt_table), id!(wb_table)] {
+            if self.button(cx, &[id]).clicked(actions) {
+                self.toggle_table_popup(cx, id);
+            }
+        }
+        if let Some((rows, cols)) = self.widget(cx, ids!(write_table_picker)).as_table_size_picker().picked(actions) {
+            self.close_table_popup(cx);
+            let table = super::table_picker::markdown_table(rows, cols, |i| crate::i18n::format("Column {0}", &[("0", i.to_string())]));
+            let input = self.text_input(cx, ids!(write_source));
+            let text = input.text();
+            let before = &text[..input.selection().start().index.min(text.len())];
+            let prefix = if before.is_empty() || before.ends_with("\n\n") { "" } else if before.ends_with('\n') { "\n" } else { "\n\n" };
+            self.insert_write_text(cx, &format!("{prefix}{table}\n\n"));
         }
         let pick_image = self.button(cx, ids!(wt_image)).clicked(actions)
             || self.widget(cx, ids!(image_sheet_pick)).as_navigation_bar_button().clicked(actions);
@@ -2380,6 +2428,18 @@ impl Widget for ArticlePanel {
                 SelectionUpdate::Handled => { return; }
                 SelectionUpdate::Pass => {}
             }
+        }
+        if self.page == Page::Write && self.view(cx, ids!(write_table_popup)).visible() {
+            // The picker closes on Escape or a press anywhere outside it (its buttons toggle it).
+            let outside = match event {
+                Event::KeyDown(key) => key.key_code == KeyCode::Escape,
+                Event::MouseDown(e) => {
+                    let inside = |id: LiveId, this: &Self, cx: &mut Cx| this.widget(cx, &[id]).area().rect(cx).contains(e.abs);
+                    !inside(id!(write_table_card), self, cx) && !inside(id!(wt_table), self, cx) && !inside(id!(wb_table), self, cx)
+                }
+                _ => false,
+            };
+            if outside { self.close_table_popup(cx); }
         }
         if self.page == Page::Write {
             if let Event::KeyDown(key) = event {
@@ -3835,3 +3895,4 @@ mod tests {
         assert_eq!(image_insertion("![a](asset:a)\n\n", img, false), format!("{img}\n\n"));
     }
 }
+

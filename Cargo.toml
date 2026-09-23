@@ -422,5 +422,5 @@ used_underscore_binding = "allow"
 
 # Keep all Makepad widgets on the same compatibility revision as the renderer.
 [patch."https://github.com/kevinaboos/makepad"]
-makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "baa9c89735a51efc9070605eb263c56443e34b90" }
-makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "baa9c89735a51efc9070605eb263c56443e34b90" }
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
