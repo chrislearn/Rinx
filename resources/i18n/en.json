@@ -1020,5 +1020,22 @@
   "italic text": "italic text",
   "code": "code",
   "link text": "link text",
-  "{0} chars · about {1} min · {2} images": "{0} chars · about {1} min · {2} images"
+  "{0} chars · about {1} min · {2} images": "{0} chars · about {1} min · {2} images",
+  "Publish article": "Publish article",
+  "Change": "Change",
+  "Publish to": "Publish to",
+  "Search chats": "Search chats",
+  "Share card": "Share card",
+  "Change cover": "Change cover",
+  "Sent to {0}": "Sent to {0}",
+  "Back to article list": "Back to article list",
+  "Choose a chat to publish to.": "Choose a chat to publish to.",
+  "One line about this article": "One line about this article",
+  "Next step": "Next step",
+  "Apply": "Apply",
+  "Insert image": "Insert image",
+  "Published to {0}": "Published to {0}",
+  "{0} images inserted": "{0} images inserted",
+  "Lay out multiple images automatically": "Lay out multiple images automatically",
+  "Images added one after another form a grid. Selected images stay on this device until you publish.": "Images added one after another form a grid. Selected images stay on this device until you publish."
 }

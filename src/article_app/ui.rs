@@ -51,6 +51,8 @@ enum Page {
     Rooms,
     Confirm,
     Publication,
+    /// Success after publishing from the editor (atlas: 已发布).
+    Published,
     Withdraw,
     Reader,
 }
@@ -126,6 +128,17 @@ script_mod! {
         }
         name := mod.widgets.ArticleLabel {width: Fit padding: 0 draw_text.text_style: theme.font_regular{font_size: 11}}
     }
+    // A chat to publish to: initial avatar, name and a radio mark (atlas 发布到).
+    mod.widgets.ArticleChatRow = NavigationBarButton {width: Fill height: 64 flow: Right align: Align{y: 0.5} padding: Inset{left: 12 right: 12} spacing: 12
+        draw_bg +: {color_hover: #xf5f5f5 color_active: #xf5f5f5}
+        avatar := RoundedView {width: 42 height: 42 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #xdcebe2 border_radius: 21.0}
+            initial := Label {draw_text +: {color: #x07a858 text_style: theme.font_bold{font_size: 15}}}
+        }
+        name := mod.widgets.ArticleLabel {width: Fill max_lines: 1 draw_text.text_style: theme.font_regular{font_size: 14}}
+        radio := RoundedView {width: 22 height: 22 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #xffffff border_size: 1.5 border_color: #xc8c8c8 border_radius: 11.0}
+            check := Label {text: "✓" padding: 0 draw_text +: {color: #xffffff text_style: theme.font_bold{font_size: 10}}}
+        }
+    }
     mod.widgets.ArticleThemeTile = NavigationBarButton {width: Fill height: 210 flow: Down align: Align{x: 0.0 y: 0.0} padding: 12 spacing: 8
         draw_bg +: {color: instance(#xffffff) border_size: 1.0 border_color: #xe0e0e0 get_color: fn() {return self.color}}
         name := mod.widgets.ArticleLabel {padding: 0 max_lines: 1 draw_text.text_style: theme.font_bold{font_size: 11}}
@@ -159,6 +172,8 @@ script_mod! {
             article_save := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Save")) i18n_text: "Save" visible: false}
             article_done := mod.widgets.ArticleButton {visible: false text: #(crate::i18n::tr("Done")) i18n_text: "Done" draw_text.color: #x07a858}
             article_close := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Close")) i18n_text: "Close"}
+            // Library: a new article, as the atlas's + in the header.
+            article_new := mod.widgets.ArticleTool {visible: false width: 40 height: 40 text: "+" draw_text +: {color: #x07a858 text_style: theme.font_regular{font_size: 24}}}
         }
         details := View {width: Fill height: Fill flow: Down padding: 28 spacing: 24
             View {width: Fill height: 35}
@@ -179,26 +194,31 @@ script_mod! {
             article_allow := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Allow and open")) i18n_text: "Allow and open"}
             article_cancel := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Cancel")) i18n_text: "Cancel"}
         }
-        library := View {visible: false width: Fill height: Fill flow: Down padding: 16 spacing: 12
-            article_search := mod.widgets.ArticleInput {empty_text: #(crate::i18n::tr("Search articles")) i18n_empty_text: "Search articles"}
+        library := SolidView {visible: false width: Fill height: Fill flow: Down padding: 16 spacing: 12 draw_bg.color: #xffffff
+            article_search := mod.widgets.ArticleInput {draw_bg +: {color: #xf5f5f5 color_hover: #xf5f5f5 color_empty: #xf5f5f5 border_size: 0} empty_text: #(crate::i18n::tr("Search articles")) i18n_empty_text: "Search articles"}
             View {width: Fill height: 42 flow: Right spacing: 6
-                drafts_tab := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Drafts")) i18n_text: "Drafts"}
-                published_tab := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Published")) i18n_text: "Published"}
-                withdrawn_tab := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Withdrawn")) i18n_text: "Withdrawn"}
+                drafts_tab := mod.widgets.ArticleButton {draw_bg +: {color: #xf5f5f5} width: Fill text: #(crate::i18n::tr("Drafts")) i18n_text: "Drafts"}
+                published_tab := mod.widgets.ArticleButton {draw_bg +: {color: #xf5f5f5} width: Fill text: #(crate::i18n::tr("Published")) i18n_text: "Published"}
+                withdrawn_tab := mod.widgets.ArticleButton {draw_bg +: {color: #xf5f5f5} width: Fill text: #(crate::i18n::tr("Withdrawn")) i18n_text: "Withdrawn"}
             }
             library_empty := mod.widgets.ArticleLabel {text: #(crate::i18n::tr("No articles here yet. Create your first article.")) i18n_text: "No articles here yet. Create your first article." draw_text.color: #x777777}
             article_library := PortalList {width: Fill height: Fill
-                Entry := NavigationBarButton {width: Fill height: 112 flow: Right spacing: 12 padding: 12 draw_bg +: {color_hover: #xf2f5f3 color_active: #xe7f5ec}
-                    thumbnail := Image {width: 78 height: 78 fit: ImageFit.Biggest}
-                    View {width: Fill height: Fit flow: Down spacing: 8
-                        title := mod.widgets.ArticleLabel {max_lines: 2 draw_text.text_style: theme.font_bold{font_size: 14}}
-                        summary := mod.widgets.ArticleLabel {max_lines: 2 draw_text +: {color: #x777777 text_style: theme.font_regular{font_size: 11}}}
+                // Atlas article-list: thumbnail, title, status line and a chevron.
+                Entry := NavigationBarButton {width: Fill height: 104 flow: Right align: Align{y: 0.5} spacing: 14 padding: Inset{left: 4 right: 4 top: 10 bottom: 10} draw_bg +: {color_hover: #xf2f5f3 color_active: #xe7f5ec}
+                    // "Aa" shows through while there is no cover.
+                    RoundedView {width: 84 height: 84 flow: Overlay align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #xf0f3f1 border_radius: 4.0}
+                        Label {text: "Aa" draw_text +: {color: #x9fcfb2 text_style: theme.font_bold{font_size: 20}}}
+                        thumbnail := Image {width: Fill height: Fill fit: ImageFit.CropToFill}
                     }
+                    View {width: Fill height: Fit flow: Down spacing: 8
+                        title := mod.widgets.ArticleLabel {max_lines: 2 draw_text.text_style: theme.font_bold{font_size: 15}}
+                        summary := mod.widgets.ArticleLabel {max_lines: 1 draw_text +: {color: #x888888 text_style: theme.font_regular{font_size: 12}}}
+                    }
+                    Label {text: "›" draw_text +: {color: #xb0b0b0 text_style: theme.font_regular{font_size: 20}}}
                 }
             }
-            article_new := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("New article")) i18n_text: "New article"}
-            article_import := mod.widgets.ArticleButton {text: #(crate::i18n::tr("Import Markdown or HTML file")) i18n_text: "Import Markdown or HTML file"}
-            article_share := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Share app")) i18n_text: "Share app"}
+            article_import := mod.widgets.ArticleButton {draw_bg +: {color: #xf5f5f5} text: #(crate::i18n::tr("Import Markdown or HTML file")) i18n_text: "Import Markdown or HTML file"}
+            article_share := mod.widgets.ArticleButton {draw_bg +: {color: #xf5f5f5} width: Fill text: #(crate::i18n::tr("Share app")) i18n_text: "Share app"}
         }
         editor := View {visible: false width: Fill height: Fill flow: Right align: Align{x: 0.5}
             editor_sidebar := View {visible: false width: 230 height: Fill flow: Down padding: 18 spacing: 18
@@ -263,12 +283,16 @@ script_mod! {
                 inspector_preview := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Full preview")) i18n_text: "Full preview"}
             }
         }
-        writer := View {visible: false width: Fill height: Fill flow: Down
+        writer := View {visible: false width: Fill height: Fill flow: Overlay
+          View {width: Fill height: Fill flow: Down
             View {width: Fill height: Fill flow: Right
                 write_source_pane := SolidView {width: Fill height: Fill flow: Overlay draw_bg.color: #xffffff
                     View {width: Fill height: Fill flow: Down
                         // Phone width: the title is edited here rather than in the header.
-                        write_title_small := mod.widgets.ArticleInput {visible: false height: 48 margin: Inset{left: 12 right: 12 top: 12} empty_text: #(crate::i18n::tr("Article title")) i18n_empty_text: "Article title" draw_text.text_style: theme.font_bold{font_size: 16}}
+                        // A View toggles it: TextInput itself ignores visibility.
+                        write_title_small_box := View {visible: false width: Fill height: Fit padding: Inset{left: 12 right: 12 top: 12}
+                        write_title_small := mod.widgets.ArticleInput {height: 48 empty_text: #(crate::i18n::tr("Article title")) i18n_empty_text: "Article title" draw_text.text_style: theme.font_bold{font_size: 16}}
+                        }
                         write_toolbar := View {width: Fill height: 40 flow: Right align: Align{y: 0.5} padding: Inset{left: 10 right: 10} spacing: 0
                             wt_bold := mod.widgets.ArticleTool {text: "B"  draw_text.text_style: theme.font_bold{font_size: 13}}
                             wt_italic := mod.widgets.ArticleTool {text: "I"  draw_text.text_style: theme.font_italic{font_size: 13}}
@@ -338,6 +362,90 @@ script_mod! {
             }
             SolidView {width: Fill height: 1 draw_bg.color: #xe5e5e5}
             write_stats := mod.widgets.ArticleLabel {padding: Inset{left: 16 top: 8 bottom: 8} draw_text +: {color: #x888888 text_style: theme.font_regular{font_size: 11}}}
+          }
+          // Phone preview: opens the style sheet.
+          write_style_fab_box := View {visible: false width: Fill height: Fill align: Align{x: 1.0 y: 1.0} padding: Inset{right: 16 bottom: 64}
+            write_style_fab := mod.widgets.ArticleButton {width: Fit height: 40 padding: Inset{left: 16 right: 16} draw_text +: {color: #x07a858 text_style: theme.font_bold{font_size: 13}} draw_bg +: {color: #xffffff border_size: 1.0 border_color: #x9fdcb8 border_radius: 20.0}}
+          }
+          // Phone style sheet (atlas: theme-sheet). Tapping a style previews it; 应用 keeps it, × restores the previous one.
+          write_theme_sheet := SolidView {visible: false width: Fill height: Fill flow: Down align: Align{y: 1.0} draw_bg.color: #x00000055
+            RoundedView {width: Fill height: Fit flow: Down padding: Inset{left: 16 right: 16 top: 8 bottom: 20} spacing: 12 draw_bg +: {color: #xffffff border_radius: 12.0}
+              View {width: Fill height: Fit align: Align{x: 0.5} RoundedView {width: 36 height: 4 draw_bg +: {color: #xdddddd border_radius: 2.0}}}
+              View {width: Fill height: 30 flow: Right align: Align{y: 0.5}
+                mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Article style")) i18n_text: "Article style" draw_text.text_style: theme.font_bold{font_size: 16}}
+                theme_sheet_close := mod.widgets.ArticleTool {text: "×" draw_text.text_style: theme.font_regular{font_size: 18}}
+              }
+              ScrollXView {width: Fill height: 108 flow: Right spacing: 10
+                  s0 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s1 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s2 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s3 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s4 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s5 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s6 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s7 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s8 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s9 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s10 := mod.widgets.ArticleThemeSwatch {width: 68}
+                  s11 := mod.widgets.ArticleThemeSwatch {width: 68}
+              }
+              theme_sheet_apply := mod.widgets.ArticlePrimary {height: 46 text: #(crate::i18n::tr("Apply")) i18n_text: "Apply"}
+            }
+          }
+          // Phone insert-image sheet (atlas: insert-image). Camera and clipboard are not offered: Rinx cannot capture or paste images here yet.
+          write_image_sheet := SolidView {visible: false width: Fill height: Fill flow: Down align: Align{y: 1.0} draw_bg.color: #x00000055
+            RoundedView {width: Fill height: Fit flow: Down padding: Inset{left: 16 right: 16 top: 8 bottom: 24} spacing: 12 draw_bg +: {color: #xffffff border_radius: 12.0}
+              View {width: Fill height: Fit align: Align{x: 0.5} RoundedView {width: 36 height: 4 draw_bg +: {color: #xdddddd border_radius: 2.0}}}
+              View {width: Fill height: 30 flow: Right align: Align{y: 0.5}
+                mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Insert image")) i18n_text: "Insert image" draw_text.text_style: theme.font_bold{font_size: 16}}
+                image_sheet_close := mod.widgets.ArticleTool {text: "×" draw_text.text_style: theme.font_regular{font_size: 18}}
+              }
+              RoundedView {width: Fill height: Fit flow: Down draw_bg +: {color: #xffffff border_size: 1.0 border_color: #xe5e5e5 border_radius: 8.0}
+                image_sheet_pick := NavigationBarButton {width: Fill height: 56 flow: Right align: Align{y: 0.5} padding: Inset{left: 16 right: 16} spacing: 12 draw_bg +: {color_hover: #xf5f5f5 color_active: #xf5f5f5}
+                  mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Choose from device")) i18n_text: "Choose from device" draw_text.text_style: theme.font_regular{font_size: 14}}
+                  Label {text: "›" draw_text +: {color: #xb0b0b0 text_style: theme.font_regular{font_size: 20}}}
+                }
+              }
+              RoundedView {width: Fill height: 56 flow: Right align: Align{y: 0.5} padding: Inset{left: 16 right: 8} draw_bg +: {color: #xffffff border_size: 1.0 border_color: #xe5e5e5 border_radius: 8.0}
+                mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Lay out multiple images automatically")) i18n_text: "Lay out multiple images automatically" draw_text.text_style: theme.font_regular{font_size: 14}}
+                image_sheet_layout := ToggleFlat {text: "" draw_bg +: {size: 21 color_active: #x07c160 border_color_active: #x07c160 mark_color_active: #xffffff mark_color_active_hover: #xffffff}}
+              }
+              mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Images added one after another form a grid. Selected images stay on this device until you publish.")) i18n_text: "Images added one after another form a grid. Selected images stay on this device until you publish." draw_text +: {color: #x999999 text_style: theme.font_regular{font_size: 12}}}
+            }
+          }
+          // Desktop: confirms images added by dropping or choosing (atlas: paste-images).
+          write_toast_box := View {visible: false width: Fill height: Fill align: Align{x: 0.5 y: 1.0} padding: Inset{bottom: 56}
+            RoundedView {width: Fit height: 40 align: Align{y: 0.5} padding: Inset{left: 18 right: 18} draw_bg +: {color: #x333333ee border_radius: 20.0}
+              write_toast := Label {draw_text +: {color: #xffffff text_style: theme.font_regular{font_size: 13}}}
+            }
+          }
+          // Desktop publish sheet (atlas: publish-sheet): cover, summary and chat, then 发布.
+          write_sheet := SolidView {visible: false width: Fill height: Fill align: Align{x: 0.5 y: 0.5} draw_bg.color: #x00000055
+            RoundedView {width: 520 height: Fit flow: Down padding: Inset{left: 22 right: 22 top: 18 bottom: 18} spacing: 8 draw_bg +: {color: #xffffff border_radius: 8.0}
+              View {width: Fill height: 32 flow: Right align: Align{y: 0.5}
+                mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Publish article")) i18n_text: "Publish article" draw_text.text_style: theme.font_bold{font_size: 16}}
+                sheet_close := mod.widgets.ArticleTool {text: "×" draw_text.text_style: theme.font_regular{font_size: 18}}
+              }
+              View {width: Fill height: Fit flow: Right align: Align{y: 0.5}
+                mod.widgets.ArticleLabel {width: Fill text: #(crate::i18n::tr("Cover")) i18n_text: "Cover" draw_text.text_style: theme.font_bold{font_size: 12}}
+                sheet_cover_change := mod.widgets.ArticleTool {width: Fit padding: Inset{left: 8 right: 8} text: #(crate::i18n::tr("Change")) i18n_text: "Change" draw_text.color: #x07a858}
+              }
+              sheet_cover := Image {width: Fill height: 150 fit: ImageFit.Biggest}
+              sheet_no_cover := mod.widgets.ArticleLabel {text: #(crate::i18n::tr("This article will be published without a cover.")) i18n_text: "This article will be published without a cover." draw_text.color: #x888888}
+              mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Summary")) i18n_text: "Summary" draw_text.text_style: theme.font_bold{font_size: 12}}
+              sheet_summary := mod.widgets.ArticleInput {height: 38 empty_text: #(crate::i18n::tr("One line about this article")) i18n_empty_text: "One line about this article"}
+              mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Publish to")) i18n_text: "Publish to" draw_text.text_style: theme.font_bold{font_size: 12}}
+              RoundedView {width: Fill height: 138 draw_bg +: {color: #xffffff border_size: 1.0 border_color: #xe5e5e5 border_radius: 6.0}
+                sheet_rooms := PortalList {width: Fill height: Fill
+                  Chat := mod.widgets.ArticleChatRow {height: 44 spacing: 10 avatar +: {width: 28 height: 28 draw_bg +: {border_radius: 14.0} initial +: {draw_text +: {text_style: theme.font_bold{font_size: 11}}}} name +: {draw_text +: {text_style: theme.font_regular{font_size: 12}}} radio +: {width: 18 height: 18 draw_bg +: {border_radius: 9.0}} }
+                }
+              }
+              View {width: Fill height: 44 flow: Right spacing: 12 margin: Inset{top: 6}
+                sheet_cancel := mod.widgets.ArticleButton {width: Fill height: 44 align: Align{x: 0.5 y: 0.5} text: #(crate::i18n::tr("Cancel")) i18n_text: "Cancel" draw_bg +: {color: #xf2f2f2}}
+                sheet_publish := mod.widgets.ArticlePrimary {width: Fill height: 44 text: #(crate::i18n::tr("Publish")) i18n_text: "Publish"}
+              }
+            }
+          }
         }
         source := View {visible: false width: Fill height: Fill flow: Down padding: 18 spacing: 12
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Markdown / HTML source · your theme and cover are preserved")) i18n_text: "Markdown / HTML source · your theme and cover are preserved"}
@@ -393,17 +501,27 @@ script_mod! {
             }
             theme_done := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Done")) i18n_text: "Done"}
         }
-        cover := ScrollYView {visible: false width: Fill height: Fill flow: Down padding: 20 spacing: 12
-            cover_wide := Image {width: Fill height: 160 fit: ImageFit.Biggest}
+        cover := SolidView {visible: false width: Fill height: Fill draw_bg.color: #xffffff
+          ScrollYView {width: Fill height: Fill flow: Down padding: 16 spacing: 10
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Cover")) i18n_text: "Cover" draw_text.text_style: theme.font_bold{font_size: 13}}
+            View {width: Fill height: Fit flow: Overlay align: Align{x: 1.0 y: 1.0}
+                cover_wide := Image {width: Fill height: 190 fit: ImageFit.Biggest}
+                cover_pick := mod.widgets.ArticleButton {height: 32 margin: 8 text: #(crate::i18n::tr("Choose cover image")) i18n_text: "Choose cover image"}
+            }
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Share card")) i18n_text: "Share card" draw_text.text_style: theme.font_bold{font_size: 13}}
             cover_square := Image {width: 100 height: 100 fit: ImageFit.Biggest}
-            cover_pick := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Choose cover image")) i18n_text: "Choose cover image"}
-            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Cover focal point · horizontal / vertical")) i18n_text: "Cover focal point · horizontal / vertical"}
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Summary")) i18n_text: "Summary" draw_text.text_style: theme.font_bold{font_size: 13}}
+            cover_summary := mod.widgets.ArticleInput {height: 85 is_multiline: true flow: Flow.Right{wrap: true} empty_text: #(crate::i18n::tr("Summary")) i18n_empty_text: "Summary"}
+            View {width: Fill height: 12}
+            cover_done := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Done")) i18n_text: "Done"}
+            // Crop and placement adjustments, below the atlas's primary action.
+            View {width: Fill height: 16}
+            mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Cover focal point · horizontal / vertical")) i18n_text: "Cover focal point · horizontal / vertical" draw_text.color: #x888888}
             cover_x := Slider {width: Fill height: 30 min: 0 max: 1000 step: 1}
             cover_y := Slider {width: Fill height: 30 min: 0 max: 1000 step: 1}
-            cover_summary := mod.widgets.ArticleInput {height: 85 is_multiline: true flow: Flow.Right{wrap: true} empty_text: #(crate::i18n::tr("Summary")) i18n_empty_text: "Summary"}
             cover_show := CheckBox {text: #(crate::i18n::tr("Show cover at the top of the article"))}
             cover_remove := mod.widgets.ArticleButton {width: Fill text: #(crate::i18n::tr("Remove cover")) i18n_text: "Remove cover"}
-            cover_done := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Done")) i18n_text: "Done"}
+          }
         }
         preview := SolidView {visible: false width: Fill height: Fill flow: Down padding: 20 spacing: 12 draw_bg.color: #xffffff
             preview_title := mod.widgets.ArticleLabel {draw_text.text_style: theme.font_bold{font_size: 18}}
@@ -432,11 +550,12 @@ script_mod! {
             View {width: Fill height: 12}
             review_continue := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Continue")) i18n_text: "Continue"}
         }
-        rooms := View {visible: false width: Fill height: Fill flow: Down padding: 18 spacing: 12
-            article_chat_search := mod.widgets.ArticleInput {empty_text: #(crate::i18n::tr("Find a chat")) i18n_empty_text: "Find a chat"}
+        rooms := SolidView {visible: false width: Fill height: Fill flow: Down padding: 16 spacing: 12 draw_bg.color: #xffffff
+            article_chat_search := mod.widgets.ArticleInput {empty_text: #(crate::i18n::tr("Search chats")) i18n_empty_text: "Search chats"}
             article_rooms := PortalList {width: Fill height: Fill
-                Chat := NavigationBarButton {width: Fill height: 64 padding: 12 name := mod.widgets.ArticleLabel {max_lines: 2}}
+                Chat := mod.widgets.ArticleChatRow {}
             }
+            rooms_publish := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Publish")) i18n_text: "Publish"}
         }
         confirm := ScrollYView {visible: false width: Fill height: Fill flow: Down padding: 24 spacing: 20
             confirm_cover := Image {width: Fill height: 170 fit: ImageFit.Biggest}
@@ -460,6 +579,17 @@ script_mod! {
             View {width: Fill height: 12}
             mod.widgets.ArticleLabel {text: #(crate::i18n::tr("Your local draft is preserved.")) i18n_text: "Your local draft is preserved." draw_text.color: #x777777}
             publication_library := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("My articles")) i18n_text: "My articles"}
+        }
+        published := View {visible: false width: Fill height: Fill flow: Down align: Align{x: 0.5} padding: 32 spacing: 14
+            View {width: Fill height: 90}
+            RoundedView {width: 64 height: 64 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #x07c160 border_radius: 32.0}
+                Label {text: "✓" draw_text +: {color: #xffffff text_style: theme.font_bold{font_size: 28}}}
+            }
+            mod.widgets.ArticleLabel {width: Fit text: #(crate::i18n::tr("Published")) i18n_text: "Published" draw_text.text_style: theme.font_bold{font_size: 22}}
+            published_info := mod.widgets.ArticleLabel {width: Fit draw_text +: {color: #x777777 text_style: theme.font_regular{font_size: 13}}}
+            View {width: Fill height: Fill}
+            published_edit := mod.widgets.ArticlePrimary {text: #(crate::i18n::tr("Continue editing")) i18n_text: "Continue editing"}
+            published_library := mod.widgets.ArticleButton {width: Fill height: 46 align: Align{x: 0.5 y: 0.5} text: #(crate::i18n::tr("Back to article list")) i18n_text: "Back to article list" draw_bg +: {border_size: 1.0 border_color: #xdddddd}}
         }
         withdraw := ScrollYView {visible: false width: Fill height: Fill flow: Down padding: 24 spacing: 24
             withdraw_title := mod.widgets.ArticleLabel {draw_text.text_style: theme.font_bold{font_size: 22}}
@@ -561,10 +691,23 @@ pub struct ArticlePanel {
     /// Debounces re-rendering the live preview while typing.
     #[rust] write_timer: Timer,
     #[rust] write_themes_open: bool,
+    /// Phone style sheet: open, with the style to restore if it is closed with ×.
+    #[rust] write_theme_sheet: Option<Theme>,
+    #[rust] write_image_sheet: bool,
+    /// Whether images inserted one after another stay separate rather than forming a grid.
+    #[rust] write_image_grid_off: bool,
+    /// Images inserted since the toast last faded.
+    #[rust] write_toast_count: usize,
+    #[rust] write_toast_timer: Timer,
     #[rust] write_dragging: bool,
     /// Whether the live preview shows the title above the body: not when the source
     /// already opens with a level-1 heading, which would repeat it.
     #[rust] write_title_row: bool,
+    /// Publishing from the writing view: the sheet (desktop) or the 封面与摘要 →
+    /// 发布到 → 已发布 steps (phone) instead of review and confirm pages.
+    #[rust] publish_flow: bool,
+    /// The chat chosen to publish to, as an index into `rooms`.
+    #[rust] publish_choice: Option<usize>,
 }
 
 /// The rendered image ids of a block that holds only images (at least two), such as
@@ -581,6 +724,60 @@ fn gallery_images(html: &str) -> Option<Vec<String>> {
         rest = rest.trim_start_matches("<br>").trim_start_matches("<br/>").trim_start();
     }
     (rest.is_empty() && ids.len() >= 2).then_some(ids)
+}
+
+/// Colours a style swatch as a tiny page in `theme`, outlined in its accent when selected.
+fn style_swatch(cx: &mut Cx, swatch: &WidgetRef, theme: Theme, selected: bool) {
+    let (paper, ink, accent) = theme.colors();
+    let (paper, ink, accent) = (color(paper), color(ink), color(accent));
+    let mut faint = ink; faint.w = 0.35;
+    let border = if selected { accent } else { color(0xe0e0e0) };
+    let name_ink = if selected { accent } else { color(0x333333) };
+    swatch.label(cx, ids!(name)).set_text(cx, tr(theme.name()));
+    let mut page = swatch.view(cx, ids!(page));
+    script_apply_eval!(cx, page, {draw_bg +: {color: #(paper) border_color: #(border) border_size: #(if selected {2.0} else {1.0})}});
+    let mut heading = swatch.view(cx, ids!(heading));
+    script_apply_eval!(cx, heading, {draw_bg +: {color: #(ink)}});
+    for id in [id!(line1), id!(line2)] {
+        let mut line = swatch.view(cx, &[id]);
+        script_apply_eval!(cx, line, {draw_bg +: {color: #(faint)}});
+    }
+    let mut bar = swatch.view(cx, ids!(accent));
+    script_apply_eval!(cx, bar, {draw_bg +: {color: #(accent)}});
+    let mut name = swatch.label(cx, ids!(name));
+    script_apply_eval!(cx, name, {draw_text +: {color: #(name_ink)}});
+}
+
+/// The text that inserts `image` after `before` as its own paragraph. With `grid`,
+/// an image right after another one joins that paragraph, which renders as a grid.
+fn image_insertion(before: &str, image: &str, grid: bool) -> String {
+    let line = before.rsplit('\n').next().unwrap_or("").trim();
+    let after_image = line.starts_with("![") && line.ends_with(')');
+    let prefix = if grid && after_image {
+        "\n"
+    } else if before.is_empty() || before.ends_with("\n\n") {
+        ""
+    } else if before.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    };
+    let suffix = if grid { "" } else { "\n\n" };
+    format!("{prefix}{image}{suffix}")
+}
+
+/// How long ago `secs` (Unix time) was, for the article list.
+fn relative_time(secs: u64) -> String {
+    let age = now().saturating_sub(secs);
+    match age {
+        ..60 => tr("Just now").to_owned(),
+        60..120 => tr("1 min ago").to_owned(),
+        120..3600 => crate::i18n::format("{mins} mins ago", &[("mins", (age / 60).to_string())]),
+        3600..7200 => tr("1 hour ago").to_owned(),
+        7200..86400 => crate::i18n::format("{hours} hours ago", &[("hours", (age / 3600).to_string())]),
+        86400..172800 => tr("Yesterday").to_owned(),
+        _ => crate::i18n::format("{0} days ago", &[("0", (age / 86400).to_string())]),
+    }
 }
 
 /// What the writing view shows: the Markdown source, both side by side, or the preview.
@@ -649,6 +846,17 @@ impl ArticlePanel {
         cx.stop_timer(self.save_timer);
         Ok(())
     }
+    /// Fills a chat row: initial avatar, name, and the radio mark when choosing.
+    fn style_chat_row(&self, cx: &mut Cx, row: &WidgetRef, name: &str, selected: bool) {
+        row.label(cx, ids!(name)).set_text(cx, name);
+        let initial: String = name.chars().find(|c| !c.is_whitespace()).map(|c| c.to_uppercase().collect()).unwrap_or_default();
+        row.label(cx, ids!(initial)).set_text(cx, &initial);
+        row.view(cx, ids!(radio)).set_visible(cx, self.publish_flow);
+        let (fill, border) = if selected { (color(0x07c160), color(0x07c160)) } else { (color(0xffffff), color(0xc8c8c8)) };
+        let mut radio = row.view(cx, ids!(radio));
+        script_apply_eval!(cx, radio, {draw_bg +: {color: #(fill) border_color: #(border)}});
+        row.label(cx, ids!(check)).set_visible(cx, selected);
+    }
     /// Fills a Gallery row with up to nine images in a tight grid of square cells:
     /// two or four images use two columns, others three.
     fn draw_gallery(&self, cx: &mut Cx, row: &WidgetRef, ids: &[String]) {
@@ -708,10 +916,26 @@ impl ArticlePanel {
         self.label(cx, ids!(write_saved)).set_visible(cx, wide);
         self.view(cx, ids!(write_title_box)).set_visible(cx, wide);
         self.view(cx, ids!(header_fill)).set_visible(cx, !wide);
-        self.text_input(cx, ids!(write_title_small)).set_visible(cx, !wide);
+        self.view(cx, ids!(write_title_small_box)).set_visible(cx, !wide);
         self.view(cx, ids!(write_toolbar)).set_visible(cx, wide);
         self.view(cx, ids!(write_bottom)).set_visible(cx, !wide);
         self.label(cx, ids!(write_stats)).set_visible(cx, wide || mode == WriteMode::Preview);
+        let theme_sheet = self.write_theme_sheet.is_some() && !wide;
+        self.view(cx, ids!(write_theme_sheet)).set_visible(cx, theme_sheet);
+        self.view(cx, ids!(write_image_sheet)).set_visible(cx, self.write_image_sheet && !wide);
+        self.view(cx, ids!(write_style_fab_box)).set_visible(cx, !wide && mode == WriteMode::Preview && !theme_sheet);
+        self.button(cx, ids!(write_style_fab)).set_text(cx, &format!("Aa  {}", tr("Style")));
+        if theme_sheet {
+            for (index, &theme) in Theme::ALL.iter().enumerate() {
+                let swatch = self.widget(cx, &[LiveId::from_str(&format!("s{index}"))]);
+                style_swatch(cx, &swatch, theme, theme == self.doc.theme);
+            }
+        }
+        self.view(cx, ids!(write_toast_box)).set_visible(cx, self.write_toast_count > 0);
+        if self.write_toast_count > 0 {
+            let toast = crate::i18n::format("{0} images inserted", &[("0", self.write_toast_count.to_string())]);
+            self.label(cx, ids!(write_toast)).set_text(cx, &toast);
+        }
         let paper_width = if wide { Size::Fixed(420.0) } else { Size::fill() };
         let (paper, _, accent) = self.doc.theme.colors();
         let paper = color(paper);
@@ -727,6 +951,8 @@ impl ArticlePanel {
         let accent = color(accent);
         let mut style_button = self.button(cx, ids!(write_style));
         script_apply_eval!(cx, style_button, {draw_text +: {color: #(accent) color_hover: #(accent)}});
+        let mut fab = self.button(cx, ids!(write_style_fab));
+        script_apply_eval!(cx, fab, {draw_text +: {color: #(accent) color_hover: #(accent) color_down: #(accent)}});
         let saved = tr(if self.dirty { "Editing…" } else { "Saved" });
         self.label(cx, ids!(write_saved)).set_text(cx, saved);
         self.label(cx, ids!(write_saved_small)).set_text(cx, saved);
@@ -817,6 +1043,11 @@ impl ArticlePanel {
         let text = input.text();
         self.write_changed(cx, text);
     }
+    fn write_image_text(&self, cx: &mut Cx, image: &str) -> String {
+        let input = self.text_input(cx, ids!(write_source));
+        let text = input.text();
+        image_insertion(&text[..input.selection().start().index], image, !self.write_image_grid_off)
+    }
     fn set_write_mode(&mut self, cx: &mut Cx, mode: WriteMode) {
         self.write_mode = mode;
         self.view.redraw(cx);
@@ -854,10 +1085,58 @@ impl ArticlePanel {
         if self.button(cx, ids!(wt_table)).clicked(actions) {
             self.insert_write_text(cx, "\n\n| 列 1 | 列 2 |\n| --- | --- |\n|  |  |\n\n");
         }
-        if self.button(cx, ids!(wt_image)).clicked(actions) || self.button(cx, ids!(wb_image)).clicked(actions) {
+        let pick_image = self.button(cx, ids!(wt_image)).clicked(actions)
+            || self.widget(cx, ids!(image_sheet_pick)).as_navigation_bar_button().clicked(actions);
+        if pick_image {
+            self.write_image_sheet = false;
             self.selecting_cover = false;
             self.replacing_image = false;
             self.pick(cx);
+            self.view.redraw(cx);
+        }
+        if self.button(cx, ids!(wb_image)).clicked(actions) {
+            self.write_image_sheet = true;
+            self.check_box(cx, ids!(image_sheet_layout)).set_active(cx, !self.write_image_grid_off, Animate::No);
+            self.view.redraw(cx);
+        }
+        if self.button(cx, ids!(image_sheet_close)).clicked(actions) {
+            self.write_image_sheet = false;
+            self.view.redraw(cx);
+        }
+        if let Some(on) = self.check_box(cx, ids!(image_sheet_layout)).changed(actions) {
+            self.write_image_grid_off = !on;
+        }
+        if self.button(cx, ids!(write_style_fab)).clicked(actions) {
+            self.write_theme_sheet = Some(self.doc.theme);
+            self.view.redraw(cx);
+        }
+        if let Some(previous) = self.write_theme_sheet {
+            for (index, &theme) in Theme::ALL.iter().enumerate() {
+                let id = LiveId::from_str(&format!("s{index}"));
+                if self.widget(cx, &[id]).as_navigation_bar_button().clicked(actions) && theme != self.doc.theme {
+                    self.doc.theme = theme;
+                    self.changed(cx);
+                }
+            }
+            if self.button(cx, ids!(theme_sheet_apply)).clicked(actions) {
+                if self.doc.theme != previous {
+                    // One undo step for the whole sheet visit.
+                    let chosen = self.doc.theme;
+                    self.doc.theme = previous;
+                    self.checkpoint();
+                    self.doc.theme = chosen;
+                }
+                self.write_theme_sheet = None;
+                self.view.redraw(cx);
+            }
+            if self.button(cx, ids!(theme_sheet_close)).clicked(actions) {
+                if self.doc.theme != previous {
+                    self.doc.theme = previous;
+                    self.changed(cx);
+                }
+                self.write_theme_sheet = None;
+                self.view.redraw(cx);
+            }
         }
         for (id, mode) in [(id!(write_mode_source), WriteMode::Source), (id!(write_mode_split), WriteMode::Split), (id!(write_mode_preview), WriteMode::Preview)] {
             if self.button(cx, &[id]).clicked(actions) { self.set_write_mode(cx, mode); }
@@ -881,8 +1160,29 @@ impl ArticlePanel {
                 }
             }
         }
-        if self.button(cx, ids!(write_publish)).clicked(actions) && self.flush_write(cx) {
-            self.review(cx);
+        if self.button(cx, ids!(write_publish)).clicked(actions) {
+            self.start_publish(cx);
+        }
+        if self.view(cx, ids!(write_sheet)).visible() {
+            if self.button(cx, ids!(sheet_close)).clicked(actions) || self.button(cx, ids!(sheet_cancel)).clicked(actions) {
+                self.close_publish_sheet(cx);
+            }
+            if let Some(summary) = self.text_input(cx, ids!(sheet_summary)).changed(actions) {
+                self.doc.summary = summary;
+                self.changed(cx);
+            }
+            if self.button(cx, ids!(sheet_cover_change)).clicked(actions) {
+                self.choose_images(cx, true, false);
+            }
+            for (index, item) in self.portal_list(cx, ids!(sheet_rooms)).items_with_actions(actions) {
+                if item.as_navigation_bar_button().clicked(actions) {
+                    self.publish_choice = Some(index);
+                    self.view.redraw(cx);
+                }
+            }
+            if self.button(cx, ids!(sheet_publish)).clicked(actions) {
+                self.publish_to_choice(cx);
+            }
         }
     }
     /// Accepts image files dragged onto the source pane and imports them at the cursor.
@@ -1187,10 +1487,16 @@ impl ArticlePanel {
         self.reader_select_all=false;
         if matches!(page, Page::Edit | Page::Write | Page::Preview | Page::Reader) { self.ensure_preview_images(); }
         let writing = page == Page::Write;
+        let publishing = self.publish_flow && matches!(page, Page::Cover | Page::Rooms | Page::Published);
         self.view(cx, ids!(write_controls)).set_visible(cx, writing);
         self.view(cx, ids!(write_title_box)).set_visible(cx, writing);
         self.view(cx, ids!(header_fill)).set_visible(cx, !writing);
-        self.button(cx, ids!(article_close)).set_visible(cx, !writing);
+        self.button(cx, ids!(article_close)).set_visible(cx, !writing && !publishing && page != Page::Published);
+        self.button(cx, ids!(article_new)).set_visible(cx, page == Page::Library);
+        if !writing {
+            self.write_theme_sheet = None;
+            self.write_image_sheet = false;
+        }
         // The writing view hides the heading at phone width; other pages always show it.
         self.label(cx, ids!(article_heading)).set_visible(cx, true);
         let header_bg = color(if writing { 0xffffff } else { 0xededed });
@@ -1198,7 +1504,7 @@ impl ArticlePanel {
         script_apply_eval!(cx, header, {draw_bg +: {color: #(header_bg)}});
         self.button(cx, ids!(article_done)).set_visible(
             cx,
-            matches!(page, Page::Theme | Page::Cover | Page::ImageSettings),
+            matches!(page, Page::Theme | Page::Cover | Page::ImageSettings) && !publishing,
         );
         for (id, p) in [
             (id!(details), Page::Details),
@@ -1218,6 +1524,7 @@ impl ArticlePanel {
             (id!(rooms), Page::Rooms),
             (id!(confirm), Page::Confirm),
             (id!(publication), Page::Publication),
+            (id!(published), Page::Published),
             (id!(withdraw), Page::Withdraw),
         ] {
             self.view(cx, &[id]).set_visible(
@@ -1228,7 +1535,7 @@ impl ArticlePanel {
         let heading = match page {
             Page::Details => "App details",
             Page::Consent => "Authorize app",
-            Page::Library => "Article studio",
+            Page::Library => "My articles",
             Page::Edit => "Edit article",
             Page::Write => "Article editor",
             Page::Source => "Markdown / HTML source",
@@ -1240,7 +1547,7 @@ impl ArticlePanel {
             Page::Preview => "Full preview",
             Page::CssPreview => "HTML/CSS preview (experimental)",
             Page::Review => "Publication review",
-            Page::Rooms => "Choose chat",
+            Page::Rooms => if self.publish_flow { "Publish to" } else { "Choose chat" },
             Page::Confirm => {
                 if self.sharing {
                     "Confirm share"
@@ -1255,6 +1562,7 @@ impl ArticlePanel {
                 }
             }
             Page::Publication => "Publication record",
+            Page::Published => "Article editor",
             Page::Withdraw => "Withdraw article",
             Page::Reader => "Read full article",
         };
@@ -1433,6 +1741,8 @@ impl ArticlePanel {
         self.show(cx, Page::Cover);
         self.load_cover(cx, ids!(cover_wide), false);
         self.load_cover(cx, ids!(cover_square), true);
+        self.button(cx, ids!(cover_pick)).set_text(cx, tr(if self.doc.cover.is_some() { "Change cover" } else { "Choose cover image" }));
+        self.button(cx, ids!(cover_done)).set_text(cx, tr(if self.publish_flow { "Next step" } else { "Done" }));
     }
     fn choose_images(&mut self, cx: &mut Cx, cover: bool, replace: bool) {
         self.selecting_cover = cover;
@@ -1450,10 +1760,20 @@ impl ArticlePanel {
                 show_in_article: true,
             });
             self.changed(cx);
-            self.open_cover(cx);
+            if self.publish_flow && self.viewport_width >= 960.0 {
+                self.show(cx, Page::Edit);
+                self.open_publish_sheet(cx);
+            } else {
+                self.open_cover(cx);
+            }
         } else if !self.block_mode && !self.replacing_image {
             let alt = asset.name.replace(['[', ']'], "");
-            self.insert_write_text(cx, &format!("![{alt}](asset:{})", asset.id));
+            let image = format!("![{alt}](asset:{})", asset.id);
+            let text = self.write_image_text(cx, &image);
+            self.insert_write_text(cx, &text);
+            self.write_toast_count += 1;
+            cx.stop_timer(self.write_toast_timer);
+            self.write_toast_timer = cx.start_timeout(2.5);
             self.show(cx, Page::Edit);
         } else {
             if self.replacing_image {
@@ -1542,15 +1862,68 @@ impl ArticlePanel {
             .set_first_id_and_scroll(0, 0.0);
         self.show(cx, Page::Preview);
     }
+    /// Checks the article can be published: title and body ready, image files present.
+    fn publish_ready(&self) -> Result<(), String> {
+        self.doc.ready()?;
+        let g = self.grant.as_ref().ok_or("Authorization expired")?;
+        for id in self.doc.asset_ids() {
+            storage::asset_bytes(crate::app_data_dir(), g, &id)?;
+        }
+        Ok(())
+    }
+    /// Starts publishing from the writing view: the publish sheet on desktop, or the
+    /// 封面与摘要 step on phones (followed by 发布到 and 已发布).
+    fn start_publish(&mut self, cx: &mut Cx) {
+        if !self.flush_write(cx) { return; }
+        if let Err(e) = self.publish_ready() {
+            self.status(cx, &e);
+            return;
+        }
+        self.publish_flow = true;
+        self.sharing = false;
+        self.operation = None;
+        self.rooms = cx.get_global::<RoomsListRef>().mini_app_share_rooms();
+        // Default to the chat this article was last published to.
+        let previous = self.selected_publication.as_ref().filter(|p| !p.withdrawn).map(|p| p.room.clone());
+        self.publish_choice = previous.and_then(|room| self.rooms.iter().position(|r| r.room_id() == &room));
+        if self.viewport_width >= 960.0 {
+            self.open_publish_sheet(cx);
+        } else {
+            self.open_cover(cx);
+        }
+    }
+    fn open_publish_sheet(&mut self, cx: &mut Cx) {
+        self.text_input(cx, ids!(sheet_summary)).set_text(cx, &self.doc.summary);
+        self.load_cover(cx, ids!(sheet_cover), false);
+        self.label(cx, ids!(sheet_no_cover)).set_visible(cx, self.doc.cover.is_none());
+        self.view(cx, ids!(write_sheet)).set_visible(cx, true);
+        self.view.redraw(cx);
+    }
+    fn close_publish_sheet(&mut self, cx: &mut Cx) {
+        self.view(cx, ids!(write_sheet)).set_visible(cx, false);
+        self.publish_flow = false;
+        self.view.redraw(cx);
+    }
+    /// Publishes to the chosen chat with the same operation and upload as the
+    /// review/confirm path; choosing the chat and pressing 发布 is the confirmation.
+    fn publish_to_choice(&mut self, cx: &mut Cx) {
+        if self.pending { return; }
+        let Some(room) = self.publish_choice.and_then(|i| self.rooms.get(i)).cloned() else {
+            self.status(cx, "Choose a chat to publish to.");
+            return;
+        };
+        self.prepare_operation(room.room_id().to_owned(), room.display().into_owned());
+        self.send(cx);
+    }
+    fn show_published(&mut self, cx: &mut Cx, p: &Publication) {
+        self.selected_publication = Some(p.clone());
+        self.publish_flow = false;
+        self.view(cx, ids!(write_sheet)).set_visible(cx, false);
+        self.show(cx, Page::Published);
+        self.label(cx, ids!(published_info)).set_text(cx, &tr("Sent to {0}").replace("{0}", &p.room_name));
+    }
     fn review(&mut self, cx: &mut Cx) {
-        let result = (|| {
-            self.doc.ready()?;
-            let g = self.grant.as_ref().ok_or("Authorization expired")?;
-            for id in self.doc.asset_ids() {
-                storage::asset_bytes(crate::app_data_dir(), g, &id)?;
-            }
-            Ok::<_, String>(())
-        })();
+        let result = self.publish_ready();
         if let Err(e) = result {
             self.status(cx, &e);
             return;
@@ -1592,6 +1965,10 @@ impl ArticlePanel {
         self.show(cx, Page::Rooms);
     }
     fn prepare(&mut self, cx: &mut Cx, room: OwnedRoomId, name: String) {
+        self.prepare_operation(room, name);
+        self.confirm(cx);
+    }
+    fn prepare_operation(&mut self, room: OwnedRoomId, name: String) {
         let p = self
             .selected_publication
             .as_ref()
@@ -1614,7 +1991,6 @@ impl ArticlePanel {
             confirmed: None,
             finished: false,
         });
-        self.confirm(cx);
     }
     fn confirm(&mut self, cx: &mut Cx) {
         self.show(cx, Page::Confirm);
@@ -1805,10 +2181,15 @@ impl ArticlePanel {
                 self.load_library(cx);
                 self.show(cx, Page::Library);
             }
-            Page::Publication => {
+            Page::Publication | Page::Published => {
                 self.load_library(cx);
                 self.show(cx, Page::Library)
             }
+            Page::Cover if self.publish_flow => {
+                self.publish_flow = false;
+                self.show(cx, Page::Edit);
+            }
+            Page::Rooms if self.publish_flow => self.open_cover(cx),
             Page::Withdraw => {
                 if let Some(p) = self.selected_publication.clone() {
                     self.publication(cx, p)
@@ -1870,6 +2251,10 @@ impl Widget for ArticlePanel {
         }
         if self.save_timer.is_event(event).is_some() && self.dirty && !self.pending {
             if self.page == Page::Write { self.flush_write(cx); } else { self.save(cx); }
+        }
+        if self.write_toast_timer.is_event(event).is_some() {
+            self.write_toast_count = 0;
+            self.view.redraw(cx);
         }
         if self.write_timer.is_event(event).is_some() && self.page == Page::Write {
             self.view.redraw(cx);
@@ -2000,7 +2385,12 @@ impl Widget for ArticlePanel {
                         match result {
                             Ok(p) => {
                                 self.load_library(cx);
-                                self.publication(cx, p.clone());
+                                if self.publish_flow {
+                                    let p = p.clone();
+                                    self.show_published(cx, &p);
+                                } else {
+                                    self.publication(cx, p.clone());
+                                }
                             }
                             Err(e) => {
                                 self.load_library(cx);
@@ -2634,7 +3024,12 @@ impl Widget for ArticlePanel {
                     self.open_cover(cx);
                 }
                 if self.button(cx, ids!(cover_done)).clicked(actions) {
-                    self.show(cx, Page::Edit);
+                    if self.publish_flow {
+                        self.text_input(cx, ids!(article_chat_search)).set_text(cx, "");
+                        self.show(cx, Page::Rooms);
+                    } else {
+                        self.show(cx, Page::Edit);
+                    }
                 }
             }
             if self.page == Page::Preview && self.button(cx, ids!(preview_check)).clicked(actions) {
@@ -2649,6 +3044,18 @@ impl Widget for ArticlePanel {
                     self.choose_room(cx, false)
                 }
             }
+            if self.page == Page::Rooms && self.button(cx, ids!(rooms_publish)).clicked(actions) {
+                self.publish_to_choice(cx);
+            }
+            if self.page == Page::Published {
+                if self.button(cx, ids!(published_edit)).clicked(actions) {
+                    self.show(cx, Page::Edit);
+                }
+                if self.button(cx, ids!(published_library)).clicked(actions) {
+                    self.load_library(cx);
+                    self.show(cx, Page::Library);
+                }
+            }
             if self.page == Page::Rooms {
                 if let Some(query) = self
                     .text_input(cx, ids!(article_chat_search))
@@ -2660,6 +3067,7 @@ impl Widget for ArticlePanel {
                         .into_iter()
                         .filter(|r| r.display().to_lowercase().contains(&query.to_lowercase()))
                         .collect();
+                    self.publish_choice = None;
                     self.view.redraw(cx);
                 }
                 for (index, item) in self
@@ -2667,6 +3075,11 @@ impl Widget for ArticlePanel {
                     .items_with_actions(actions)
                 {
                     if item.as_navigation_bar_button().clicked(actions) {
+                        if self.publish_flow {
+                            self.publish_choice = Some(index);
+                            self.view.redraw(cx);
+                            break;
+                        }
                         if let Some(room) = self.rooms.get(index).cloned() {
                             if self.sharing {
                                 self.share_room = Some(room);
@@ -2843,16 +3256,17 @@ impl Widget for ArticlePanel {
                             else {
                                 continue;
                             };
-                            (d, tr("Draft").to_owned())
+                            (d, format!("{} · {}", tr("Draft"), relative_time(d.modified)))
                         } else {
                             let Some(p) = self.library.publications.iter().find(|p| &p.id == id)
                             else {
                                 continue;
                             };
-                            (
-                                &p.document,
-                                format!("{} · {} {}", p.room_name, tr("Version"), p.version),
-                            )
+                            let mut status = crate::i18n::format("Published to {0}", &[("0", p.room_name.clone())]);
+                            if p.version > 1 {
+                                status.push_str(&format!(" · {} {}", tr("Version"), p.version));
+                            }
+                            (&p.document, status)
                         };
                         let row = list.item(cx, index, id!(Entry));
                         row.label(cx, ids!(title)).set_text(
@@ -2863,8 +3277,7 @@ impl Widget for ArticlePanel {
                                 &doc.title
                             },
                         );
-                        row.label(cx, ids!(summary))
-                            .set_text(cx, &format!("{}\n{}", doc.summary, status));
+                        row.label(cx, ids!(summary)).set_text(cx, &status);
                         let thumbnail = row.image(cx, ids!(thumbnail));
                         self.load_asset(
                             cx,
@@ -3023,25 +3436,7 @@ impl Widget for ArticlePanel {
                             let swatch = row.widget(cx, &[id]);
                             let Some(&theme) = Theme::ALL.get(index * 3 + offset) else { swatch.set_visible(cx, false); continue };
                             swatch.set_visible(cx, true);
-                            let selected = theme == self.doc.theme;
-                            let (paper, ink, accent) = theme.colors();
-                            let (paper, ink, accent) = (color(paper), color(ink), color(accent));
-                            let mut faint = ink; faint.w = 0.35;
-                            let border = if selected { accent } else { color(0xe0e0e0) };
-                            let name_ink = if selected { accent } else { color(0x333333) };
-                            swatch.label(cx, ids!(name)).set_text(cx, tr(theme.name()));
-                            let mut page = swatch.view(cx, ids!(page));
-                            script_apply_eval!(cx, page, {draw_bg +: {color: #(paper) border_color: #(border) border_size: #(if selected {2.0} else {1.0})}});
-                            let mut heading = swatch.view(cx, ids!(heading));
-                            script_apply_eval!(cx, heading, {draw_bg +: {color: #(ink)}});
-                            for id in [id!(line1), id!(line2)] {
-                                let mut line = swatch.view(cx, &[id]);
-                                script_apply_eval!(cx, line, {draw_bg +: {color: #(faint)}});
-                            }
-                            let mut bar = swatch.view(cx, ids!(accent));
-                            script_apply_eval!(cx, bar, {draw_bg +: {color: #(accent)}});
-                            let mut name = swatch.label(cx, ids!(name));
-                            script_apply_eval!(cx, name, {draw_text +: {color: #(name_ink)}});
+                            style_swatch(cx, &swatch, theme, theme == self.doc.theme);
                         }
                         row.draw_all(cx, &mut Scope::empty());
                         continue;
@@ -3122,7 +3517,7 @@ impl Widget for ArticlePanel {
                         }
                     } else if let Some(room) = self.rooms.get(index) {
                         let row = list.item(cx, index, id!(Chat));
-                        row.label(cx, ids!(name)).set_text(cx, &room.display());
+                        self.style_chat_row(cx, &row, &room.display(), self.publish_flow && self.publish_choice == Some(index));
                         row.draw_all(cx, &mut Scope::empty());
                     }
                 }
@@ -3211,5 +3606,21 @@ impl ArticlePanelRef {
                 modal.close(cx);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::image_insertion;
+
+    #[test]
+    fn images_in_a_row_share_a_paragraph_only_with_the_grid_on() {
+        let img = "![b](asset:b)";
+        assert_eq!(image_insertion("", img, true), img);
+        assert_eq!(image_insertion("Text", img, true), format!("\n\n{img}"));
+        assert_eq!(image_insertion("Text\n", img, true), format!("\n{img}"));
+        assert_eq!(image_insertion("![a](asset:a)", img, true), format!("\n{img}"));
+        assert_eq!(image_insertion("![a](asset:a)", img, false), format!("\n\n{img}\n\n"));
+        assert_eq!(image_insertion("![a](asset:a)\n\n", img, false), format!("{img}\n\n"));
     }
 }

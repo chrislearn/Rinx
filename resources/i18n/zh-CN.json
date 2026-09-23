@@ -1020,5 +1020,22 @@
   "italic text": "斜体文字",
   "code": "代码",
   "link text": "链接文字",
-  "{0} chars · about {1} min · {2} images": "{0} 字 · 约 {1} 分钟 · {2} 张图片"
+  "{0} chars · about {1} min · {2} images": "{0} 字 · 约 {1} 分钟 · {2} 张图片",
+  "Publish article": "发布文章",
+  "Change": "更换",
+  "Publish to": "发布到",
+  "Search chats": "搜索聊天",
+  "Share card": "分享卡片",
+  "Change cover": "更换封面",
+  "Sent to {0}": "文章已发送到{0}",
+  "Back to article list": "返回文章列表",
+  "Choose a chat to publish to.": "请选择要发布到的聊天。",
+  "One line about this article": "一句话介绍这篇文章",
+  "Next step": "下一步",
+  "Apply": "应用",
+  "Insert image": "插入图片",
+  "Published to {0}": "已发布到 {0}",
+  "{0} images inserted": "已插入 {0} 张图片",
+  "Lay out multiple images automatically": "多张图片自动排版",
+  "Images added one after another form a grid. Selected images stay on this device until you publish.": "连续插入的图片会排成网格。所选图片在发布前只保存在本机。"
 }
