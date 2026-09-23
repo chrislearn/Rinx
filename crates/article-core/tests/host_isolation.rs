@@ -144,8 +144,49 @@ fn legacy_source_migration_preserves_unsupported_content() {
     article_core::storage::atomic_write(&path, br#"{"title":"Old","markdown":"<table><tr><td>preserve me</td></tr></table>"}"#).unwrap();
     let library = Store::new(&host, &grant).load().unwrap();
     assert_eq!(library.documents[0].title, "Old");
-    assert_eq!(library.legacy_source.as_deref(), Some("<table><tr><td>preserve me</td></tr></table>"));
+    assert_eq!(library.documents[0].markdown(), "<table><tr><td>preserve me</td></tr></table>");
+    assert!(library.legacy_source.is_none());
     assert!(path.exists());
+}
+
+#[test]
+fn unapplied_source_survives_restart_and_is_scoped_to_its_document() {
+    let host = LocalHost::new(); let grant = host.consent(); let store = Store::new(&host, &grant);
+    let first = Document::from_markdown("First", "Original **body**").unwrap();
+    let second = Document::from_markdown("Second", "Other article").unwrap();
+    let source = "# 中文\n\n<table><tr><td>原始 👩‍💻</td></tr></table>\n";
+    assert_eq!(Document::from_markdown(&first.title, source).unwrap().markdown(), source);
+    store.save_document_with_source(&first, Some(source)).unwrap();
+    store.save_document_with_source(&second, Some("`unapplied code`")).unwrap();
+    let restored = Store::new(&host, &grant).load().unwrap();
+    assert_eq!(restored.documents[0], first);
+    assert_eq!(restored.source_for(&first.id), Some(source));
+    assert_eq!(restored.source_for(&second.id), Some("`unapplied code`"));
+    // Ordinary visual autosave does not discard an unapplied source draft.
+    store.save_document(&first).unwrap();
+    assert_eq!(store.load().unwrap().source_for(&first.id), Some(source));
+    store.save_document_with_source(&first, None).unwrap();
+    let applied = store.load().unwrap();
+    assert_eq!(applied.source_for(&first.id), None);
+    assert_eq!(applied.source_for(&second.id), Some("`unapplied code`"));
+    assert!(store.save_document_with_source(&second, Some(&"x".repeat(article_core::document::MAX_BODY + 1))).is_err());
+    assert_eq!(store.load().unwrap().source_for(&second.id), Some("`unapplied code`"));
+}
+
+#[test]
+fn legacy_source_belongs_only_to_the_migrated_document() {
+    let first = Document::default();
+    let second = Document::default();
+    let mut library: article_core::storage::Library = serde_json::from_value(serde_json::json!({
+        "schema": 2, "documents": [first, second], "assets": {}, "publications": [], "outbox": [],
+        "legacy_source": "<p>Original source</p>"
+    })).unwrap();
+    assert_eq!(library.source_for(&first.id), Some("<p>Original source</p>"));
+    assert_eq!(library.source_for(&second.id), None);
+    library.clear_source(&second.id);
+    assert!(library.legacy_source.is_some());
+    library.clear_source(&first.id);
+    assert!(library.legacy_source.is_none());
 }
 
 #[test]

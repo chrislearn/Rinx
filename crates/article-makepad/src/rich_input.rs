@@ -31,6 +31,46 @@ impl ArticleRichInput {
     }
 }
 impl ArticleRichInputRef {
+    /// Hit testing uses the very same laid-out glyphs and scrolled origin as drawing.
+    pub fn cursor_at(&self, cx: &Cx, abs: DVec2) -> Option<Cursor> {
+        let inner = self.borrow()?;
+        let area = inner.text_area;
+        if !area.is_valid(cx) { return None; }
+        let rel = abs - area.rect(cx).pos;
+        inner.point_in_lpxs_to_cursor(Point::new(rel.x as f32, rel.y as f32)).ok()
+    }
+
+    pub fn has_focus(&self, cx: &Cx) -> bool {
+        self.borrow().is_some_and(|inner| !inner.draw_bg.area().is_empty() && cx.has_key_focus(inner.draw_bg.area()))
+    }
+
+    pub fn clear_body_selection(&self, cx: &mut Cx) {
+        if let Some(mut inner) = self.borrow_mut() {
+            if inner.body_selected {
+                let cursor = inner.selection.cursor;
+                inner.set_cursor(cx, cursor, false);
+            }
+        }
+    }
+
+    /// Mirroring the article selection must not scroll every selected paragraph
+    /// to its end or restart IME composition on each draw.
+    pub fn show_body_selection(&self, cx: &mut Cx, anchor: usize, cursor: usize) {
+        if let Some(mut inner) = self.borrow_mut() {
+            let selection = Selection {
+                anchor: Cursor { index: floor_grapheme_boundary(&inner.text, anchor), prefer_next_row: true },
+                cursor: Cursor { index: floor_grapheme_boundary(&inner.text, cursor), prefer_next_row: false },
+            };
+            if !inner.selection.index_eq(selection) {
+                inner.selection = selection;
+                inner.draw_bg.redraw(cx);
+            }
+            inner.preserved_selection_cursor = None;
+            inner.needs_scroll_to_cursor = false;
+            inner.body_selected = anchor != cursor;
+        }
+    }
+
     pub fn has_selection(&self) -> bool {
         self.borrow()
             .is_some_and(|input| input.selection.start().index != input.selection.end().index)
@@ -56,6 +96,12 @@ impl ArticleRichInputRef {
     }
     pub fn set_block(&self, cx: &mut Cx, block: &Block, font_size: f32) {
         if let Some(mut inner) = self.borrow_mut() {
+            if inner.block_id != block.id {
+                inner.block_id = block.id.clone();
+                inner.set_cursor(cx, Cursor { index: 0, prefer_next_row: true }, false);
+                inner.rich_undo.clear();
+                inner.rich_redo.clear();
+            }
             if inner.text != block.text {
                 inner.set_text(cx, &block.text);
                 inner.rich_undo.clear();
@@ -365,6 +411,7 @@ script_mod! {
 
         /** The selection band: one rounded quad per selected run, drawn behind the ink. */
         draw_selection +: {
+            body_selected: instance(0.0)
             /** pointer-hover mix 0..1 step 0.01 */
             hover: instance(0.0)
             /** keyboard-focus mix 0..1 step 0.01 */
@@ -429,7 +476,7 @@ script_mod! {
 
                 let fill = color_fill
                     .mix(color_fill_empty, self.empty)
-                    .mix(color_fill_focus, self.focus)
+                    .mix(color_fill_focus, self.focus.max(self.body_selected))
                     .mix(color_fill_hover.mix(color_fill_down, self.down), self.hover)
                     .mix(color_fill_disabled, self.disabled)
 
@@ -656,6 +703,8 @@ script_mod! {
 #[derive(Script, Widget, Animator)]
 pub struct ArticleRichInput {
     #[rust]
+    block_id: String,
+    #[rust]
     marks: Vec<Mark>,
     #[rust]
     rich_undo: Vec<(String, Vec<Mark>)>,
@@ -762,6 +811,8 @@ pub struct ArticleRichInput {
     #[rust]
     selection: Selection,
     #[rust]
+    body_selected: bool,
+    #[rust]
     history: History,
     #[rust]
     blink_timer: Timer,
@@ -788,6 +839,8 @@ pub struct ArticleRichInput {
     /// Skip finger move after long press to prevent selection changes
     #[rust]
     ignore_next_move: bool,
+    #[rust]
+    long_press_origin: Option<DVec2>,
     /// Touch that started outside this input while focused and may blur on release.
     #[rust]
     pending_outside_focus_loss_touch: Option<u64>,
@@ -1043,6 +1096,7 @@ impl ArticleRichInput {
     }
 
     pub fn set_empty_text(&mut self, cx: &mut Cx, empty_text: String) {
+        if self.empty_text == empty_text { return; }
         self.empty_text = empty_text;
         if self.text.is_empty() {
             self.draw_bg.redraw(cx);
@@ -1054,6 +1108,7 @@ impl ArticleRichInput {
     }
 
     pub fn set_selection(&mut self, cx: &mut Cx, selection: Selection) {
+        self.body_selected = false;
         self.selection = Selection {
             anchor: Cursor {
                 index: floor_grapheme_boundary(&self.text, selection.anchor.index),
@@ -2585,6 +2640,7 @@ impl Widget for ArticleRichInput {
 
     fn draw_walk(&mut self, cx: &mut Cx2d, _scope: &mut Scope, walk: Walk) -> DrawStep {
         self.draw_bg.begin(cx, walk, self.layout);
+        self.draw_selection.draw_vars.set_dyn_instance(cx, id!(body_selected), &[if self.body_selected { 1.0 } else { 0.0 }]);
         self.draw_selection.append_to_draw_call(cx);
         self.draw_composition_underline.append_to_draw_call(cx);
         // Push an inner clip rect to prevent scrolled text from bleeding into
@@ -2839,8 +2895,11 @@ impl Widget for ArticleRichInput {
                 abs,
                 tap_count,
                 device,
+                modifiers,
                 ..
             }) if device.is_primary_hit() && !scrollbar_captured => {
+                self.ignore_next_move = false;
+                self.long_press_origin = None;
                 self.reset_blink_timer(cx);
                 self.set_key_focus(cx);
                 let rel = abs - self.text_area.rect(cx).pos;
@@ -2861,8 +2920,8 @@ impl Widget for ArticleRichInput {
                     false
                 };
 
-                if tap_count > 1 || !touching_selection {
-                    self.set_cursor(cx, cursor, false);
+                if !device.is_touch() || tap_count > 1 || !touching_selection {
+                    self.set_cursor(cx, cursor, modifiers.shift && !device.is_touch());
                     self.preserved_selection_cursor = None;
                 } else {
                     self.preserved_selection_cursor = Some(cursor);
@@ -2900,6 +2959,7 @@ impl Widget for ArticleRichInput {
             }
             Hit::FingerUp(fe) => {
                 self.ignore_next_move = false;
+                self.long_press_origin = None;
 
                 if fe.was_tap() {
                     if let Some(cursor) = self.preserved_selection_cursor.take() {
@@ -2946,6 +3006,7 @@ impl Widget for ArticleRichInput {
 
                 // Skip next move to prevent selection change when finger lifts
                 self.ignore_next_move = true;
+                self.long_press_origin = Some(lp.abs);
             }
             Hit::FingerMove(FingerMoveEvent {
                 abs,
@@ -2953,14 +3014,21 @@ impl Widget for ArticleRichInput {
                 device,
                 ..
             }) if device.is_primary_hit() && !scrollbar_captured => {
-                // Skip first move after long press to prevent selection changes
-                if self.ignore_next_move {
+                // Ignore touch jitter after a long press, but allow a deliberate
+                // drag to extend the selection without requiring another tap.
+                if self.ignore_next_move && device.is_touch() {
+                    if self.long_press_origin.is_some_and(|origin| (abs - origin).length() < 6.0) {
+                        return;
+                    }
                     self.ignore_next_move = false;
-                    return;
+                    self.long_press_origin = None;
                 }
 
-                // Clear preserved cursor - user is dragging to select
-                self.preserved_selection_cursor = None;
+                // A drag starting inside an old selection starts at the new
+                // press, not at the previous selection's anchor.
+                if let Some(start) = self.preserved_selection_cursor.take() {
+                    self.set_cursor(cx, start, false);
+                }
                 self.reset_blink_timer(cx);
                 self.set_key_focus(cx);
                 let rel = abs - self.text_area.rect(cx).pos;

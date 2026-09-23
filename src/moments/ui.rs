@@ -1,5 +1,5 @@
 //! Native Moments surfaces; content comes from the active Matrix account.
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::{BTreeSet, HashMap}, path::PathBuf};
 use makepad_widgets::*;
 use ruma::{OwnedUserId, OwnedRoomId, OwnedEventId, TransactionId};
 use crate::{
@@ -79,6 +79,8 @@ struct Picked {
     session: u64,
     result: Result<PathBuf, String>,
 }
+/// The gap between photos in a Moments photo grid.
+const ALBUM_GAP: f64 = 3.0;
 const CAPTION: f64 = if cfg!(target_os = "macos") { 28.0 } else { 0.0 };
 
 script_mod! {
@@ -89,10 +91,14 @@ script_mod! {
     }
     let Hint = Label {width: Fill height: Fit flow: Flow.Right{wrap: true} draw_text +: {color: #x888888 text_style: theme.font_regular{font_size: 10}}}
     let Body = Label {width: Fill height: Fit flow: Flow.Right{wrap: true} draw_text +: {color: #x191919 text_style: theme.font_regular{font_size: 12}}}
-    let Photo = TextOrImage {width: Fill height: 82
-        image_view +: {height: Fill image +: {height: Fill fit: ImageFit.Smallest}}
+    // A photo cropped to fill its square grid cell, like WeChat Moments.
+    let Photo = TextOrImage {width: Fill height: Fill
+        image_view +: {height: Fill image +: {width: Fill height: Fill fit: ImageFit.CropToFill}}
         text_view +: {height: Fill label +: {max_lines: 2 draw_text.text_style.font_size: 9}}
     }
+    // Keeps its third of the row even when its photo is hidden, so a partly
+    // filled row doesn't stretch its photos.
+    let Cell = View {width: Fill height: Fill}
     mod.widgets.MomentsPanel = #(MomentsPanel::register_widget(vm)) {
         ..mod.widgets.SolidView
         width: Fill height: Fill flow: Down draw_bg.color: #xededed
@@ -118,10 +124,12 @@ script_mod! {
                     View {width: Fill height: Fit flow: Down spacing: 10
                     post_author := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: #x576b95 text_style: theme.font_bold{font_size: 12}}}
                     post_body := Body {max_lines: 6 text_overflow: Ellipsis}
-                    album := View {width: Fill height: Fit flow: Down spacing: 4 visible: false
-                        row0 := View {width: Fill height: 82 flow: Right spacing: 4 a0 := Photo{} a1 := Photo{} a2 := Photo{}}
-                        row1 := View {width: Fill height: 82 flow: Right spacing: 4 a3 := Photo{} a4 := Photo{} a5 := Photo{}}
-                        row2 := View {width: Fill height: 82 flow: Right spacing: 4 a6 := Photo{} a7 := Photo{} a8 := Photo{}}
+                    // Rows are made square-celled at draw time; see `square_album_rows()`.
+                    // The transparent backgrounds give the grid and rows a measurable area.
+                    album := View {width: Fill height: Fit flow: Down spacing: 3 visible: false show_bg: true draw_bg.color: #x00000000
+                        row0 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a0 := Photo{}} Cell{a1 := Photo{}} Cell{a2 := Photo{}}}
+                        row1 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a3 := Photo{}} Cell{a4 := Photo{}} Cell{a5 := Photo{}}}
+                        row2 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a6 := Photo{}} Cell{a7 := Photo{}} Cell{a8 := Photo{}}}
                     }
                     post_meta := Hint {}
                     post_interactions := Hint {draw_text.color: #x576b95}
@@ -139,6 +147,12 @@ script_mod! {
             composer_audience := Body {draw_text.color: #x576b95}
             Hint {text: #(crate::i18n::tr("Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers.")) i18n_text: "Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers."}
             moments_body := TextInput {width: Fill height: 150 empty_text: #(crate::i18n::tr("What's on your mind?")) i18n_empty_text: "What's on your mind?" is_multiline: true}
+            // Thumbnails of the photos/videos picked for this post, in a 3x3 grid like WeChat.
+            compose_album := View {width: Fill height: Fit flow: Down spacing: 3 visible: false show_bg: true draw_bg.color: #x00000000
+                row0 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c0 := Photo{}} Cell{c1 := Photo{}} Cell{c2 := Photo{}}}
+                row1 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c3 := Photo{}} Cell{c4 := Photo{}} Cell{c5 := Photo{}}}
+                row2 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c6 := Photo{}} Cell{c7 := Photo{}} Cell{c8 := Photo{}}}
+            }
             selected_media := Hint {}
             View {width: Fill height: 40 flow: Right spacing: 8
                 moments_add_media := ActionButton {text: #(crate::i18n::tr("Add photo / video")) i18n_text: "Add photo / video"}
@@ -263,6 +277,17 @@ pub struct MomentsPanel {
     comments: Vec<Entry>,
     #[rust]
     paths: Vec<PathBuf>,
+    /// The `paths` currently loaded into the composer's thumbnail grid.
+    #[rust]
+    album_paths: Vec<PathBuf>,
+    /// Square cell sides for the feed's and the composer's photo grids, as last measured.
+    #[rust]
+    feed_album_side: f64,
+    #[rust]
+    compose_album_side: f64,
+    /// The height last applied to each photo-grid row, to avoid re-applying it every frame.
+    #[rust]
+    album_row_heights: HashMap<WidgetUid, f64>,
     #[rust]
     media: Option<MediaCache>,
     #[rust]
@@ -432,6 +457,69 @@ impl MomentsPanel {
         }
         self.redraw(cx);
     }
+    /// The side of a square cell in a 3-column photo grid, measured from the grid
+    /// as just drawn (list items' areas are only valid right after drawing them).
+    fn measure_album_side(cx: &mut Cx, album: &ViewRef) -> Option<f64> {
+        let width = album.area().rect(cx).size.x;
+        (width > 0.0).then(|| ((width - 2.0 * ALBUM_GAP) / 3.0).floor())
+    }
+
+    /// Makes the visible rows of a 3-column photo grid `side` tall, so its
+    /// photos form squares that follow the grid's width.
+    fn square_album_rows(
+        cx: &mut Cx,
+        album: &ViewRef,
+        photo_count: usize,
+        side: f64,
+        applied: &mut HashMap<WidgetUid, f64>,
+    ) {
+        if side <= 0.0 {
+            return;
+        }
+        for (id, first) in [(ids!(row0), 0), (ids!(row1), 3), (ids!(row2), 6)] {
+            let row = album.view(cx, id);
+            if photo_count > first && applied.get(&row.widget_uid()) != Some(&side) {
+                // Set the walk directly: this runs mid-draw (inside the feed's PortalList),
+                // where re-entering the script VM via `script_apply_eval!` would panic.
+                if let Some(mut view) = row.borrow_mut() {
+                    view.walk.height = Size::Fixed(side);
+                }
+                applied.insert(row.widget_uid(), side);
+            }
+        }
+    }
+
+    /// Shows the picked photos/videos as thumbnails in the composer,
+    /// reloading them from disk only when the selection changes.
+    fn sync_compose_album(&mut self, cx: &mut Cx) {
+        let album = self.view(cx, ids!(compose_album));
+        Self::square_album_rows(cx, &album, self.paths.len(), self.compose_album_side, &mut self.album_row_heights);
+        if self.album_paths == self.paths {
+            return;
+        }
+        self.album_paths = self.paths.clone();
+        let count = self.paths.len();
+        self.view(cx, ids!(compose_album)).set_visible(cx, count > 0);
+        for (id, n) in [(ids!(compose_album.row0), 0), (ids!(compose_album.row1), 3), (ids!(compose_album.row2), 6)] {
+            self.view(cx, id).set_visible(cx, count > n);
+        }
+        let slots = [ids!(c0), ids!(c1), ids!(c2), ids!(c3), ids!(c4), ids!(c5), ids!(c6), ids!(c7), ids!(c8)];
+        for (i, id) in slots.iter().enumerate() {
+            let photo = self.text_or_image(cx, *id);
+            photo.set_visible(cx, i < count);
+            let Some(path) = self.paths.get(i) else { continue };
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            // Videos (or anything the image loader can't decode) show their file name instead.
+            let shown = photo.show_image(cx, None, |cx, image| {
+                image.load_image_file_by_path(cx, path)?;
+                Ok::<_, ImageError>(image.size_in_pixels(cx).unwrap_or((1, 1)))
+            });
+            if shown.is_err() {
+                photo.show_text(cx, name);
+            }
+        }
+    }
+
     fn pick_media(&mut self) {
         if self.paths.len() >= MAX_MEDIA {
             self.status = crate::i18n::tr("Choose at most nine photos or videos.").into();
@@ -1086,6 +1174,7 @@ impl Widget for MomentsPanel {
                         .join(", ")
                 }).to_string())]),
         );
+        self.sync_compose_album(cx);
         self.label(cx, ids!(selected_media)).set_text(
             cx,
             &crate::i18n::format("{0} / 9 selected\n{1}", &[("0", (self.paths.len()).to_string()), ("1", (self.paths
@@ -1261,6 +1350,8 @@ impl Widget for MomentsPanel {
                         );
                         let media = post.media();
                         row.view(cx, ids!(album)).set_visible(cx, !media.is_empty());
+                        let album = row.view(cx, ids!(album));
+                        Self::square_album_rows(cx, &album, media.len(), self.feed_album_side, &mut self.album_row_heights);
                         for (id, n) in [(ids!(row0), 0), (ids!(row1), 3), (ids!(row2), 6)] {
                             row.view(cx, id).set_visible(cx, media.len() > n);
                         }
@@ -1286,6 +1377,15 @@ impl Widget for MomentsPanel {
                             }
                         }
                         row.draw_all(cx, scope);
+                        if !media.is_empty()
+                            && let Some(side) = Self::measure_album_side(cx, &album)
+                            && (side - self.feed_album_side).abs() > 0.5
+                        {
+                            self.feed_album_side = side;
+                            // Mark our area dirty instead of `self.redraw()`, which would
+                            // re-borrow the PortalList that is drawing this item.
+                            self.view.area().redraw(cx);
+                        }
                     }
                 }
                 Page::Details => {
@@ -1365,6 +1465,15 @@ impl Widget for MomentsPanel {
                 _ => {}
             }
         }
+        if self.page == Page::Compose && !self.paths.is_empty() {
+            let album = self.view(cx, ids!(compose_album));
+            if let Some(side) = Self::measure_album_side(cx, &album)
+                && (side - self.compose_album_side).abs() > 0.5
+            {
+                self.compose_album_side = side;
+                self.view.area().redraw(cx);
+            }
+        }
         DrawStep::done()
     }
 }
@@ -1378,13 +1487,17 @@ fn date(timestamp: u64) -> String {
         .unwrap_or_default()
 }
 impl MomentsPanelRef {
-    pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MomentsAction) {
+    /// Applies `action` to this panel.
+    ///
+    /// `modal` is the modal hosting this panel, which is opened or closed to match;
+    /// it's `None` when the panel lives in its own window instead.
+    pub fn action(&self, cx: &mut Cx, modal: Option<&ModalRef>, action: &MomentsAction) {
         let Some(mut inner) = self.borrow_mut() else {
             return;
         };
         if matches!(action, MomentsAction::Close) {
             inner.reset(cx);
-            modal.close(cx);
+            if let Some(modal) = modal { modal.close(cx); }
             return;
         }
         inner.reset(cx);
@@ -1395,7 +1508,7 @@ impl MomentsPanelRef {
         inner.pending = Service::current()
             .and_then(|s| s.pending().ok().flatten())
             .filter(|p| p.confirmed.is_none());
-        modal.open(cx);
+        if let Some(modal) = modal { modal.open(cx); }
         match action {
             MomentsAction::Open { author } => {
                 inner.author = author.clone();

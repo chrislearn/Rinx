@@ -135,7 +135,7 @@ webpki-root-certs = "1"
 
 
 [features]
-default = ["html_preview"]
+default = []
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
 html_preview = ["dep:makepad-html-renderer"]
 # Compatibility for existing Rinx build commands.
@@ -410,3 +410,8 @@ needless_late_init = "allow"
 too_many_arguments = "allow"
 uninlined_format_args = "allow"
 used_underscore_binding = "allow"
+
+# Keep all Makepad widgets on the same compatibility revision as the renderer.
+[patch."https://github.com/kevinaboos/makepad"]
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "baa9c89735a51efc9070605eb263c56443e34b90" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "baa9c89735a51efc9070605eb263c56443e34b90" }

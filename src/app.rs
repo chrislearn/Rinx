@@ -38,6 +38,9 @@ script_mod! {
 
     load_all_resources() do #(App::script_component(vm)) {
         ui: Root {
+            // Not a window itself: builds the separate Moments window on demand.
+            moments_window_host := MomentsWindowHost {}
+
             main_window := Window {
                 window.inner_size: vec2(1280, 800)
                 window.title: "Rinx"
@@ -317,7 +320,8 @@ impl MatchEvent for App {
                 }
                 Some(LogoutAction::ClearAppState { on_clear_appstate }) =>  {
                     let modal = self.ui.modal(cx, ids!(moments_modal));
-                    self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, modal, &MomentsAction::Close);
+                    self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), &MomentsAction::Close);
+                    self.moments_window_host(cx).close(cx);
                     #[cfg(feature = "agent_chat")]
                     {
                         crate::agent_chat::reply::clear_session(cx);
@@ -370,9 +374,18 @@ impl MatchEvent for App {
                 self.ui.agent_ops_panel(cx, ids!(agent_ops_modal.content)).action(cx, modal, action);
             }
             // Open, share or close a Matrix web mini-app card.
+            // On desktop, Moments opens in its own window; on mobile, in a full-screen modal.
             if let Some(action) = action.downcast_ref::<MomentsAction>() {
                 let modal = self.ui.modal(cx, ids!(moments_modal));
-                self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, modal, action);
+                let window_host = self.moments_window_host(cx);
+                if matches!(action, MomentsAction::Close) {
+                    self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
+                    window_host.close(cx);
+                } else if crate::home::home_screen::effective_is_desktop(cx) {
+                    window_host.action(cx, action);
+                } else {
+                    self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
+                }
             }
             if let Some(action) = action.downcast_ref::<RoomHistoryAction>() {
                 let modal = self.ui.modal(cx, ids!(room_history_modal));
@@ -988,6 +1001,14 @@ impl App {
                 if self.ui.window(cx, ids!(main_window)).window_id() == Some(e.window_id) => {
                     log!("Main window close requested; persisting runtime state.");
                     self.persist_runtime_state(cx, "main window close request");
+                    // The app only quits once its last window closes,
+                    // so take the Moments window down with the main one.
+                    self.moments_window_host(cx).close(cx);
+                }
+            // Not every close goes through a close request first, so also catch the close itself.
+            Event::WindowClosed(e)
+                if self.ui.window(cx, ids!(main_window)).window_id() == Some(e.window_id) => {
+                    self.moments_window_host(cx).close(cx);
                 }
             Event::Foreground => {
                 if !self.lifecycle.is_foreground {
@@ -1002,6 +1023,11 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    fn moments_window_host(&self, cx: &mut Cx) -> crate::moments::window::MomentsWindowHostRef {
+        use crate::moments::window::MomentsWindowHostWidgetRefExt;
+        self.ui.widget(cx, ids!(moments_window_host)).as_moments_window_host()
     }
 
     fn persist_runtime_state(&mut self, cx: &mut Cx, reason: &'static str) {

@@ -3,6 +3,11 @@ use makepad_widgets::*;
 use article_core::document::{Block, BlockKind, Document};
 use crate::rich_input::ArticleRichInputRef;
 
+pub fn show_body_placeholder(document: &Document, index: usize) -> bool {
+    index == 0 && document.blocks.iter().all(|block| block.text.is_empty()
+        && !matches!(block.kind, BlockKind::Image | BlockKind::Divider))
+}
+
 pub fn color(hex: u32) -> Vec4f {
     vec4(((hex >> 16) & 255) as f32 / 255.0,
         ((hex >> 8) & 255) as f32 / 255.0, (hex & 255) as f32 / 255.0, 1.0)
@@ -26,6 +31,7 @@ pub fn style_html(cx: &mut Cx, mut html: HtmlRef, document: &Document) {
     let size = if document.large_type { 16.0 } else { 14.0 };
     let spacing = if document.compact { 1.0 } else { 1.25 };
     script_apply_eval!(cx, html, {
+        draw_block +: {table_header_bg_color: #x0000000a table_border_color: #xb8c2bd code_color: #xf3f5f4 line_color: #xb8c2bd}
         font_size: #(size) font_color: #(ink)
         draw_text +: {color: #(ink)}
         text_style_normal +: {line_spacing: #(spacing)}

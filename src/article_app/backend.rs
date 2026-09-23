@@ -132,7 +132,7 @@ pub fn wire_content(
                 })
             ));
         } else {
-            html.push_str(&b.html())
+            html.push_str(&doc.block_html(b))
         }
     }
     let plain = crate::shared::slash_commands::html_to_plaintext(&html);

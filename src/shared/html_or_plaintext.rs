@@ -15,6 +15,13 @@ script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
 
+    mod.widgets.MessagePlaintext = #(MessagePlaintext::register_widget(vm)) {
+        ..mod.widgets.TextFlow
+        width: Fill height: Fit
+        padding: 0
+        selectable: true
+        draw_selection +: { color: #x3399ff55 }
+    }
 
     // A pill-shaped widget that displays a Matrix link,
     // either a link to a user, a room, or a message in a room.
@@ -112,6 +119,7 @@ script_mod! {
         font_size: (MESSAGE_FONT_SIZE),
         font_color: (MESSAGE_TEXT_COLOR),
         draw_text +: { color: (MESSAGE_TEXT_COLOR) }
+        draw_selection +: { color: #x3399ff55 }
         text_style_normal: mod.widgets.MESSAGE_TEXT_STYLE {
             font_size: (MESSAGE_FONT_SIZE)
             line_spacing: (MESSAGE_TEXT_LINE_SPACING)
@@ -182,6 +190,7 @@ script_mod! {
         plaintext_view := View {
             visible: true,
             width: Fill, height: Fit, // see above comment
+            flow: Overlay
             pt_label := Label {
                 width: Fill, height: Fit, // see above comment
                 flow: Flow.Right{wrap: true},
@@ -191,12 +200,50 @@ script_mod! {
                     text_style: mod.widgets.MESSAGE_TEXT_STYLE { font_size: (MESSAGE_FONT_SIZE) },
                 }
             }
+            selection_view := View {
+                visible: false
+                width: Fill height: Fit
+                text := mod.widgets.MessagePlaintext {}
+            }
         }
 
         html_view := View {
             visible: false,
             width: Fill, height: Fit, // see above comment
             html := mod.widgets.MessageHtml {}
+        }
+    }
+}
+
+/// Plain text is drawn directly into Makepad's native TextFlow, without HTML
+/// escaping/parsing. The hidden Label retains the existing typography and the
+/// natural-width measurement used by compact chat bubbles.
+#[derive(Script, ScriptHook, Widget)]
+pub struct MessagePlaintext {
+    #[source] source: ScriptObjectRef,
+    #[deref] flow: TextFlow,
+    #[live] text: ArcStringMut,
+}
+
+impl Widget for MessagePlaintext {
+    fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        self.flow.handle_event(cx, event, scope);
+    }
+
+    fn draw_walk(&mut self, cx: &mut Cx2d, _scope: &mut Scope, walk: Walk) -> DrawStep {
+        self.flow.begin(cx, walk);
+        self.flow.draw_text(cx, self.text.as_ref());
+        self.flow.end(cx);
+        DrawStep::done()
+    }
+
+    fn text(&self) -> String { self.text.as_ref().to_owned() }
+
+    fn set_text(&mut self, cx: &mut Cx, text: &str) {
+        if self.text.as_ref() != text {
+            self.flow.clear_selection();
+            self.text.set(text);
+            self.redraw(cx);
         }
     }
 }
@@ -743,14 +790,77 @@ impl Widget for MatrixHtmlSpan {
 pub struct HtmlOrPlaintext {
     #[source] source: ScriptObjectRef,
     #[deref] view: View,
+    /// Only full chat bodies opt in; previews remain non-interactive labels.
+    #[live] selectable: bool,
+    #[rust] mouse_selection: Option<(DVec2, usize, bool)>,
 }
 
 impl Widget for HtmlOrPlaintext {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
-        self.view.handle_event(cx, event, scope)
+        let claim_before = event.pointer_claimed_area();
+        if matches!(event, Event::MouseUp(_))
+            && self.mouse_selection.is_some_and(|(_, _, dragging)| dragging)
+        {
+            let mut actions = cx.capture_actions(|cx| self.view.handle_event(cx, event, scope));
+            // A short drag can still satisfy HtmlLink::was_tap(). Selection owns
+            // this gesture even when it returns to its original position.
+            actions.retain(|action| {
+                !matches!(action.as_widget_action().cast::<HtmlLinkAction>(), HtmlLinkAction::Clicked { .. })
+                    && !matches!(action.as_widget_action().cast::<RobrixHtmlLinkAction>(), RobrixHtmlLinkAction::ClickedMatrixLink { .. })
+            });
+            cx.extend_actions(actions);
+        } else {
+            self.view.handle_event(cx, event, scope);
+        }
+        if !self.selectable { return; }
+
+        // Html's inline links receive events before TextFlow. Remember the text
+        // position even if a link captured the press, so dragging from that link
+        // still selects text. A stationary click keeps the link's normal action.
+        match event {
+            Event::MouseDown(e) if e.button.is_primary() && claim_before.is_empty()
+                && self.area().clipped_rect(cx).contains(e.abs) => {
+                self.mouse_selection = self.with_flow(cx, |flow, cx| {
+                    flow.selection_point_to_char_index(cx, e.abs).map(|index| (e.abs, index, false))
+                }).flatten();
+            }
+            Event::MouseMove(e) => {
+                if let Some((start, anchor, dragging)) = self.mouse_selection {
+                    if dragging || (e.abs - start).length() >= 4.0 {
+                        self.mouse_selection = Some((start, anchor, true));
+                        self.with_flow(cx, |flow, cx| {
+                            if let Some(cursor) = flow.selection_point_to_char_index(cx, e.abs) {
+                                flow.set_selection(anchor, cursor);
+                                cx.set_key_focus(flow.area());
+                                flow.redraw(cx);
+                            }
+                        });
+                    }
+                }
+            }
+            Event::MouseUp(_) => self.mouse_selection = None,
+            Event::KeyFocusLost(e) => {
+                if self.with_flow(cx, |flow, _| flow.area() == e.prev).unwrap_or(false) {
+                    self.mouse_selection = None;
+                }
+            }
+            _ => {}
+        }
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        // Keep all existing per-message font overrides, including mobile bubble
+        // size and notice italics, in sync with the selectable plain-text draw.
+        if self.selectable && self.view(cx, ids!(plaintext_view)).visible() {
+            let label = self.label(cx, ids!(plaintext_view.pt_label));
+            let text = self.widget(cx, ids!(plaintext_view.selection_view.text));
+            if let (Some(label), Some(mut text)) = (label.borrow(), text.borrow_mut::<MessagePlaintext>()) {
+                text.flow.font_size = label.draw_text.text_style.font_size;
+                text.flow.font_color = label.draw_text.color;
+                text.flow.text_style_normal = label.draw_text.text_style.clone();
+                text.flow.draw_text.font_scale = label.draw_text.font_scale;
+            }
+        }
         self.view.draw_walk(cx, scope, walk)
     }
 }
@@ -758,16 +868,45 @@ impl Widget for HtmlOrPlaintext {
 impl HtmlOrPlaintext {
     /// Sets the plaintext content and makes it visible, hiding the rich HTML content.
     pub fn show_plaintext<T: AsRef<str>>(&mut self, cx: &mut Cx, text: T) {
+        if self.view(cx, ids!(html_view)).visible() { self.clear_selection(cx); }
         self.view(cx, ids!(html_view)).set_visible(cx, false);
         self.view(cx, ids!(plaintext_view)).set_visible(cx, true);
         self.label(cx, ids!(plaintext_view.pt_label)).set_text(cx, text.as_ref());
+        self.label(cx, ids!(plaintext_view.pt_label)).set_visible(cx, !self.selectable);
+        self.view(cx, ids!(plaintext_view.selection_view)).set_visible(cx, self.selectable);
+        self.widget(cx, ids!(plaintext_view.selection_view.text)).set_text(cx, text.as_ref());
     }
 
     /// Sets the HTML content, making the HTML visible and the plaintext invisible.
     pub fn show_html<T: AsRef<str>>(&mut self, cx: &mut Cx, html_body: T) {
-        self.html(cx, ids!(html_view.html)).set_text(cx, html_body.as_ref());
+        if self.view(cx, ids!(plaintext_view)).visible() { self.clear_selection(cx); }
+        let mut html = self.html(cx, ids!(html_view.html));
+        if let Some(mut inner) = html.borrow_mut() {
+            inner.text_flow.selectable = self.selectable;
+            if inner.text() != html_body.as_ref() { inner.text_flow.clear_selection(); }
+        }
+        html.set_text(cx, html_body.as_ref());
         self.view(cx, ids!(html_view)).set_visible(cx, true);
         self.view(cx, ids!(plaintext_view)).set_visible(cx, false);
+    }
+
+    fn with_flow<R>(&self, cx: &mut Cx, f: impl FnOnce(&mut TextFlow, &mut Cx) -> R) -> Option<R> {
+        if self.view(cx, ids!(plaintext_view)).visible() {
+            self.widget(cx, ids!(plaintext_view.selection_view.text)).borrow_mut::<MessagePlaintext>()
+                .map(|mut text| f(&mut text.flow, cx))
+        } else {
+            self.html(cx, ids!(html_view.html)).borrow_mut().map(|mut html| f(&mut html.text_flow, cx))
+        }
+    }
+
+    pub fn selected_text(&self, cx: &mut Cx) -> String {
+        if !self.selectable { return String::new(); }
+        self.with_flow(cx, |flow, _| flow.selected_text()).unwrap_or_default()
+    }
+
+    pub fn clear_selection(&mut self, cx: &mut Cx) {
+        self.mouse_selection = None;
+        self.with_flow(cx, |flow, cx| { flow.clear_selection(); flow.redraw(cx); });
     }
 }
 
@@ -792,6 +931,13 @@ impl HtmlOrPlaintext {
 }
 
 impl HtmlOrPlaintextRef {
+    pub fn selected_text(&self, cx: &mut Cx) -> String {
+        self.borrow().map(|inner| inner.selected_text(cx)).unwrap_or_default()
+    }
+
+    pub fn clear_selection(&self, cx: &mut Cx) {
+        if let Some(mut inner) = self.borrow_mut() { inner.clear_selection(cx); }
+    }
     /// See [`HtmlOrPlaintext::show_plaintext()`].
     pub fn show_plaintext<T: AsRef<str>>(&self, cx: &mut Cx, text: T) {
         if let Some(mut inner) = self.borrow_mut() {

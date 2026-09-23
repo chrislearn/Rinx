@@ -14,6 +14,12 @@ pub struct Library<P = (), O = ()> {
     pub outbox: Vec<O>,
     #[serde(default)]
     pub legacy_source: Option<String>,
+    /// Unapplied source belongs to a local draft, never to a published document.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub source_drafts: BTreeMap<String, String>,
+    /// Host-local file origins for resolving explicit relative-link clicks.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub source_locations: BTreeMap<String, String>,
 }
 impl<P, O> Default for Library<P, O> {
     fn default() -> Self {
@@ -24,7 +30,34 @@ impl<P, O> Default for Library<P, O> {
             publications: Vec::new(),
             outbox: Vec::new(),
             legacy_source: None,
+            source_drafts: BTreeMap::new(),
+            source_locations: BTreeMap::new(),
         }
+    }
+}
+impl<P, O> Library<P, O> {
+    pub fn source_for(&self, document_id: &str) -> Option<&str> {
+        self.source_drafts.get(document_id).map(String::as_str).or_else(|| {
+            // The old, single-draft format migrated into the first document.
+            self.documents.first().filter(|d| d.id == document_id)
+                .and(self.legacy_source.as_deref())
+        })
+    }
+
+    pub fn clear_source(&mut self, document_id: &str) {
+        self.source_drafts.remove(document_id);
+        if self.documents.first().is_some_and(|d| d.id == document_id) {
+            self.legacy_source = None;
+        }
+    }
+
+    fn validate_sources(&self) -> Result<(), String> {
+        if self.source_drafts.len() > 100 || self.source_drafts.iter().any(|(id, source)| {
+            !self.documents.iter().any(|d| d.id == *id) || source.len() > MAX_BODY
+        }) {
+            return Err("Article source exceeds its storage limits.".into());
+        }
+        Ok(())
     }
 }
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -73,6 +106,7 @@ impl<'a, H: ArticleHost + ?Sized, P: Serialize + DeserializeOwned, O: Serialize 
                 let library: Library<P, O> = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
                 if library.schema != 2 || library.documents.len() > 100 { return Err("Unsupported article library".into()); }
                 for document in &library.documents { document.validate()?; }
+                library.validate_sources()?;
                 Ok(library)
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -117,6 +151,7 @@ impl<'a, H: ArticleHost + ?Sized, P: Serialize + DeserializeOwned, O: Serialize 
         let value = edit(&mut library)?;
         if library.documents.len() > 100 { return Err("Keep at most 100 article drafts on this device.".into()); }
         for document in &library.documents { document.validate()?; }
+        library.validate_sources()?;
         let bytes = serde_json::to_vec(&library).map_err(|e| e.to_string())?;
         if bytes.len() > 8_000_000 { return Err("Article library exceeds its storage limit.".into()); }
         self.check(Capability::WriteDrafts)?;
@@ -128,6 +163,20 @@ impl<'a, H: ArticleHost + ?Sized, P: Serialize + DeserializeOwned, O: Serialize 
         self.update(|library| {
             if let Some(old) = library.documents.iter_mut().find(|d| d.id == document.id) { *old = document.clone(); }
             else { library.documents.push(document.clone()); }
+            Ok(())
+        })
+    }
+    /// Commit the visual draft and its unapplied source together. A successful
+    /// import passes None to clear only this document's saved source.
+    pub fn save_document_with_source(&self, document: &Document, source: Option<&str>) -> Result<(), String> {
+        document.validate()?;
+        self.update(|library| {
+            if let Some(old) = library.documents.iter_mut().find(|d| d.id == document.id) { *old = document.clone(); }
+            else { library.documents.push(document.clone()); }
+            library.clear_source(&document.id);
+            if let Some(source) = source {
+                library.source_drafts.insert(document.id.clone(), source.to_owned());
+            }
             Ok(())
         })
     }

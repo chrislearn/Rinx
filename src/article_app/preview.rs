@@ -1,4 +1,4 @@
-//! Optional preview of validated structured articles. No raw public HTML import.
+//! Optional preview with sanitized markup and explicit image byte grants.
 use makepad_html_renderer::{DocumentSession, HtmlAction, RenderedDocument, RenderOptions, ResourceMap};
 use article_core::{assets::crop_cover, document::*, host::Capability};
 use super::{model::Grant, storage};
@@ -12,6 +12,7 @@ static RENDERING: Mutex<()> = Mutex::new(());
 
 fn bundle(
     document: &Document,
+    images: &article_makepad::content::Images,
     mut read_asset: impl FnMut(&str) -> Result<Vec<u8>, String>,
 ) -> Result<(String, ResourceMap), String> {
     document.ready()?;
@@ -34,7 +35,9 @@ h1{{font-size:28px;line-height:1.4}} h2{{font-size:22px;color:#{accent:06x};marg
 h3{{font-size:19px}} p{{margin:16px 0}} .author,figcaption{{font-size:13px;opacity:.7}}
 blockquote{{margin:20px 0;padding:12px 18px;border-left:4px solid #{accent:06x};background:#f0f2ef}}
 figure{{margin:20px auto;text-align:center}} figure img{{width:100%;max-width:100%;height:auto}} a{{color:#{accent:06x}}} hr{{border:0;border-top:1px solid #{accent:06x};margin:24px 0}}
+{}
 </style></head><body><article><h1>{}</h1><p class="author">{}</p>"#,
+        article_makepad::content::CSS,
         escape(&document.title),
         escape(&document.author)
     );
@@ -57,7 +60,13 @@ figure{{margin:20px auto;text-align:center}} figure img{{width:100%;max-width:10
                 .ok_or("Article image is missing")?;
             html.push_str(&format!("<figure style=\"width:{}%\"><img src=\"{url}\" alt=\"{}\"><figcaption>{}</figcaption></figure>", block.width, escape(&block.alt), escape(&block.caption)));
         } else {
-            html.push_str(&block.html());
+            let mut renderer = article_makepad::content::HtmlRenderer {
+                images, size: font as f32, ink, error: None, math_count: 0,
+                register: |id: &str, png: &[u8]| resources.insert_image(id, png.to_vec()).map_err(|e| e.to_string()),
+            };
+            let block_html = document.block_html_with_renderer(block, &mut renderer);
+            if let Some(error) = renderer.error { return Err(error); }
+            html.push_str(&block_html);
         }
     }
     html.push_str("</article></body></html>");
@@ -188,6 +197,7 @@ fn start_worker(
 
 pub fn start(
     document: Document,
+    images: article_makepad::content::Images,
     grant: Grant,
     options: RenderOptions,
     emit: impl Fn(Result<Update, String>) + Send + 'static,
@@ -196,7 +206,7 @@ pub fn start(
     start_worker(
         move || {
             grant.authorize(Capability::ReadDrafts)?;
-            let (html, resources) = bundle(&document, |id| {
+            let (html, resources) = bundle(&document, &images, |id| {
                 storage::asset_bytes(crate::app_data_dir(), &grant, id)
             })?;
             grant.authorize(Capability::ReadDrafts)?;
@@ -354,10 +364,28 @@ mod tests {
         ));
     }
     #[test]
+    fn editor_md_math_preview_grants_only_generated_images_and_preserves_source() {
+        let source = include_str!("../../lab/article-editor/render-comparison/evidence/09-math/source.md");
+        let doc = Document::from_markdown("Math fixture", source).unwrap();
+        let before = serde_json::to_string(&doc).unwrap();
+        let (html, resources) = bundle(&doc, &Default::default(), |_| panic!("No imported assets expected")).unwrap();
+        assert_eq!(html.matches("<img ").count(), 9);
+        assert!(!html.contains("<svg") && !html.contains("<math") && !html.contains("<script"));
+        assert!(!html.contains("$$") && !html.contains("<pre>"));
+        let bitmap = makepad_html_renderer::render_html(&html, RenderOptions {
+            width_css:440, scale:2.0, ..Default::default()
+        }, &resources).unwrap();
+        assert!(bitmap.resources.denied.is_empty());
+        assert!(bitmap.resources.served >= 8);
+        assert!(!bitmap.clipped);
+        assert_eq!(serde_json::to_string(&doc).unwrap(), before);
+    }
+
+    #[test]
     fn preview_only_generates_escaped_html_from_validated_document() {
         let mut doc = Document::from_markdown("<script>title</script>", "你好 **世界**").unwrap();
         doc.author = "<img src=file:///private>".into();
-        let (html, resources) = bundle(&doc, |_| panic!("No assets expected")).unwrap();
+        let (html, resources) = bundle(&doc, &Default::default(), |_| panic!("No assets expected")).unwrap();
         assert!(html.contains("&lt;script&gt;title&lt;/script&gt;"));
         assert!(!html.contains("<script>"));
         assert!(!html.contains("<img src=file:"));
@@ -386,10 +414,10 @@ mod tests {
             scale: 1.0,
             ..Default::default()
         };
-        let (html, resources) = bundle(&doc, |_| Ok(bytes.clone())).unwrap();
+        let (html, resources) = bundle(&doc, &Default::default(), |_| Ok(bytes.clone())).unwrap();
         let half = makepad_html_renderer::render_html(&html, options, &resources).unwrap();
         doc.blocks.last_mut().unwrap().width = 100;
-        let (html, resources) = bundle(&doc, |_| Ok(bytes.clone())).unwrap();
+        let (html, resources) = bundle(&doc, &Default::default(), |_| Ok(bytes.clone())).unwrap();
         let full = makepad_html_renderer::render_html(&html, options, &resources).unwrap();
         assert_eq!(full.resources.denied.len(), 0);
         assert!(full.css_content_height > half.css_content_height + 100.0);
