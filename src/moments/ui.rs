@@ -330,6 +330,38 @@ fn next_request() -> u64 {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
+
+fn composer_draft_from_bytes(bytes: Option<&[u8]>) -> ComposerDraft {
+    bytes
+        .and_then(|bytes| serde_json::from_slice(bytes).ok())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod draft_tests {
+    use super::*;
+
+    #[test]
+    fn switching_to_account_without_draft_clears_previous_composer() {
+        let first = ComposerDraft {
+            body: "private note".into(),
+            paths: vec![PathBuf::from("private-photo.png")],
+        };
+        let first_bytes = serde_json::to_vec(&first).unwrap();
+        assert_eq!(composer_draft_from_bytes(Some(&first_bytes)).body, first.body);
+
+        let second = composer_draft_from_bytes(None);
+        assert!(second.body.is_empty());
+        assert!(second.paths.is_empty());
+    }
+
+    #[test]
+    fn corrupt_draft_does_not_retain_previous_composer() {
+        let draft = composer_draft_from_bytes(Some(b"not json"));
+        assert!(draft.body.is_empty());
+        assert!(draft.paths.is_empty());
+    }
+}
 impl MomentsPanel {
     fn save_draft(&self, cx: &mut Cx) {
         let Some(owner) = &self.owner else { return };
@@ -359,16 +391,16 @@ impl MomentsPanel {
     fn restore_draft(&mut self, cx: &mut Cx) {
         let Some(owner) = &self.owner else { return };
         let path = crate::persistence::persistent_state_dir(owner).join("moments-composer.json");
-        if let Ok(bytes) = std::fs::read(path) {
-            if let Ok(draft) = serde_json::from_slice::<ComposerDraft>(&bytes) {
-                self.text_input(cx, ids!(moments_body))
-                    .set_text(cx, &draft.body);
-                self.paths = draft.paths;
-            }
-        }
+        let bytes = std::fs::read(path).ok();
+        let draft = composer_draft_from_bytes(bytes.as_deref());
+        self.text_input(cx, ids!(moments_body)).set_text(cx, &draft.body);
+        self.paths = draft.paths;
     }
     fn reset(&mut self, cx: &mut Cx) {
         self.save_draft(cx);
+        self.text_input(cx, ids!(moments_body)).set_text(cx, "");
+        self.paths.clear();
+        self.album_paths.clear();
         cx.stop_timer(self.timer);
         self.pending = None;
         self.owner = None;
