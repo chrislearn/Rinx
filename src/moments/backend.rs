@@ -20,7 +20,7 @@ use super::{
 // against joined rooms and duplicates require an explicit timeline choice.
 static WRITES: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Preferences {
     pub timeline: Option<OwnedRoomId>,
     pub file_transfer: Option<OwnedRoomId>,
@@ -29,8 +29,23 @@ pub struct Preferences {
     #[serde(default)]
     pub seen: BTreeSet<OwnedEventId>,
     /// Share this account's Moments with its DM contacts; see `super::dm_sharing`.
-    #[serde(default)]
+    /// On unless the user turned it off, like WeChat's friend circle.
+    #[serde(default = "default_true")]
     pub share_with_dm_contacts: bool,
+}
+fn default_true() -> bool {
+    true
+}
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            timeline: None,
+            file_transfer: None,
+            hidden: BTreeSet::new(),
+            seen: BTreeSet::new(),
+            share_with_dm_contacts: true,
+        }
+    }
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ComposerDraft {
@@ -1080,6 +1095,15 @@ mod tests {
             timeline_from_state(id, &joined).unwrap().audience,
             timeline.audience
         );
+    }
+    #[test]
+    fn sharing_with_dm_contacts_is_on_unless_turned_off() {
+        assert!(Preferences::default().share_with_dm_contacts);
+        // Preferences saved before the setting existed.
+        let old: Preferences = serde_json::from_value(json!({"timeline":null,"file_transfer":null})).unwrap();
+        assert!(old.share_with_dm_contacts);
+        let off: Preferences = serde_json::from_value(json!({"timeline":null,"file_transfer":null,"share_with_dm_contacts":false})).unwrap();
+        assert!(!off.share_with_dm_contacts);
     }
     #[test]
     fn file_transfer_rejects_moments_and_other_members_even_pending() {

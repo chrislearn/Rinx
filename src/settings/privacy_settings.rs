@@ -7,6 +7,7 @@ use matrix_sdk::ruma::OwnedUserId;
 
 use crate::{
     block_user_modal::{BlockUserModalAction, BlockUserRequest},
+    moments::dm_sharing::{SharingSettingChanged, change_sharing_setting, sharing_setting},
     sliding_sync::{BlockedUsersUpdated, get_blocked_users},
 };
 
@@ -57,6 +58,24 @@ script_mod! {
 
         TitleLabel {
             text: #(crate::i18n::tr("Privacy Settings")) i18n_text: "Privacy Settings"
+        }
+
+        SubsectionLabel {
+            text: #(crate::i18n::tr("Moments")) i18n_text: "Moments"
+        }
+
+        moments_sharing_toggle := ToggleFlat {
+            margin: Inset{left: 6.5, top: 5, bottom: 4}
+            padding: Inset { left: 15}
+            // Set from the loaded setting by `sync_moments_sharing()`.
+            draw_bg +: { size: 21 }
+            text: #(crate::i18n::tr("Share Moments with DM contacts")) i18n_text: "Share Moments with DM contacts"
+            draw_text +: {
+                text_style: mod.widgets.SETTINGS_BOLD_TEXT_STYLE {},
+            }
+        }
+        mod.widgets.SettingsSectionDescription {
+            body: #(crate::i18n::tr("<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>")) i18n_body: "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>"
         }
 
         SubsectionLabel {
@@ -166,6 +185,12 @@ impl Widget for PrivacySettings {
                     self.blocked_users = Some(blocked_users.clone());
                     self.view.redraw(cx);
                 }
+                if action.downcast_ref::<SharingSettingChanged>().is_some() {
+                    self.sync_moments_sharing(cx);
+                }
+            }
+            if let Some(share) = self.view.check_box(cx, ids!(moments_sharing_toggle)).changed(actions) {
+                change_sharing_setting(share);
             }
         }
         self.view.handle_event(cx, event, scope);
@@ -194,11 +219,27 @@ impl Widget for PrivacySettings {
     }
 }
 
+impl PrivacySettings {
+    /// Shows the current Moments sharing setting on its switch.
+    ///
+    /// Called from event handling rather than drawing: `set_active` moves the switch
+    /// through its animator, which doesn't take effect when called mid-draw.
+    fn sync_moments_sharing(&mut self, cx: &mut Cx) {
+        if let Some(share) = sharing_setting() {
+            self.view
+                .check_box(cx, ids!(moments_sharing_toggle))
+                .set_active(cx, share, Animate::No);
+        }
+        self.view.redraw(cx);
+    }
+}
+
 impl PrivacySettingsRef {
-    /// Reloads the list of blocked users shown by this section.
+    /// Reloads the list of blocked users and the Moments sharing setting shown by this section.
     pub fn populate(&self, cx: &mut Cx) {
         let Some(mut inner) = self.borrow_mut() else { return };
         inner.blocked_users = Some(get_blocked_users());
+        inner.sync_moments_sharing(cx);
         inner.redraw(cx);
     }
 }

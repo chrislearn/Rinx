@@ -950,5 +950,9 @@
   "<ul><li>When off, the desktop layout shows a single chat next to the rooms list, and selecting a room replaces it.</li></ul>": "<ul><li>关闭时，桌面版在聊天列表右侧只显示一个聊天，选择其他聊天会替换当前聊天。</li></ul>",
   "Thread": "话题",
   "Share with everyone I chat with 1-on-1": "与所有私聊过的人共享",
-  "DM contacts who use Rinx and turn this on join your audience automatically, and you join theirs. Your Matrix profile shows that you share this way.": "同样使用 Rinx 并开启此项的私聊联系人会自动加入你的朋友圈，你也会自动加入他们的。你的 Matrix 个人资料会显示你开启了此项。"
+  "Share Moments with DM contacts": "与私聊联系人共享朋友圈",
+  "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>": "<ul><li>默认开启。同样使用 Rinx 的私聊联系人可以看到你的朋友圈，你也可以看到他们的。使用其他应用的人不会收到邀请。</li><li>你的 Matrix 个人资料会显示你开启了此项。</li></ul>",
+  "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.": "默认开启。同样使用 Rinx 的私聊联系人可以看到你的朋友圈，你也可以看到他们的。你的 Matrix 个人资料会显示你开启了此项。",
+  "Could not update Moments sharing: {e}": "无法更新朋友圈共享设置：{e}",
+  "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way.": "同样使用 Rinx 并共享朋友圈的私聊联系人会自动加入你的朋友圈，你也会自动加入他们的。默认开启；你的 Matrix 个人资料会显示你开启了此项。"
 }
