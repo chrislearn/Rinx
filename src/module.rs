@@ -4,13 +4,41 @@
 //! window, safe area and theme; Rinx supplies its window-less `RinxContent`.
 //! Matrix state is process-wide, so one instance runs at a time.
 use makepad_app_module::{
-    AppModule, ExecOutcome, InstanceHandles, InstanceParts, OpenSchema, ServiceExecutor, ValidatedOpen,
+    AppModule, ExecOutcome, InstanceHandles, InstanceParts, ModuleWindows, OpenSchema, ServiceExecutor, ValidatedOpen,
     makepad_ai_services::wire::{ServiceCall, ServiceManifest, ToolResult},
 };
 use makepad_widgets::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static INSTANCE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+thread_local! {
+    /// The running instance's extra host windows (UI thread only).
+    static WINDOWS: std::cell::RefCell<Option<ModuleWindows>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Whether the host shows extra windows (a desktop, not a phone).
+pub fn windows_supported() -> bool {
+    WINDOWS.with(|w| w.borrow().as_ref().is_some_and(|w| w.is_supported()))
+}
+
+/// Shows `root` in the host window `key` (opening or focusing it).
+pub fn open_window(key: LiveId, title: &str, root: WidgetRef) {
+    WINDOWS.with(|w| if let Some(w) = w.borrow().as_ref() { w.open(key, title, root, None) });
+    // The host takes requests on its UI signal.
+    makepad_widgets::makepad_platform::thread::SignalToUI::set_ui_signal();
+}
+
+/// Closes the host window `key`.
+pub fn close_window(key: LiveId) {
+    WINDOWS.with(|w| if let Some(w) = w.borrow().as_ref() { w.close(key) });
+    makepad_widgets::makepad_platform::thread::SignalToUI::set_ui_signal();
+}
+
+/// Host windows the person closed since the last call.
+pub fn take_closed_windows() -> Vec<LiveId> {
+    WINDOWS.with(|w| w.borrow().as_ref().map(|w| w.take_closed()).unwrap_or_default())
+}
 
 /// Whether Rinx is running inside an OctoSense host.
 pub fn is_hosted() -> bool { INSTANCE_ACTIVE.load(Ordering::Acquire) }
@@ -32,6 +60,7 @@ impl RinxModuleView {
     fn close(&mut self, cx: &mut Cx) {
         if let Some(mut app) = self.app.take() {
             app.close_embedded(cx);
+            WINDOWS.with(|w| w.borrow_mut().take());
             self.view.children.clear();
             INSTANCE_ACTIVE.store(false, Ordering::Release);
         }
@@ -70,12 +99,13 @@ impl AppModule for RinxModule {
         script_mod(vm);
     }
 
-    fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, _handles: InstanceHandles) -> InstanceParts {
+    fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
         let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
         let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
         let root = WidgetRef::script_from_value(vm, value);
         if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {
             if owns_runtime {
+                WINDOWS.with(|w| *w.borrow_mut() = Some(handles.windows.clone()));
                 let app = crate::app::App::create_embedded(vm);
                 let content = app.content();
                 view.view.children.push((live_id!(content), content.clone()));

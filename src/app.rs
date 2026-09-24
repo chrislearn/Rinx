@@ -214,6 +214,9 @@ pub struct App {
     #[rust] embedded: bool,
     /// Startup has run: a host forwards its own `Startup` after `create_embedded` ran it.
     #[rust] started: bool,
+    /// Hosted on a desktop host: Moments and the article editor in the host's
+    /// own windows (see `hosted_window`).
+    #[rust] hosted_windows: Vec<(HostedWindow, WidgetRef)>,
     /// The top-level app state, shared across various parts of the app.
     #[rust] app_state: AppState,
     #[rust] lifecycle: AppLifecycle,
@@ -414,8 +417,12 @@ impl MatchEvent for App {
                 if matches!(action, MomentsAction::Close) {
                     self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
                     window_host.close(cx);
+                    self.close_hosted_window(cx, HostedWindow::Moments, true);
                 } else if !self.embedded && crate::home::home_screen::effective_is_desktop(cx) {
                     window_host.action(cx, action);
+                } else if let Some(panel) = self.hosted_window(cx, HostedWindow::Moments) {
+                    use crate::moments::ui::MomentsPanelWidgetRefExt;
+                    panel.as_moments_panel().action(cx, None, action);
                 } else {
                     self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
                 }
@@ -437,8 +444,11 @@ impl MatchEvent for App {
                 if matches!(action, ArticleAction::Close) {
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
                     window_host.close(cx);
+                    self.close_hosted_window(cx, HostedWindow::Article, true);
                 } else if !self.embedded && crate::home::home_screen::effective_is_desktop(cx) {
                     window_host.action(cx, action);
+                } else if let Some(panel) = self.hosted_window(cx, HostedWindow::Article) {
+                    panel.as_article_panel().action(cx, ModalRef::default(), action);
                 } else {
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
                 }
@@ -927,6 +937,10 @@ impl AppMain for App {
             self.handle_ui_zoom_menu_command(cx, *command);
         }
 
+        if self.embedded && !self.hosted_windows.is_empty() {
+            self.handle_closed_hosted_windows(cx);
+        }
+
         // Forward events to the MatchEvent trait implementation.
         self.match_event(cx, event);
         let scope = &mut Scope::with_data(&mut self.app_state);
@@ -939,7 +953,102 @@ impl AppMain for App {
     }
 }
 
+/// The views that are separate windows on a desktop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostedWindow {
+    Moments,
+    Article,
+}
+
+impl HostedWindow {
+    fn key(self) -> LiveId {
+        match self {
+            Self::Moments => live_id!(moments),
+            Self::Article => live_id!(article),
+        }
+    }
+}
+
 impl App {
+    /// Hosted by a desktop shell, this view's panel in a host window of its own,
+    /// opening (or focusing) that window. `None` where the host shows apps
+    /// full-screen (a phone shell) or Rinx is not hosted: then the view is a
+    /// full-screen modal, which the host keeps within Rinx's pane.
+    #[allow(unused_variables)]
+    fn hosted_window(&mut self, cx: &mut Cx, window: HostedWindow) -> Option<WidgetRef> {
+        #[cfg(feature = "octosense-module")]
+        {
+            // The host knows whether it has windows (a desktop shell) or shows
+            // apps full-screen (its phone shell), and may switch while we run.
+            if !self.embedded || !crate::module::windows_supported() {
+                return None;
+            }
+            if let Some((_, panel)) = self.hosted_windows.iter().find(|(w, _)| *w == window) {
+                let panel = panel.clone();
+                crate::module::open_window(window.key(), "", panel.clone());
+                return Some(panel);
+            }
+            // The host window has its own title bar, so the panels drop their top inset.
+            let panel = cx.with_vm(|vm| {
+                let template = match window {
+                    HostedWindow::Moments => script_eval!(vm, {
+                        use mod.prelude.widgets.*
+                        use mod.widgets.*
+                        MomentsPanel { padding: Inset{top: 0 bottom: 0} }
+                    }),
+                    HostedWindow::Article => script_eval!(vm, {
+                        use mod.prelude.widgets.*
+                        use mod.widgets.*
+                        ArticlePanel { padding: Inset{top: 0 bottom: 0} }
+                    }),
+                };
+                WidgetRef::script_from_value(vm, template)
+            });
+            let title = crate::i18n::tr(match window {
+                HostedWindow::Moments => "Moments",
+                HostedWindow::Article => "Article editor",
+            });
+            crate::module::open_window(window.key(), title, panel.clone());
+            self.hosted_windows.push((window, panel.clone()));
+            Some(panel)
+        }
+        #[cfg(not(feature = "octosense-module"))]
+        None
+    }
+
+    /// Ends a hosted view's window: its panel closes (saving any draft), and
+    /// the host window closes too unless the person already closed it.
+    #[allow(unused_variables)]
+    fn close_hosted_window(&mut self, cx: &mut Cx, window: HostedWindow, close_host_window: bool) {
+        let Some(index) = self.hosted_windows.iter().position(|(w, _)| *w == window) else { return };
+        let (_, panel) = self.hosted_windows.remove(index);
+        match window {
+            HostedWindow::Moments => {
+                use crate::moments::ui::MomentsPanelWidgetRefExt;
+                panel.as_moments_panel().action(cx, None, &MomentsAction::Close);
+            }
+            HostedWindow::Article => panel.as_article_panel().action(cx, ModalRef::default(), &ArticleAction::Close),
+        }
+        #[cfg(feature = "octosense-module")]
+        if close_host_window {
+            crate::module::close_window(window.key());
+        }
+    }
+
+    /// Hosted views whose windows the person closed in the host.
+    fn handle_closed_hosted_windows(&mut self, cx: &mut Cx) {
+        #[cfg(feature = "octosense-module")]
+        for key in crate::module::take_closed_windows() {
+            for window in [HostedWindow::Moments, HostedWindow::Article] {
+                if window.key() == key {
+                    self.close_hosted_window(cx, window, false);
+                }
+            }
+        }
+        #[cfg(not(feature = "octosense-module"))]
+        let _ = cx;
+    }
+
     /// Creates Rinx inside an OctoSense host, around the window-less
     /// `RinxContent`, and starts it as the standalone app's startup does.
     pub fn create_embedded(vm: &mut ScriptVm) -> Self {
@@ -973,6 +1082,9 @@ impl App {
     pub fn close_embedded(&mut self, cx: &mut Cx) {
         if self.lifecycle.shutdown_started { return; }
         self.lifecycle.shutdown_started = true;
+        for window in [HostedWindow::Moments, HostedWindow::Article] {
+            self.close_hosted_window(cx, window, true);
+        }
         self.persist_runtime_state(cx, "module close");
     }
 

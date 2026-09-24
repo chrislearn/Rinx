@@ -6627,7 +6627,7 @@ dependencies = [
 [[package]]
 name = "robius-speech"
 version = "0.3.1"
-source = "git+https://github.com/project-robius/robius?branch=speech_to_text#166991b1b18188ee2d8441f7118721cee2a0c6eb"
+source = "git+https://github.com/project-robius/robius?rev=166991b1b18188ee2d8441f7118721cee2a0c6eb#166991b1b18188ee2d8441f7118721cee2a0c6eb"
 dependencies = [
  "jni",
  "robius-android-env",
