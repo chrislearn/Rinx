@@ -17,3 +17,7 @@ libc = "0.2"
 # Keep all Makepad widgets on the same compatibility revision as the renderer.
 [patch."https://github.com/kevinaboos/makepad"]
 makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
+
+[features]
+## Built as part of Rinx's OctoSense module (OctoSense's makepad).
+octosense-module = []

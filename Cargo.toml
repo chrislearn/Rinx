@@ -16,7 +16,9 @@ metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 [dependencies]
 article-core = { path = "crates/article-core", features = ["l0"] }
 article-makepad = { path = "crates/article-makepad" }
-makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836", optional = true }
+## The OctoSense module contract. Only a host build uses it, and the host redirects
+## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
+makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "d9372c6142b359b98b94b57914686ee35321c32b", optional = true }
 makepad-html-renderer = { package = "makepad-html", git = "https://github.com/OctoSense-org/makepad-html", rev = "b16565ae1e56dd7c3a87f00455ae327df599ca3b", optional = true, features = ["makepad"] }
 # makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev", features = ["serde"] }
 # makepad-code-editor = { git = "https://github.com/makepad/makepad", branch = "dev" }
@@ -150,7 +152,7 @@ default = ["standalone"]
 ## links Rinx as a module disables it.
 standalone = []
 ## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
-octosense-module = ["dep:makepad-app-module"]
+octosense-module = ["dep:makepad-app-module", "article-makepad/octosense-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
 html_preview = ["dep:makepad-html-renderer"]
 # Compatibility for existing Rinx build commands.
@@ -427,15 +429,6 @@ uninlined_format_args = "allow"
 used_underscore_binding = "allow"
 
 # Keep all Makepad widgets on the same compatibility revision as the renderer.
-# OctoSense-hosted build: the one makepad lineage shared with the OctoSense shell
-# (OctoSense-org/makepad d4502ef1 + Rinx's markdown/math commits).
 [patch."https://github.com/kevinaboos/makepad"]
-makepad-widgets = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/widgets" }
-makepad-code-editor = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/code_editor" }
-
-[patch."https://github.com/OctoSense-org/makepad"]
-makepad-widgets = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/widgets" }
-makepad-code-editor = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/code_editor" }
-makepad-markdown = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/libs/markdown" }
-makepad-markdown-widgets = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/libs/markdown_widgets" }
-makepad-app-module = { path = "/private/tmp/claude-505/-Users-ychen-home-robrix-hagency/46061f79-0763-44b7-a570-365f859fa86e/scratchpad/mvp/makepad/libs/app_module" }
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
