@@ -554,7 +554,14 @@ impl MatchEvent for App {
                     }
                     continue;
                 }
-                Some(AppStateAction::RestoreAppStateFromPersistentState(app_state)) => {
+                Some(AppStateAction::RestoreAppStateFromPersistentState { user_id, app_state }) => {
+                    if !should_restore_app_state(
+                        self.app_state.logged_in,
+                        current_user_id().as_deref(),
+                        user_id,
+                    ) {
+                        continue;
+                    }
                     // Ignore the `logged_in` state that was stored persistently.
                     let logged_in_actual = self.app_state.logged_in;
                     self.app_state = app_state.clone();
@@ -1235,6 +1242,29 @@ pub struct AppState {
     pub app_prefs: AppPreferences,
 }
 
+fn should_restore_app_state(
+    logged_in: bool,
+    current_user: Option<&matrix_sdk::ruma::UserId>,
+    saved_user: &matrix_sdk::ruma::UserId,
+) -> bool {
+    logged_in && current_user == Some(saved_user)
+}
+
+#[cfg(test)]
+mod restore_owner_tests {
+    use super::*;
+
+    #[test]
+    fn delayed_state_from_previous_account_is_rejected() {
+        let alice = ruma::user_id!("@alice:example.org");
+        let bob = ruma::user_id!("@bob:example.org");
+        assert!(should_restore_app_state(true, Some(alice), alice));
+        assert!(!should_restore_app_state(true, Some(bob), alice));
+        assert!(!should_restore_app_state(false, Some(alice), alice));
+        assert!(!should_restore_app_state(true, None, alice));
+    }
+}
+
 /// A snapshot of the main dock: all state needed to restore the dock tabs/layout.
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct SavedDockState {
@@ -1432,7 +1462,7 @@ pub enum AppStateAction {
     RoomNameUpdated(RoomNameId),
     /// The given app state was loaded from persistent storage
     /// and is ready to be restored.
-    RestoreAppStateFromPersistentState(AppState),
+    RestoreAppStateFromPersistentState { user_id: OwnedUserId, app_state: AppState },
     /// The given room was successfully loaded from the homeserver
     /// and is now known to our client.
     ///
