@@ -1059,5 +1059,7 @@
   "Matrix ID, username or email": "Matrix 账号、用户名或邮箱",
   "Choose a server first.": "请先选择服务器。",
   "Enter your password.": "请输入密码。",
-  "Sign in with {provider}": "使用 {provider} 登录"
+  "Sign in with {provider}": "使用 {provider} 登录",
+  "Edit": "修改",
+  "Selected server": "当前服务器"
 }

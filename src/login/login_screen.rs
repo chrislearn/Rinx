@@ -41,7 +41,7 @@ script_mod! {
             }
 
             RoundedView {
-                margin: Inset{top: 50, bottom: 50}
+                margin: Inset{left: 16, right: 16, top: 50, bottom: 50}
                 width: Fill
                 height: Fit
                 align: Align{x: 0.5, y: 0.5}
@@ -84,27 +84,39 @@ script_mod! {
                     }
 
                     server_step := View {
-                        width: 320, height: Fit, flow: Down, spacing: 14
+                        width: Fill{max: 320}, height: Fit, flow: Down, spacing: 14
 
-                        Label {
+                        RoundedView {
                             width: Fill, height: Fit
-                            draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
-                            text: #(crate::i18n::tr("Choose your homeserver")) i18n_text: "Choose your homeserver"
-                        }
-                        homeserver_input := RobrixTextInput {
-                            width: Fill, height: Fit
-                            padding: 10
-                            empty_text: "matrix.org"
-                            autocapitalize: None
-                            autocorrect: Disabled
-                            content_type: Url
-                            input_mode: Url
-                        }
-                        Label {
-                            width: Fill, height: Fit
-                            flow: Flow.Right{wrap: true}
-                            draw_text +: {color: #8C8C8C, text_style: REGULAR_TEXT {font_size: 10}}
-                            text: #(crate::i18n::tr("Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.")) i18n_text: "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org."
+                            flow: Down, spacing: 9
+                            padding: Inset{left: 14, right: 14, top: 14, bottom: 14}
+                            show_bg: true
+                            draw_bg +: {
+                                color: #fff
+                                border_size: 1
+                                border_color: #xd2dadd
+                                border_radius: 8
+                            }
+                            Label {
+                                width: Fill, height: Fit
+                                draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
+                                text: #(crate::i18n::tr("Choose your homeserver")) i18n_text: "Choose your homeserver"
+                            }
+                            homeserver_input := RobrixTextInput {
+                                width: Fill, height: Fit
+                                padding: 10
+                                empty_text: "matrix.org"
+                                autocapitalize: None
+                                autocorrect: Disabled
+                                content_type: Url
+                                input_mode: Url
+                            }
+                            Label {
+                                width: Fill, height: Fit
+                                flow: Flow.Right{wrap: true}
+                                draw_text +: {color: #x6c777b, text_style: REGULAR_TEXT {font_size: 10}}
+                                text: #(crate::i18n::tr("Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.")) i18n_text: "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org."
+                            }
                         }
                         continue_server_button := RobrixIconButton {
                             width: Fill, height: 42, padding: 10
@@ -121,17 +133,50 @@ script_mod! {
 
                     method_step := View {
                         visible: false
-                        width: 320, height: Fit, flow: Down, spacing: 14
+                        width: Fill{max: 320}, height: Fit, flow: Down, spacing: 14
 
-                        selected_server := Label {
+                        RoundedView {
                             width: Fill, height: Fit
-                            flow: Flow.Right{wrap: true}
-                            draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
-                            text: ""
-                        }
-                        change_server_button := ButtonFlat {
-                            width: Fit, height: Fit
-                            text: #(crate::i18n::tr("Change server")) i18n_text: "Change server"
+                            flow: Right, spacing: 10
+                            padding: Inset{left: 14, right: 10, top: 10, bottom: 10}
+                            align: Align{y: 0.5}
+                            show_bg: true
+                            draw_bg +: {
+                                color: #fff
+                                border_size: 1
+                                border_color: #xd2dadd
+                                border_radius: 8
+                            }
+                            View {
+                                width: Fill, height: Fit, flow: Down, spacing: 4
+                                Label {
+                                    width: Fill, height: Fit
+                                    draw_text +: {color: #x6c777b, text_style: REGULAR_TEXT {font_size: 10}}
+                                    text: #(crate::i18n::tr("Selected server")) i18n_text: "Selected server"
+                                }
+                                selected_server := Label {
+                                    width: Fill, height: Fit
+                                    flow: Flow.Right{wrap: true}
+                                    max_lines: 2, text_overflow: Ellipsis
+                                    draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
+                                    text: ""
+                                }
+                            }
+                            edit_server_button := RobrixNeutralIconButton {
+                                width: 64, height: 34
+                                padding: 6, spacing: 0
+                                icon_walk: Walk{width: 0, height: 0}
+                                align: Align{x: 0.5, y: 0.5}
+                                draw_bg +: {
+                                    color: #xf2f7f8
+                                    color_hover: #xdcecef
+                                    color_down: #xc9e0e5
+                                    border_size: 1
+                                    border_color: #x9cbcc1
+                                    border_radius: 6
+                                }
+                                text: #(crate::i18n::tr("Edit")) i18n_text: "Edit"
+                            }
                         }
                         method_status := Label {
                             width: Fill, height: Fit
@@ -392,7 +437,7 @@ impl MatchEvent for LoginScreen {
         if server_input.changed(actions).is_some() {
             self.reset_server(cx);
         }
-        if self.view.button(cx, ids!(change_server_button)).clicked(actions) {
+        if !self.login_pending && self.view.button(cx, ids!(edit_server_button)).clicked(actions) {
             self.reset_server(cx);
             server_input.set_key_focus(cx);
         }
@@ -500,6 +545,7 @@ impl MatchEvent for LoginScreen {
         }
         self.view.button(cx, ids!(login_button)).set_enabled(cx, !self.login_pending);
         self.view.button(cx, ids!(browser_login_button)).set_enabled(cx, !self.login_pending);
+        self.view.button(cx, ids!(edit_server_button)).set_enabled(cx, !self.login_pending);
         self.view.button(cx, ids!(continue_server_button)).set_enabled(cx, !self.login_pending && !self.discovery_pending);
         self.redraw(cx);
     }

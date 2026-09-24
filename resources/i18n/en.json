@@ -1059,5 +1059,7 @@
   "Matrix ID, username or email": "Matrix ID, username or email",
   "Choose a server first.": "Choose a server first.",
   "Enter your password.": "Enter your password.",
-  "Sign in with {provider}": "Sign in with {provider}"
+  "Sign in with {provider}": "Sign in with {provider}",
+  "Edit": "Edit",
+  "Selected server": "Selected server"
 }
