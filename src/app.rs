@@ -32,6 +32,132 @@ use crate::mini_app::{MiniAppAction, MiniAppPanelWidgetRefExt};
 use crate::forwarding::{ForwardAction, ForwardPanelWidgetRefExt};
 use crate::home::room_history::{RoomHistoryAction, RoomHistoryPanelWidgetRefExt};
 
+/// The app's content without a window, so an OctoSense host can seat it in its
+/// own pane (`crate::module`). The standalone window's body holds the same widget.
+mod embedded_content {
+    use makepad_widgets::*;
+    script_mod! {
+        use mod.prelude.widgets.*
+        use mod.widgets.*
+
+        mod.widgets.RinxContent = View {
+            width: Fill, height: Fill
+            flow: Overlay
+            overlay_container := View {
+                width: Fill, height: Fill,
+                flow: Overlay,
+
+                home_screen_view := View {
+                    visible: false
+                    home_screen := HomeScreen {}
+                }
+                join_leave_modal := Modal {
+                    content := JoinLeaveRoomModal {}
+                }
+                login_screen_view := View {
+                    visible: true
+                    login_screen := LoginScreen {}
+                }
+
+                image_viewer_modal := Modal {
+                    content := ImageViewer {}
+                }
+                
+                // The popup that lets the user select users to mention, rooms to link,
+                // or a slash command to run (via kbd triggers like '@', '#', '/').
+                mention_popup := MentionablePopup { }
+
+                // Context menus should be shown in front of other UI elements,
+                // but behind verification modals.
+                new_message_context_menu := NewMessageContextMenu { }
+                room_context_menu := RoomContextMenu { }
+
+                // The account menu popup, anchored at the desktop rail's
+                // bottom-left button. Same self-positioning overlay pattern.
+                account_menu := AccountMenu { }
+
+                // A modal to confirm sending out an invite to a room.
+                invite_confirmation_modal := Modal {
+                    content := PositiveConfirmationModal {
+                        buttons_view +: { accept_button +: {
+                            draw_icon +: { svg: (ICON_INVITE) }
+                            icon_walk: Walk{width: 28, height: Fit, margin: Inset{left: -10, right: 2} }
+                        } }
+                    }
+                }
+
+                // A modal to invite a user to a room.
+                invite_modal := Modal {
+                    content := InviteModal {}
+                }
+
+                // Show the logout confirmation modal.
+                logout_confirm_modal := Modal {
+                    content := LogoutConfirmModal {}
+                }
+
+                // Show the event source modal (View Source for messages).
+                event_source_modal := Modal {
+                    content := EventSourceModal {}
+                }
+
+                // Show incoming verification requests in front of the aforementioned UI elements.
+                verification_modal := Modal {
+                    can_dismiss: false,
+                    content := VerificationModal {}
+                }
+                tsp_verification_modal := Modal {
+                    content := TspVerificationModal {}
+                }
+
+                // A generic modal to confirm any positive action.
+                positive_confirmation_modal := Modal {
+                    content := PositiveConfirmationModal {}
+                }
+
+                // A modal to confirm any deletion/removal action.
+                delete_confirmation_modal := Modal {
+                    content := NegativeConfirmationModal {}
+                }
+
+                // A modal to confirm blocking or unblocking a user.
+                block_user_modal := Modal {
+                    content := BlockUserModal {}
+                }
+
+                // A modal to preview and confirm file uploads.
+                file_upload_modal := Modal {
+                    content := FileUploadModal {}
+                }
+
+                article_app_modal := Modal {can_dismiss: false content := ArticlePanel {}}
+                mini_app_modal := Modal {
+                    can_dismiss: false
+                    content := MiniAppPanel {}
+                }
+                forward_modal := Modal {
+                    can_dismiss: false
+                    content := ForwardPanel {}
+                }
+                agent_ops_modal := Modal {can_dismiss: false content := AgentOpsPanel {}}
+                moments_modal := Modal {can_dismiss: false content := MomentsPanel {}}
+                room_history_modal := Modal {
+                    can_dismiss: false
+                    content := RoomHistoryPanel {}
+                }
+
+                PopupList {}
+
+                // Tooltips must be shown in front of all other UI elements,
+                // since they can be shown as a hover atop any other widget.
+                // This tooltip widget handles TooltipActions directly by itself,
+                // so we don't need to call show/hide ourselves.
+                app_tooltip := CalloutTooltip {}
+            }
+        }
+    }
+}
+
 script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
@@ -70,128 +196,24 @@ script_mod! {
                     }
                     keyboard_min_shift: 12.0
 
-                    overlay_container := View {
-                        width: Fill, height: Fill,
-                        flow: Overlay,
-
-                        home_screen_view := View {
-                            visible: false
-                            home_screen := HomeScreen {}
-                        }
-                        join_leave_modal := Modal {
-                            content := JoinLeaveRoomModal {}
-                        }
-                        login_screen_view := View {
-                            visible: true
-                            login_screen := LoginScreen {}
-                        }
-
-                        image_viewer_modal := Modal {
-                            content := ImageViewer {}
-                        }
-                        
-                        // The popup that lets the user select users to mention, rooms to link,
-                        // or a slash command to run (via kbd triggers like '@', '#', '/').
-                        mention_popup := MentionablePopup { }
-
-                        // Context menus should be shown in front of other UI elements,
-                        // but behind verification modals.
-                        new_message_context_menu := NewMessageContextMenu { }
-                        room_context_menu := RoomContextMenu { }
-
-                        // The account menu popup, anchored at the desktop rail's
-                        // bottom-left button. Same self-positioning overlay pattern.
-                        account_menu := AccountMenu { }
-
-                        // A modal to confirm sending out an invite to a room.
-                        invite_confirmation_modal := Modal {
-                            content := PositiveConfirmationModal {
-                                buttons_view +: { accept_button +: {
-                                    draw_icon +: { svg: (ICON_INVITE) }
-                                    icon_walk: Walk{width: 28, height: Fit, margin: Inset{left: -10, right: 2} }
-                                } }
-                            }
-                        }
-
-                        // A modal to invite a user to a room.
-                        invite_modal := Modal {
-                            content := InviteModal {}
-                        }
-
-                        // Show the logout confirmation modal.
-                        logout_confirm_modal := Modal {
-                            content := LogoutConfirmModal {}
-                        }
-
-                        // Show the event source modal (View Source for messages).
-                        event_source_modal := Modal {
-                            content := EventSourceModal {}
-                        }
-
-                        // Show incoming verification requests in front of the aforementioned UI elements.
-                        verification_modal := Modal {
-                            can_dismiss: false,
-                            content := VerificationModal {}
-                        }
-                        tsp_verification_modal := Modal {
-                            content := TspVerificationModal {}
-                        }
-
-                        // A generic modal to confirm any positive action.
-                        positive_confirmation_modal := Modal {
-                            content := PositiveConfirmationModal {}
-                        }
-
-                        // A modal to confirm any deletion/removal action.
-                        delete_confirmation_modal := Modal {
-                            content := NegativeConfirmationModal {}
-                        }
-
-                        // A modal to confirm blocking or unblocking a user.
-                        block_user_modal := Modal {
-                            content := BlockUserModal {}
-                        }
-
-                        // A modal to preview and confirm file uploads.
-                        file_upload_modal := Modal {
-                            content := FileUploadModal {}
-                        }
-
-                        article_app_modal := Modal {can_dismiss: false content := ArticlePanel {}}
-                        mini_app_modal := Modal {
-                            can_dismiss: false
-                            content := MiniAppPanel {}
-                        }
-                        forward_modal := Modal {
-                            can_dismiss: false
-                            content := ForwardPanel {}
-                        }
-                        agent_ops_modal := Modal {can_dismiss: false content := AgentOpsPanel {}}
-                        moments_modal := Modal {can_dismiss: false content := MomentsPanel {}}
-                        room_history_modal := Modal {
-                            can_dismiss: false
-                            content := RoomHistoryPanel {}
-                        }
-
-                        PopupList {}
-
-                        // Tooltips must be shown in front of all other UI elements,
-                        // since they can be shown as a hover atop any other widget.
-                        // This tooltip widget handles TooltipActions directly by itself,
-                        // so we don't need to call show/hide ourselves.
-                        app_tooltip := CalloutTooltip {}
-                    }
+                    content := RinxContent {}
                 } // end of body
             }
         }
     }
 }
 
+#[cfg(feature = "standalone")]
 app_main!(App);
 
 #[derive(Script)]
 pub struct App {
     #[live] ui: WidgetRef,
+    /// Hosted inside OctoSense: `ui` is the window-less `RinxContent`, and the host
+    /// owns the window, its geometry and menus.
+    #[rust] embedded: bool,
+    /// Startup has run: a host forwards its own `Startup` after `create_embedded` ran it.
+    #[rust] started: bool,
     /// The top-level app state, shared across various parts of the app.
     #[rust] app_state: AppState,
     #[rust] lifecycle: AppLifecycle,
@@ -220,6 +242,8 @@ impl ScriptHook for App {
 
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
+        if self.started { return; }
+        self.started = true;
         // only init logging/tracing once.
         //
         // We silence a few overly noisy SDK logs:
@@ -252,17 +276,22 @@ impl MatchEvent for App {
         let _app_data_dir = crate::app_data_dir();
         log!("App::handle_startup(): app_data_dir: {:?}", _app_data_dir);
 
-        if let Err(e) = persistence::load_window_state(self.ui.window(cx, ids!(main_window)), cx) {
-            error!("Failed to load window state: {}", e);
+        if !self.embedded {
+            if let Err(e) = persistence::load_window_state(self.ui.window(cx, ids!(main_window)), cx) {
+                error!("Failed to load window state: {}", e);
+            }
+            #[cfg(target_os = "macos")]
+            self.install_macos_menu(cx);
         }
-
-        #[cfg(target_os = "macos")]
-        self.install_macos_menu(cx);
 
         self.update_login_visibility(cx);
 
         log!("App::Startup: starting matrix sdk loop");
-        let _tokio_rt_handle = crate::sliding_sync::start_matrix_tokio().unwrap();
+        // The Matrix runtime is process-wide; a reopened hosted instance keeps it.
+        let _tokio_rt_handle = match crate::sliding_sync::start_matrix_tokio() {
+            Ok(handle) => handle,
+            Err(e) => { error!("Failed to start the Matrix runtime: {e}"); return; }
+        };
 
         #[cfg(feature = "tsp")] {
             log!("App::Startup: initializing TSP (Trust Spanning Protocol) module.");
@@ -385,7 +414,7 @@ impl MatchEvent for App {
                 if matches!(action, MomentsAction::Close) {
                     self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
                     window_host.close(cx);
-                } else if crate::home::home_screen::effective_is_desktop(cx) {
+                } else if !self.embedded && crate::home::home_screen::effective_is_desktop(cx) {
                     window_host.action(cx, action);
                 } else {
                     self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), action);
@@ -408,7 +437,7 @@ impl MatchEvent for App {
                 if matches!(action, ArticleAction::Close) {
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
                     window_host.close(cx);
-                } else if crate::home::home_screen::effective_is_desktop(cx) {
+                } else if !self.embedded && crate::home::home_screen::effective_is_desktop(cx) {
                     window_host.action(cx, action);
                 } else {
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
@@ -830,6 +859,45 @@ impl AppStateSaveFingerprint {
     }
 }
 
+/// Registers Rinx's widgets inside an existing widget universe: the standalone
+/// app after its theme and base widgets, or an OctoSense host's isolate.
+/// Creates no window and does not replace the host's theme.
+pub fn register_widgets(vm: &mut ScriptVm) {
+    crate::i18n::install(vm);
+    makepad_code_editor::script_mod(vm);
+    crate::shared::script_mod(vm);
+    crate::mini_app::script_mod(vm);
+    crate::article_app::script_mod(vm);
+    crate::forwarding::script_mod(vm);
+
+    #[cfg(feature = "tsp")]
+    crate::tsp::script_mod(vm);
+    #[cfg(not(feature = "tsp"))]
+    crate::tsp_dummy::script_mod(vm);
+
+    #[cfg(feature = "agent_chat")]
+    crate::agent_chat::script_mod(vm);
+    #[cfg(not(feature = "agent_chat"))]
+    crate::agent_chat_dummy::script_mod(vm);
+
+    crate::settings::script_mod(vm);
+    // RoomInputBar depends on these Home widgets; preload them before room::script_mod.
+    crate::home::location_preview::script_mod(vm);
+    crate::home::tombstone_footer::script_mod(vm);
+    crate::home::editing_pane::script_mod(vm);
+    crate::home::upload_progress::script_mod(vm);
+    crate::room::script_mod(vm);
+    crate::join_leave_room_modal::script_mod(vm);
+    crate::block_user_modal::script_mod(vm);
+    crate::verification_modal::script_mod(vm);
+    crate::profile::script_mod(vm);
+    crate::home::script_mod(vm);
+    crate::moments::script_mod(vm);
+    crate::login::script_mod(vm);
+    crate::logout::script_mod(vm);
+    embedded_content::script_mod(vm);
+}
+
 impl AppMain for App {
     fn script_mod(vm: &mut ScriptVm) -> makepad_widgets::ScriptValue {
         // Order matters: base widgets first, then app widgets, then app UI.
@@ -840,39 +908,7 @@ impl AppMain for App {
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         crate::apple_fonts::install(vm);
         makepad_widgets::widgets_mod(vm);
-        crate::i18n::install(vm);
-        makepad_code_editor::script_mod(vm);
-        crate::shared::script_mod(vm);
-        crate::mini_app::script_mod(vm);
-        crate::article_app::script_mod(vm);
-        crate::forwarding::script_mod(vm);
-
-        #[cfg(feature = "tsp")]
-        crate::tsp::script_mod(vm);
-        #[cfg(not(feature = "tsp"))]
-        crate::tsp_dummy::script_mod(vm);
-
-        #[cfg(feature = "agent_chat")]
-        crate::agent_chat::script_mod(vm);
-        #[cfg(not(feature = "agent_chat"))]
-        crate::agent_chat_dummy::script_mod(vm);
-
-        crate::settings::script_mod(vm);
-        // RoomInputBar depends on these Home widgets; preload them before room::script_mod.
-        crate::home::location_preview::script_mod(vm);
-        crate::home::tombstone_footer::script_mod(vm);
-        crate::home::editing_pane::script_mod(vm);
-        crate::home::upload_progress::script_mod(vm);
-        crate::room::script_mod(vm);
-        crate::join_leave_room_modal::script_mod(vm);
-        crate::block_user_modal::script_mod(vm);
-        crate::verification_modal::script_mod(vm);
-        crate::profile::script_mod(vm);
-        crate::home::script_mod(vm);
-        crate::moments::script_mod(vm);
-        crate::login::script_mod(vm);
-        crate::logout::script_mod(vm);
-
+        register_widgets(vm);
         self::script_mod(vm)
     }
 
@@ -904,6 +940,42 @@ impl AppMain for App {
 }
 
 impl App {
+    /// Creates Rinx inside an OctoSense host, around the window-less
+    /// `RinxContent`, and starts it as the standalone app's startup does.
+    pub fn create_embedded(vm: &mut ScriptVm) -> Self {
+        let component = App::script_component(vm);
+        let value = script_eval!(vm, {
+            #(component) { ui: mod.widgets.RinxContent {} }
+        });
+        let mut app = Self::script_from_value(vm, value);
+        app.embedded = true;
+        vm.with_cx_mut(|cx| app.handle_startup(cx));
+        app
+    }
+
+    /// The hosted content widget, which the host seats in its pane.
+    pub fn content(&self) -> WidgetRef {
+        self.ui.clone()
+    }
+
+    pub fn draw_embedded(&mut self, cx: &mut Cx2d, view: &mut View, walk: Walk) -> DrawStep {
+        view.draw_walk(cx, &mut Scope::with_data(&mut self.app_state), walk)
+    }
+
+    pub fn set_foreground(&mut self, cx: &mut Cx, foreground: bool) {
+        if self.lifecycle.is_foreground != foreground {
+            self.handle_lifecycle_event(cx, &if foreground { Event::Foreground } else { Event::Background });
+        }
+    }
+
+    /// Saves state when the host closes the module. The Matrix runtime is
+    /// process-wide and stays running for the next instance.
+    pub fn close_embedded(&mut self, cx: &mut Cx) {
+        if self.lifecycle.shutdown_started { return; }
+        self.lifecycle.shutdown_started = true;
+        self.persist_runtime_state(cx, "module close");
+    }
+
     fn apply_ui_zoom(&mut self, cx: &mut Cx, new_zoom: UiZoom) {
         if new_zoom != self.app_state.app_prefs.ui_zoom {
             self.app_state.app_prefs.ui_zoom = new_zoom;
@@ -1059,9 +1131,11 @@ impl App {
     }
 
     fn persist_runtime_state(&mut self, cx: &mut Cx, reason: &'static str) {
-        let window_ref = self.ui.window(cx, ids!(main_window));
-        if let Err(e) = persistence::save_window_state(window_ref, cx) {
-            error!("Failed to save window state during {reason}. Error: {e}");
+        if !self.embedded {
+            let window_ref = self.ui.window(cx, ids!(main_window));
+            if let Err(e) = persistence::save_window_state(window_ref, cx) {
+                error!("Failed to save window state during {reason}. Error: {e}");
+            }
         }
 
         let Some(user_id) = current_user_id() else {

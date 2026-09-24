@@ -76,6 +76,7 @@ pub fn install(vm: &mut ScriptVm) {
             FontFamilyDefinition {
                 expected_member_count: font_ids.len(),
                 font_ids,
+                diagnostics: Default::default(),
             },
         );
     }

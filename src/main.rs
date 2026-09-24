@@ -9,6 +9,11 @@
     windows_subsystem = "windows",
 )]
 
+#[cfg(feature = "standalone")]
 fn main() {
     rinx::app::app_main()
 }
+
+/// Without `standalone`, Rinx is a library for a host such as OctoSense.
+#[cfg(not(feature = "standalone"))]
+fn main() {}
