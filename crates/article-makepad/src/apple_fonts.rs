@@ -76,8 +76,6 @@ pub fn install(vm: &mut ScriptVm) {
             FontFamilyDefinition {
                 expected_member_count: font_ids.len(),
                 font_ids,
-                // OctoSense's makepad (a Rinx module build) records font diagnostics.
-                #[cfg(feature = "octosense-module")]
                 diagnostics: Default::default(),
             },
         );

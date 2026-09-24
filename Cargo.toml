@@ -18,7 +18,7 @@ article-core = { path = "crates/article-core", features = ["l0"] }
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
-makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "d9372c6142b359b98b94b57914686ee35321c32b", optional = true }
+makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2", optional = true }
 makepad-html-renderer = { package = "makepad-html", git = "https://github.com/OctoSense-org/makepad-html", rev = "b16565ae1e56dd7c3a87f00455ae327df599ca3b", optional = true, features = ["makepad"] }
 # makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev", features = ["serde"] }
 # makepad-code-editor = { git = "https://github.com/makepad/makepad", branch = "dev" }
@@ -152,7 +152,7 @@ default = ["standalone"]
 ## links Rinx as a module disables it.
 standalone = []
 ## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
-octosense-module = ["dep:makepad-app-module", "article-makepad/octosense-module"]
+octosense-module = ["dep:makepad-app-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
 html_preview = ["dep:makepad-html-renderer"]
 # Compatibility for existing Rinx build commands.
@@ -430,5 +430,5 @@ used_underscore_binding = "allow"
 
 # Keep all Makepad widgets on the same compatibility revision as the renderer.
 [patch."https://github.com/kevinaboos/makepad"]
-makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
-makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "c3af5957c64c4a1f9658c7be7bbfa899e0d21836" }
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2" }
