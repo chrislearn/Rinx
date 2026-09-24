@@ -1043,5 +1043,6 @@
   "Insert table": "插入表格",
   "Choose the table size": "选择表格大小",
   "{0} rows × {1} columns": "{0} 行 × {1} 列",
-  "Column {0}": "列 {0}"
+  "Column {0}": "列 {0}",
+  "Editing your text · Back discards changes and returns": "正在编辑你的文字 · 返回将放弃修改并返回上一页"
 }
