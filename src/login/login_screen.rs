@@ -315,28 +315,38 @@ impl LoginScreen {
         let has_password = methods.password;
         let has_providers = !methods.providers.is_empty();
         self.view.label(cx, ids!(selected_server)).set_text(cx, &methods.homeserver);
-        self.view.label(cx, ids!(method_status)).set_text(cx, if has_sso && has_providers {
-            crate::i18n::tr("Choose a sign-in provider. Your server handles authentication in the browser.")
-        } else if has_sso {
-            crate::i18n::tr("Your server handles sign-in in the browser.")
-        } else if has_password {
-            crate::i18n::tr("This server supports password sign-in.")
-        } else {
-            crate::i18n::tr("This server did not advertise SSO or password sign-in.")
-        });
         self.view.view(cx, ids!(provider_list_container)).set_visible(cx, has_sso && has_providers);
         let height = (methods.providers.len().min(4).max(1) * 48) as f64;
         let mut list = self.view.portal_list(cx, ids!(provider_list));
         script_apply_eval!(cx, list, {height: #(height)});
         self.view.button(cx, ids!(browser_login_button)).set_visible(cx, has_sso && !has_providers);
         self.view.button(cx, ids!(password_option_button)).set_visible(cx, has_sso && has_password);
-        self.view.button(cx, ids!(password_option_button)).set_text(cx, crate::i18n::tr("Sign in with a password instead"));
         self.password_form_open = has_password && !has_sso;
         self.view.view(cx, ids!(password_form)).set_visible(cx, self.password_form_open);
         self.view.view(cx, ids!(server_step)).set_visible(cx, false);
         self.view.view(cx, ids!(method_step)).set_visible(cx, true);
         self.methods = Some(methods);
+        self.refresh_method_copy(cx);
         self.redraw(cx);
+    }
+
+    fn refresh_method_copy(&mut self, cx: &mut Cx) {
+        let Some(methods) = self.methods.as_ref() else { return };
+        let description = if self.password_form_open {
+            crate::i18n::tr("This server supports password sign-in.")
+        } else if methods.sso && !methods.providers.is_empty() {
+            crate::i18n::tr("Choose a sign-in provider. Your server handles authentication in the browser.")
+        } else if methods.sso {
+            crate::i18n::tr("Your server handles sign-in in the browser.")
+        } else {
+            crate::i18n::tr("This server did not advertise SSO or password sign-in.")
+        };
+        self.view.label(cx, ids!(method_status)).set_text(cx, description);
+        self.view.button(cx, ids!(password_option_button)).set_text(cx, if self.password_form_open {
+            crate::i18n::tr("Hide password sign-in")
+        } else {
+            crate::i18n::tr("Sign in with a password instead")
+        });
     }
 
     fn start_sso(&mut self, cx: &mut Cx, provider_id: Option<String>) {
@@ -351,12 +361,18 @@ impl LoginScreen {
 
 impl MatchEvent for LoginScreen {
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        let mut language_changed = false;
         for (path, language) in [(ids!(login_language_en), crate::i18n::Language::English), (ids!(login_language_zh), crate::i18n::Language::Chinese)] {
             if self.view.button(cx, path).clicked(actions) {
                 if let Err(error) = crate::i18n::set_language(cx, language) {
                     crate::shared::popup_list::enqueue_popup_notification(crate::i18n::format("Could not save language: {error}", &[("error", error.to_string())]), crate::shared::popup_list::PopupKind::Error, Some(5.0));
+                } else {
+                    language_changed = true;
                 }
             }
+        }
+        if language_changed {
+            self.refresh_method_copy(cx);
         }
         let user_input = self.view.text_input(cx, ids!(user_id_input));
         let password_input = self.view.text_input(cx, ids!(password_input));
@@ -411,18 +427,7 @@ impl MatchEvent for LoginScreen {
         if self.view.button(cx, ids!(password_option_button)).clicked(actions) {
             self.password_form_open = !self.password_form_open;
             self.view.view(cx, ids!(password_form)).set_visible(cx, self.password_form_open);
-            self.view.label(cx, ids!(method_status)).set_text(cx, if self.password_form_open {
-                crate::i18n::tr("This server supports password sign-in.")
-            } else if self.methods.as_ref().is_some_and(|m| m.providers.is_empty()) {
-                crate::i18n::tr("Your server handles sign-in in the browser.")
-            } else {
-                crate::i18n::tr("Choose a sign-in provider. Your server handles authentication in the browser.")
-            });
-            self.view.button(cx, ids!(password_option_button)).set_text(cx, if self.password_form_open {
-                crate::i18n::tr("Hide password sign-in")
-            } else {
-                crate::i18n::tr("Sign in with a password instead")
-            });
+            self.refresh_method_copy(cx);
         }
         if !self.login_pending && self.view.button(cx, ids!(browser_login_button)).clicked(actions) {
             self.start_sso(cx, None);
