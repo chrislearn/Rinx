@@ -38,6 +38,9 @@ pub fn view_from_live_ptr(
 
 /// The top-level main application module.
 pub mod app;
+/// Rinx as an OctoSense app module.
+#[cfg(feature = "octosense-module")]
+pub mod module;
 /// Function for loading and saving persistent application/session state.
 pub mod persistence;
 /// The settings screen and settings-related content/widgets.
