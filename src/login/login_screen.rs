@@ -137,9 +137,8 @@ script_mod! {
 
                         RoundedView {
                             width: Fill, height: Fit
-                            flow: Right, spacing: 10
-                            padding: Inset{left: 14, right: 10, top: 10, bottom: 10}
-                            align: Align{y: 0.5}
+                            flow: Down, spacing: 4
+                            padding: Inset{left: 14, right: 14, top: 10, bottom: 12}
                             show_bg: true
                             draw_bg +: {
                                 color: #fff
@@ -148,34 +147,35 @@ script_mod! {
                                 border_radius: 8
                             }
                             View {
-                                width: Fill, height: Fit, flow: Down, spacing: 4
+                                width: Fill, height: Fit, flow: Right
+                                align: Align{y: 0.5}
                                 Label {
                                     width: Fill, height: Fit
                                     draw_text +: {color: #x6c777b, text_style: REGULAR_TEXT {font_size: 10}}
                                     text: #(crate::i18n::tr("Selected server")) i18n_text: "Selected server"
                                 }
-                                selected_server := Label {
-                                    width: Fill, height: Fit
-                                    flow: Flow.Right{wrap: true}
-                                    max_lines: 2, text_overflow: Ellipsis
-                                    draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
-                                    text: ""
+                                edit_server_button := RobrixNeutralIconButton {
+                                    width: 52, height: 26
+                                    padding: 3, spacing: 0
+                                    icon_walk: Walk{width: 0, height: 0}
+                                    align: Align{x: 0.5, y: 0.5}
+                                    draw_bg +: {
+                                        color: #xf2f7f8
+                                        color_hover: #xdcecef
+                                        color_down: #xc9e0e5
+                                        border_size: 1
+                                        border_color: #x9cbcc1
+                                        border_radius: 5
+                                    }
+                                    text: #(crate::i18n::tr("Edit")) i18n_text: "Edit"
                                 }
                             }
-                            edit_server_button := RobrixNeutralIconButton {
-                                width: 64, height: 34
-                                padding: 6, spacing: 0
-                                icon_walk: Walk{width: 0, height: 0}
-                                align: Align{x: 0.5, y: 0.5}
-                                draw_bg +: {
-                                    color: #xf2f7f8
-                                    color_hover: #xdcecef
-                                    color_down: #xc9e0e5
-                                    border_size: 1
-                                    border_color: #x9cbcc1
-                                    border_radius: 6
-                                }
-                                text: #(crate::i18n::tr("Edit")) i18n_text: "Edit"
+                            selected_server := Label {
+                                width: Fill, height: Fit
+                                flow: Flow.Right{wrap: false}
+                                max_lines: 1, text_overflow: Ellipsis
+                                draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
+                                text: ""
                             }
                         }
                         method_status := Label {
@@ -359,7 +359,9 @@ impl LoginScreen {
         let has_sso = methods.sso;
         let has_password = methods.password;
         let has_providers = !methods.providers.is_empty();
-        self.view.label(cx, ids!(selected_server)).set_text(cx, &methods.homeserver);
+        let display_server = methods.homeserver.strip_prefix("https://").unwrap_or(&methods.homeserver);
+        let display_server = display_server.strip_suffix('/').unwrap_or(display_server);
+        self.view.label(cx, ids!(selected_server)).set_text(cx, display_server);
         self.view.view(cx, ids!(provider_list_container)).set_visible(cx, has_sso && has_providers);
         let height = (methods.providers.len().min(4).max(1) * 48) as f64;
         let mut list = self.view.portal_list(cx, ids!(provider_list));
