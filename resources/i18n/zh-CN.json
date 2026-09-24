@@ -1044,5 +1044,20 @@
   "Choose the table size": "选择表格大小",
   "{0} rows × {1} columns": "{0} 行 × {1} 列",
   "Column {0}": "列 {0}",
-  "Editing your text · Back discards changes and returns": "正在编辑你的文字 · 返回将放弃修改并返回上一页"
+  "Editing your text · Back discards changes and returns": "正在编辑你的文字 · 返回将放弃修改并返回上一页",
+  "Choose your homeserver": "选择 Matrix 服务器",
+  "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.": "输入 Matrix 服务器名称或地址。留空则使用 matrix.org。",
+  "Continue": "继续",
+  "Change server": "更换服务器",
+  "Choose a sign-in provider. Your server handles authentication in the browser.": "选择登录提供商。身份验证将在浏览器中由服务器完成。",
+  "This server supports password sign-in.": "此服务器支持密码登录。",
+  "Your server handles sign-in in the browser.": "服务器将在浏览器中处理登录。",
+  "This server did not advertise SSO or password sign-in.": "此服务器未声明支持单点登录或密码登录。",
+  "Continue with single sign-on": "使用单点登录继续",
+  "Sign in with a password instead": "改用密码登录",
+  "Hide password sign-in": "收起密码登录",
+  "Matrix ID, username or email": "Matrix 账号、用户名或邮箱",
+  "Choose a server first.": "请先选择服务器。",
+  "Enter your password.": "请输入密码。",
+  "Sign in with {provider}": "使用 {provider} 登录"
 }
