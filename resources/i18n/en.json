@@ -1043,5 +1043,6 @@
   "Insert table": "Insert table",
   "Choose the table size": "Choose the table size",
   "{0} rows × {1} columns": "{0} rows × {1} columns",
-  "Column {0}": "Column {0}"
+  "Column {0}": "Column {0}",
+  "Editing your text · Back discards changes and returns": "Editing your text · Back discards changes and returns"
 }
