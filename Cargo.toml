@@ -18,7 +18,7 @@ article-core = { path = "crates/article-core", features = ["l0"] }
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
-makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2", optional = true }
+makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "57b31c9978635e51e633558131d1888d9ef4f45a", optional = true }
 makepad-html-renderer = { package = "makepad-html", git = "https://github.com/OctoSense-org/makepad-html", rev = "b16565ae1e56dd7c3a87f00455ae327df599ca3b", optional = true, features = ["makepad"] }
 # makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev", features = ["serde"] }
 # makepad-code-editor = { git = "https://github.com/makepad/makepad", branch = "dev" }
@@ -430,5 +430,5 @@ used_underscore_binding = "allow"
 
 # Keep all Makepad widgets on the same compatibility revision as the renderer.
 [patch."https://github.com/kevinaboos/makepad"]
-makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2" }
-makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "2bfbb99c8e56ff0c15d7d31061aa49e239e220e2" }
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "57b31c9978635e51e633558131d1888d9ef4f45a" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "57b31c9978635e51e633558131d1888d9ef4f45a" }
