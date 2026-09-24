@@ -1044,5 +1044,22 @@
   "Choose the table size": "Choose the table size",
   "{0} rows × {1} columns": "{0} rows × {1} columns",
   "Column {0}": "Column {0}",
-  "Editing your text · Back discards changes and returns": "Editing your text · Back discards changes and returns"
+  "Editing your text · Back discards changes and returns": "Editing your text · Back discards changes and returns",
+  "Choose your homeserver": "Choose your homeserver",
+  "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.": "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.",
+  "Continue": "Continue",
+  "Change server": "Change server",
+  "Choose a sign-in provider. Your server handles authentication in the browser.": "Choose a sign-in provider. Your server handles authentication in the browser.",
+  "This server supports password sign-in.": "This server supports password sign-in.",
+  "Your server handles sign-in in the browser.": "Your server handles sign-in in the browser.",
+  "This server did not advertise SSO or password sign-in.": "This server did not advertise SSO or password sign-in.",
+  "Continue with single sign-on": "Continue with single sign-on",
+  "Sign in with a password instead": "Sign in with a password instead",
+  "Hide password sign-in": "Hide password sign-in",
+  "Matrix ID, username or email": "Matrix ID, username or email",
+  "Choose a server first.": "Choose a server first.",
+  "Enter your password.": "Enter your password.",
+  "Sign in with {provider}": "Sign in with {provider}",
+  "Edit": "Edit",
+  "Selected server": "Selected server"
 }

@@ -2,7 +2,7 @@ use makepad_widgets::*;
 
 use crate::sliding_sync::{submit_async_request, LoginByPassword, LoginRequest, MatrixRequest};
 
-use super::homeserver::{login_server, password_identifier, LoginMethods};
+use super::homeserver::{password_identifier, LoginMethods};
 use super::login_status_modal::{LoginStatusModalAction, LoginStatusModalWidgetExt};
 
 script_mod! {
@@ -12,22 +12,6 @@ script_mod! {
     mod.widgets.IMG_APP_LOGO = crate_resource("self://resources/robrix_logo_alpha.png")
     mod.widgets.ICON_EYE_OPEN   = crate_resource("self://resources/icons/eye_open.svg")
     mod.widgets.ICON_EYE_CLOSED = crate_resource("self://resources/icons/eye_closed.svg")
-
-    let ProviderButton = RobrixNeutralIconButton {
-        width: Fill, height: Fill
-        margin: 0
-        padding: Inset{left: 42, right: 10, top: 10, bottom: 10}
-        align: Align{x: 0.5, y: 0.5}
-        draw_bg +: {
-            color: #fff
-            color_hover: #xf5f5f5
-            color_down: #xe5e5e5
-            border_size: 1
-            border_color: #xc8c8c8
-            border_color_hover: #x999999
-            border_color_down: #x777777
-        }
-    }
 
     mod.widgets.LoginScreen = set_type_default() do #(LoginScreen::register_widget(vm)) {
         ..mod.widgets.SolidView
@@ -57,7 +41,7 @@ script_mod! {
             }
 
             RoundedView {
-                margin: Inset{top: 50, bottom: 50}
+                margin: Inset{left: 16, right: 16, top: 50, bottom: 50}
                 width: Fill
                 height: Fit
                 align: Align{x: 0.5, y: 0.5}
@@ -99,207 +83,182 @@ script_mod! {
                         login_language_zh := ButtonFlat {text: "简体中文"}
                     }
 
-                    user_id_input := RobrixTextInput {
-                        width: 275, height: Fit
-                        flow: Flow.Right { wrap: false },
-                        padding: 10,
-                        empty_text: #(crate::i18n::tr("@name:matrix.org or username")) i18n_empty_text: "@name:matrix.org or username"
-                        autocapitalize: None,
-                        autocorrect: Disabled,
-                        content_type: Username,
-                    }
+                    server_step := View {
+                        width: Fill{max: 320}, height: Fit, flow: Down, spacing: 14
 
-                    View {
-                        width: 275, height: Fit
-                        flow: Overlay
-                        align: Align{x: 1.0, y: 0.5}
-
-                        password_input := RobrixTextInput {
+                        RoundedView {
                             width: Fill, height: Fit
-                            flow: Flow.Right { wrap: false },
-                            padding: Inset{top: 10, bottom: 10, left: 10, right: 38}
-                            empty_text: #(crate::i18n::tr("Password")) i18n_empty_text: "Password"
-                            is_password: true,
-                            autocapitalize: None,
-                            autocorrect: Disabled,
-                            content_type: Password,
-                        }
-
-                        View {
-                            width: 38, height: Fill
-                            align: Align{x: 0.5, y: 0.5}
-
-                            show_password_button := RobrixNeutralIconButton {
-                                width: Fit, height: Fit,
-                                align: Align{x: 0.5, y: 0.5}
-                                padding: 5
-                                spacing: 0
-                                margin: 0
-                                draw_bg +: {
-                                    color: (COLOR_SECONDARY * 1.05)
-                                }
-                                draw_icon +: {
-                                    svg: (mod.widgets.ICON_EYE_CLOSED),
-                                    color: #8C8C8C,
-                                }
-                                icon_walk: Walk{width: 18, height: 18, margin: 0}
-                                text: ""
+                            flow: Down, spacing: 9
+                            padding: Inset{left: 14, right: 14, top: 14, bottom: 14}
+                            show_bg: true
+                            draw_bg +: {
+                                color: #fff
+                                border_size: 1
+                                border_color: #xd2dadd
+                                border_radius: 8
                             }
-
-                            hide_password_button := RobrixNeutralIconButton {
-                                visible: false,
-                                align: Align{x: 0.5, y: 0.5}
-                                width: Fit, height: Fit,
-                                padding: 5
-                                spacing: 0
-                                margin: 0
-                                draw_bg +: {
-                                    color: (COLOR_SECONDARY * 1.05)
-                                }
-                                draw_icon +: {
-                                    svg: (mod.widgets.ICON_EYE_OPEN),
-                                    color: #8C8C8C,
-                                }
-                                icon_walk: Walk{width: 18, height: 18, margin: 0}
-                                text: ""
-                            }
-                        }
-                    }
-
-                    View {
-                        width: 275, height: Fit,
-                        flow: Down,
-
-                        homeserver_input := RobrixTextInput {
-                            width: 275, height: Fit,
-                            flow: Flow.Right { wrap: false },
-                            padding: Inset{top: 5, bottom: 5, left: 10, right: 10}
-                            empty_text: #(crate::i18n::tr("Auto from Matrix ID (matrix.org)")) i18n_empty_text: "Auto from Matrix ID (matrix.org)"
-                            autocapitalize: None,
-                            autocorrect: Disabled,
-                            content_type: Url,
-                            input_mode: Url,
-                            draw_text +: {
-                                text_style: TITLE_TEXT {font_size: 10.0}
-                            }
-                        }
-
-                        View {
-                            width: 275,
-                            height: Fit,
-                            flow: Right,
-                            padding: Inset{top: 3, left: 2, right: 2}
-                            spacing: 0.0,
-                            align: Align{x: 0.5, y: 0.5} // center horizontally and vertically
-
-                            LineH { draw_bg.color: #C8C8C8 }
-
                             Label {
-                                width: Fit, height: Fit
-                                padding: 0
-                                draw_text +: {
-                                    color: #8C8C8C
-                                    text_style: REGULAR_TEXT {font_size: 9}
+                                width: Fill, height: Fit
+                                draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
+                                text: #(crate::i18n::tr("Choose your homeserver")) i18n_text: "Choose your homeserver"
+                            }
+                            homeserver_input := RobrixTextInput {
+                                width: Fill, height: Fit
+                                padding: 10
+                                empty_text: "matrix.org"
+                                autocapitalize: None
+                                autocorrect: Disabled
+                                content_type: Url
+                                input_mode: Url
+                            }
+                            Label {
+                                width: Fill, height: Fit
+                                flow: Flow.Right{wrap: true}
+                                draw_text +: {color: #x6c777b, text_style: REGULAR_TEXT {font_size: 10}}
+                                text: #(crate::i18n::tr("Enter a Matrix server name or homeserver URL. Leave blank for matrix.org.")) i18n_text: "Enter a Matrix server name or homeserver URL. Leave blank for matrix.org."
+                            }
+                        }
+                        continue_server_button := RobrixIconButton {
+                            width: Fill, height: 42, padding: 10
+                            align: Align{x: 0.5, y: 0.5}
+                            text: #(crate::i18n::tr("Continue")) i18n_text: "Continue"
+                        }
+                        server_status := Label {
+                            width: Fill, height: Fit
+                            flow: Flow.Right{wrap: true}
+                            draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 10}}
+                            text: ""
+                        }
+                    }
+
+                    method_step := View {
+                        visible: false
+                        width: Fill{max: 320}, height: Fit, flow: Down, spacing: 14
+
+                        RoundedView {
+                            width: Fill, height: Fit
+                            flow: Down, spacing: 4
+                            padding: Inset{left: 14, right: 14, top: 10, bottom: 12}
+                            show_bg: true
+                            draw_bg +: {
+                                color: #fff
+                                border_size: 1
+                                border_color: #xd2dadd
+                                border_radius: 8
+                            }
+                            View {
+                                width: Fill, height: Fit, flow: Right
+                                align: Align{y: 0.5}
+                                Label {
+                                    width: Fill, height: Fit
+                                    draw_text +: {color: #x6c777b, text_style: REGULAR_TEXT {font_size: 10}}
+                                    text: #(crate::i18n::tr("Selected server")) i18n_text: "Selected server"
                                 }
-                                text: #(crate::i18n::tr("Your homeserver (name or URL)")) i18n_text: "Your homeserver (name or URL)"
+                                edit_server_button := RobrixNeutralIconButton {
+                                    width: 52, height: 26
+                                    padding: 3, spacing: 0
+                                    icon_walk: Walk{width: 0, height: 0}
+                                    align: Align{x: 0.5, y: 0.5}
+                                    draw_bg +: {
+                                        color: #xf2f7f8
+                                        color_hover: #xdcecef
+                                        color_down: #xc9e0e5
+                                        border_size: 1
+                                        border_color: #x9cbcc1
+                                        border_radius: 5
+                                    }
+                                    text: #(crate::i18n::tr("Edit")) i18n_text: "Edit"
+                                }
                             }
-
-                            LineH { draw_bg.color: #C8C8C8 }
-                        }
-                    }
-                    
-
-                    login_button := RobrixIconButton {
-                        width: 275,
-                        height: 40
-                        padding: 10
-                        margin: Inset{top: 5, bottom: 10}
-                        align: Align{x: 0.5, y: 0.5}
-                        text: #(crate::i18n::tr("Sign in with password")) i18n_text: "Sign in with password"
-                    }
-
-                    social_login_buttons := View {
-                        width: 275, height: 44
-                        flow: Right
-                        spacing: 11
-                        View {
-                            width: 132, height: Fill
-                            flow: Overlay
-                            align: Align{y: 0.5}
-                            google_login_button := ProviderButton {text: "Google"}
-                            google_icon := Image {
-                                width: 24, height: 24
-                                margin: Inset{left: 14}
-                                fit: ImageFit.Smallest
-                                src: crate_resource("self://resources/img/google.png")
+                            selected_server := Label {
+                                width: Fill, height: Fit
+                                flow: Flow.Right{wrap: false}
+                                max_lines: 1, text_overflow: Ellipsis
+                                draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 12}}
+                                text: ""
                             }
                         }
-                        View {
-                            width: 132, height: Fill
-                            flow: Overlay
-                            align: Align{y: 0.5}
-                            github_login_button := ProviderButton {text: "GitHub"}
-                            github_icon := Image {
-                                width: 24, height: 24
-                                margin: Inset{left: 14}
-                                fit: ImageFit.Smallest
-                                src: crate_resource("self://resources/img/github.png")
+                        method_status := Label {
+                            width: Fill, height: Fit
+                            flow: Flow.Right{wrap: true}
+                            draw_text +: {color: COLOR_TEXT, text_style: REGULAR_TEXT {font_size: 10}}
+                            text: ""
+                        }
+                        provider_list_container := View {
+                            visible: false
+                            width: Fill, height: Fit
+                            provider_list := PortalList {
+                                width: Fill, height: 48
+                                Provider := View {
+                                    width: Fill, height: 48
+                                    provider_button := RobrixIconButton {
+                                        width: Fill, height: 42, padding: 10
+                                        align: Align{x: 0.5, y: 0.5}
+                                        text: ""
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    browser_login_button := RobrixIconButton {
-                        width: 275, height: 40
-                        padding: 10
-                        align: Align{x: 0.5, y: 0.5}
-                        text: #(crate::i18n::tr("Continue in browser")) i18n_text: "Continue in browser"
-                    }
-
-                    check_server_button := RobrixIconButton {
-                        width: 275, height: 35
-                        padding: 8
-                        align: Align{x: 0.5, y: 0.5}
-                        text: #(crate::i18n::tr("Check server")) i18n_text: "Check server"
-                    }
-                    server_status := Label {
-                        width: 275, height: Fit
-                        flow: Flow.Right{wrap: true}
-                        draw_text +: {
-                            color: COLOR_TEXT
-                            text_style: REGULAR_TEXT {font_size: 10}
+                        browser_login_button := RobrixIconButton {
+                            visible: false
+                            width: Fill, height: 42, padding: 10
+                            align: Align{x: 0.5, y: 0.5}
+                            text: #(crate::i18n::tr("Continue with single sign-on")) i18n_text: "Continue with single sign-on"
                         }
-                        text: #(crate::i18n::tr("Choose Google, GitHub or another provider in your browser. Leave the server blank for matrix.org or discovery from your Matrix ID.")) i18n_text: "Choose Google, GitHub or another provider in your browser. Leave the server blank for matrix.org or discovery from your Matrix ID."
-                    }
-
-                    View {
-                        width: 275,
-                        height: Fit,
-                        flow: Right,
-                        // padding: 3,
-                        spacing: 0.0,
-                        align: Align{x: 0.5, y: 0.5} // center horizontally and vertically
-
-                        LineH { draw_bg.color: #C8C8C8 }
-
-                        Label {
+                        password_option_button := ButtonFlat {
+                            visible: false
                             width: Fit, height: Fit
-                            padding: Inset{left: 1, right: 1, top: 0, bottom: 0}
-                            draw_text +: {
-                                color: #x6c6c6c
-                                text_style: REGULAR_TEXT {}
-                            }
-                            text: #(crate::i18n::tr("Don't have an account?")) i18n_text: "Don't have an account?"
+                            text: #(crate::i18n::tr("Sign in with a password instead")) i18n_text: "Sign in with a password instead"
                         }
+                        password_form := View {
+                            visible: false
+                            width: Fill, height: Fit, flow: Down, spacing: 12
 
-                        LineH { draw_bg.color: #C8C8C8 }
-                    }
-                    
-                    signup_button := RobrixIconButton {
-                        width: Fit, height: Fit
-                        padding: Inset{left: 15, right: 15, top: 10, bottom: 10}
-                        margin: Inset{bottom: 5}
-                        align: Align{x: 0.5, y: 0.5}
-                        text: #(crate::i18n::tr("Sign up here")) i18n_text: "Sign up here"
+                            user_id_input := RobrixTextInput {
+                                width: Fill, height: Fit
+                                padding: 10
+                                empty_text: #(crate::i18n::tr("Matrix ID, username or email")) i18n_empty_text: "Matrix ID, username or email"
+                                autocapitalize: None
+                                autocorrect: Disabled
+                                content_type: Username
+                            }
+                            View {
+                                width: Fill, height: Fit
+                                flow: Overlay
+                                align: Align{x: 1.0, y: 0.5}
+                                password_input := RobrixTextInput {
+                                    width: Fill, height: Fit
+                                    padding: Inset{top: 10, bottom: 10, left: 10, right: 38}
+                                    empty_text: #(crate::i18n::tr("Password")) i18n_empty_text: "Password"
+                                    is_password: true
+                                    autocapitalize: None
+                                    autocorrect: Disabled
+                                    content_type: Password
+                                }
+                                View {
+                                    width: 38, height: Fill
+                                    align: Align{x: 0.5, y: 0.5}
+                                    show_password_button := RobrixNeutralIconButton {
+                                        width: Fit, height: Fit, padding: 5, spacing: 0, margin: 0
+                                        draw_icon +: {svg: (mod.widgets.ICON_EYE_CLOSED), color: #8C8C8C}
+                                        icon_walk: Walk{width: 18, height: 18, margin: 0}
+                                        text: ""
+                                    }
+                                    hide_password_button := RobrixNeutralIconButton {
+                                        visible: false
+                                        width: Fit, height: Fit, padding: 5, spacing: 0, margin: 0
+                                        draw_icon +: {svg: (mod.widgets.ICON_EYE_OPEN), color: #8C8C8C}
+                                        icon_walk: Walk{width: 18, height: 18, margin: 0}
+                                        text: ""
+                                    }
+                                }
+                            }
+                            login_button := RobrixIconButton {
+                                width: Fill, height: 42, padding: 10
+                                align: Align{x: 0.5, y: 0.5}
+                                text: #(crate::i18n::tr("Sign in with password")) i18n_text: "Sign in with password"
+                            }
+                        }
                     }
                 }
 
@@ -314,8 +273,6 @@ script_mod! {
     }
 }
 
-static MATRIX_SIGN_UP_URL: &str = "https://matrix.org/docs/chat_basics/matrix-for-im/#creating-a-matrix-account";
-
 #[derive(Script, ScriptHook, Widget)]
 pub struct LoginScreen {
     #[source] source: ScriptObjectRef,
@@ -326,6 +283,8 @@ pub struct LoginScreen {
     #[rust] login_pending: bool,
     #[rust] discovery_generation: u64,
     #[rust] discovery_pending: bool,
+    #[rust] methods: Option<LoginMethods>,
+    #[rust] password_form_open: bool,
 
 }
 
@@ -337,7 +296,23 @@ impl Widget for LoginScreen {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        self.view.draw_walk(cx, scope, walk)
+        while let Some(item) = self.view.draw_walk(cx, scope, walk).step() {
+            if let Some(mut list) = item.borrow_mut::<PortalList>() {
+                let providers = self.methods.as_ref().map(|m| m.providers.as_slice()).unwrap_or_default();
+                list.set_item_range(cx, 0, providers.len());
+                while let Some(index) = list.next_visible_item(cx) {
+                    if let Some(provider) = providers.get(index) {
+                        let row = list.item(cx, index, id!(Provider));
+                        row.button(cx, ids!(provider_button)).set_text(cx, &crate::i18n::format(
+                            "Sign in with {provider}",
+                            &[("provider", provider.name.clone())],
+                        ));
+                        row.draw_all(cx, scope);
+                    }
+                }
+            }
+        }
+        DrawStep::done()
     }
 }
 
@@ -352,32 +327,104 @@ impl LoginScreen {
         self.redraw(cx);
     }
 
-    fn check_server(&mut self, cx: &mut Cx, user: String, server: String) {
+    fn reset_server(&mut self, cx: &mut Cx) {
+        self.discovery_generation += 1;
+        self.discovery_pending = false;
+        self.methods = None;
+        self.password_form_open = false;
+        self.view.view(cx, ids!(server_step)).set_visible(cx, true);
+        self.view.view(cx, ids!(method_step)).set_visible(cx, false);
+        self.view.label(cx, ids!(server_status)).set_text(cx, "");
+        self.view.text_input(cx, ids!(password_input)).set_text(cx, "");
+        if self.password_visible {
+            self.password_visible = false;
+            self.view.text_input(cx, ids!(password_input)).toggle_is_password(cx);
+            self.view.button(cx, ids!(show_password_button)).set_visible(cx, true);
+            self.view.button(cx, ids!(hide_password_button)).set_visible(cx, false);
+        }
+    }
+
+    fn check_server(&mut self, cx: &mut Cx, server: String) {
         self.discovery_generation += 1;
         let generation = self.discovery_generation;
         self.discovery_pending = true;
         self.view.label(cx, ids!(server_status)).set_text(cx, crate::i18n::tr("Checking homeserver and sign-in methods…"));
         crate::sliding_sync::spawn_async_task(async move {
-            let result = super::homeserver::discover(&user, &server).await.map_err(|e| e.to_string());
+            let result = super::homeserver::discover("", &server).await.map_err(|e| e.to_string());
             Cx::post_action(LoginAction::ServerDiscovered { generation, result });
         });
+    }
+
+    fn show_methods(&mut self, cx: &mut Cx, methods: LoginMethods) {
+        let has_sso = methods.sso;
+        let has_password = methods.password;
+        let has_providers = !methods.providers.is_empty();
+        let display_server = methods.homeserver.strip_prefix("https://").unwrap_or(&methods.homeserver);
+        let display_server = display_server.strip_suffix('/').unwrap_or(display_server);
+        self.view.label(cx, ids!(selected_server)).set_text(cx, display_server);
+        self.view.view(cx, ids!(provider_list_container)).set_visible(cx, has_sso && has_providers);
+        let height = (methods.providers.len().min(4).max(1) * 48) as f64;
+        let mut list = self.view.portal_list(cx, ids!(provider_list));
+        script_apply_eval!(cx, list, {height: #(height)});
+        self.view.button(cx, ids!(browser_login_button)).set_visible(cx, has_sso && !has_providers);
+        self.view.button(cx, ids!(password_option_button)).set_visible(cx, has_sso && has_password);
+        self.password_form_open = has_password && !has_sso;
+        self.view.view(cx, ids!(password_form)).set_visible(cx, self.password_form_open);
+        self.view.view(cx, ids!(server_step)).set_visible(cx, false);
+        self.view.view(cx, ids!(method_step)).set_visible(cx, true);
+        self.methods = Some(methods);
+        self.refresh_method_copy(cx);
+        self.redraw(cx);
+    }
+
+    fn refresh_method_copy(&mut self, cx: &mut Cx) {
+        let Some(methods) = self.methods.as_ref() else { return };
+        let description = if self.password_form_open {
+            crate::i18n::tr("This server supports password sign-in.")
+        } else if methods.sso && !methods.providers.is_empty() {
+            crate::i18n::tr("Choose a sign-in provider. Your server handles authentication in the browser.")
+        } else if methods.sso {
+            crate::i18n::tr("Your server handles sign-in in the browser.")
+        } else {
+            crate::i18n::tr("This server did not advertise SSO or password sign-in.")
+        };
+        self.view.label(cx, ids!(method_status)).set_text(cx, description);
+        self.view.button(cx, ids!(password_option_button)).set_text(cx, if self.password_form_open {
+            crate::i18n::tr("Hide password sign-in")
+        } else {
+            crate::i18n::tr("Sign in with a password instead")
+        });
+    }
+
+    fn start_sso(&mut self, cx: &mut Cx, provider_id: Option<String>) {
+        let Some(methods) = self.methods.as_ref().filter(|m| m.sso) else { return };
+        self.login_pending = true;
+        self.sso_pending = true;
+        let destination = methods.homeserver.clone();
+        self.show_status(cx, crate::i18n::tr("Connecting to your server"), &crate::i18n::format("Checking browser sign-in for {destination}…", &[("destination", destination.clone())]), crate::i18n::tr("Cancel"), true);
+        submit_async_request(MatrixRequest::SpawnSSOServer { homeserver_url: destination, provider_id });
     }
 }
 
 impl MatchEvent for LoginScreen {
     fn handle_actions(&mut self, cx: &mut Cx, actions: &Actions) {
+        let mut language_changed = false;
         for (path, language) in [(ids!(login_language_en), crate::i18n::Language::English), (ids!(login_language_zh), crate::i18n::Language::Chinese)] {
             if self.view.button(cx, path).clicked(actions) {
                 if let Err(error) = crate::i18n::set_language(cx, language) {
                     crate::shared::popup_list::enqueue_popup_notification(crate::i18n::format("Could not save language: {error}", &[("error", error.to_string())]), crate::shared::popup_list::PopupKind::Error, Some(5.0));
+                } else {
+                    language_changed = true;
                 }
             }
+        }
+        if language_changed {
+            self.refresh_method_copy(cx);
         }
         let user_input = self.view.text_input(cx, ids!(user_id_input));
         let password_input = self.view.text_input(cx, ids!(password_input));
         let server_input = self.view.text_input(cx, ids!(homeserver_input));
         let modal = self.view.modal(cx, ids!(login_status_modal));
-        let user = user_input.text().trim().to_owned();
         let server = server_input.text().trim().to_owned();
 
         let show = self.view.button(cx, ids!(show_password_button));
@@ -389,28 +436,28 @@ impl MatchEvent for LoginScreen {
             hide.set_visible(cx, self.password_visible);
             password_input.set_key_focus(cx);
         }
-        if user_input.changed(actions).is_some() || server_input.changed(actions).is_some() {
-            self.discovery_generation += 1;
-            self.discovery_pending = false;
-            self.view.label(cx, ids!(server_status)).set_text(cx, crate::i18n::tr("Check server to see its available sign-in methods."));
+        if server_input.changed(actions).is_some() {
+            self.reset_server(cx);
         }
-        if self.view.button(cx, ids!(signup_button)).clicked(actions) {
-            let _ = robius_open::Uri::new(MATRIX_SIGN_UP_URL).open();
+        if !self.login_pending && self.view.button(cx, ids!(edit_server_button)).clicked(actions) {
+            self.reset_server(cx);
+            server_input.set_key_focus(cx);
         }
         if !self.login_pending && !self.discovery_pending && (
-            self.view.button(cx, ids!(check_server_button)).clicked(actions)
+            self.view.button(cx, ids!(continue_server_button)).clicked(actions)
             || server_input.returned(actions).is_some()
         ) {
-            self.check_server(cx, user.clone(), server.clone());
+            self.check_server(cx, server.clone());
         }
-        if !self.login_pending && (
+        if !self.login_pending && self.password_form_open && self.methods.as_ref().is_some_and(|m| m.password) && (
             self.view.button(cx, ids!(login_button)).clicked(actions)
             || user_input.returned(actions).is_some()
             || password_input.returned(actions).is_some()
         ) {
-            let destination = login_server(&user, Some(&server)).and_then(|server| {
+            let user = user_input.text().trim().to_owned();
+            let destination = self.methods.as_ref().map(|m| m.homeserver.clone()).ok_or_else(|| anyhow::anyhow!(crate::i18n::tr("Choose a server first."))).and_then(|server| {
                 password_identifier(&user)?;
-                if password_input.text().is_empty() { anyhow::bail!(crate::i18n::tr("Enter your password, or choose Continue in browser.")); }
+                if password_input.text().is_empty() { anyhow::bail!(crate::i18n::tr("Enter your password.")); }
                 Ok(server)
             });
             match destination {
@@ -424,19 +471,25 @@ impl MatchEvent for LoginScreen {
                 Err(error) => self.show_status(cx, crate::i18n::tr("Check sign-in details"), &error.to_string(), crate::i18n::tr("Okay"), true),
             }
         }
-        // Social shortcuts use the selected server's provider chooser. Provider
-        // IDs are server-defined, and matrix.org now delegates this page to MAS.
-        let browser_login_clicked = [ids!(browser_login_button), ids!(google_login_button), ids!(github_login_button)]
-            .into_iter().any(|id| self.view.button(cx, id).clicked(actions));
-        if !self.login_pending && browser_login_clicked {
-            match login_server(&user, Some(&server)) {
-                Ok(destination) => {
-                    self.login_pending = true;
-                    self.sso_pending = true;
-                    self.show_status(cx, crate::i18n::tr("Connecting to your server"), &crate::i18n::format("Checking browser sign-in for {destination}…", &[("destination", (destination).to_string())]), crate::i18n::tr("Cancel"), true);
-                    submit_async_request(MatrixRequest::SpawnSSOServer { homeserver_url: destination });
-                }
-                Err(error) => self.show_status(cx, crate::i18n::tr("Check your homeserver"), &error.to_string(), crate::i18n::tr("Okay"), true),
+        if self.view.button(cx, ids!(password_option_button)).clicked(actions) {
+            self.password_form_open = !self.password_form_open;
+            self.view.view(cx, ids!(password_form)).set_visible(cx, self.password_form_open);
+            self.refresh_method_copy(cx);
+        }
+        if !self.login_pending && self.view.button(cx, ids!(browser_login_button)).clicked(actions) {
+            self.start_sso(cx, None);
+        }
+        if !self.login_pending {
+            let selected_provider = self.view.portal_list(cx, ids!(provider_list))
+                .items_with_actions(actions)
+                .into_iter()
+                .find_map(|(index, row)| {
+                    if row.button(cx, ids!(provider_button)).clicked(actions) {
+                        self.methods.as_ref().and_then(|m| m.providers.get(index)).map(|p| p.id.clone())
+                    } else { None }
+                });
+            if let Some(provider_id) = selected_provider {
+                self.start_sso(cx, Some(provider_id));
             }
         }
 
@@ -452,26 +505,17 @@ impl MatchEvent for LoginScreen {
             match action.downcast_ref() {
                 Some(LoginAction::ServerDiscovered { generation, result }) if *generation == self.discovery_generation => {
                     self.discovery_pending = false;
-                    let text = match result {
-                        Ok(methods) => {
-                            let mut available = Vec::new();
-                            if methods.password { available.push(crate::i18n::tr("Password")); }
-                            if methods.sso { available.push(crate::i18n::tr("Browser SSO")); }
-                            let methods_text = if available.is_empty() {
-                                crate::i18n::tr("No supported sign-in method. OAuth-only and QR sign-in are not supported yet.").to_owned()
-                            } else { available.join(" · ") };
-                            let providers = if methods.providers.is_empty() { String::new() } else { format!("\n{}", methods.providers.join(", ")) };
-                            format!("{}\n{methods_text}{providers}", methods.homeserver)
-                        }
-                        Err(error) => crate::i18n::format("Could not check this server: {error}", &[("error", (error).to_string())]),
-                    };
-                    self.view.label(cx, ids!(server_status)).set_text(cx, &text);
+                    match result {
+                        Ok(methods) => self.show_methods(cx, methods.clone()),
+                        Err(error) => self.view.label(cx, ids!(server_status)).set_text(cx, &crate::i18n::format("Could not check this server: {error}", &[("error", error.clone())])),
+                    }
                 }
                 Some(LoginAction::CliAutoLogin { user_id, homeserver }) => {
                     self.login_pending = true;
                     user_input.set_text(cx, user_id);
                     password_input.set_text(cx, "");
                     server_input.set_text(cx, homeserver.as_deref().unwrap_or_default());
+                    self.reset_server(cx);
                     self.show_status(cx, crate::i18n::tr("Signing in"), crate::i18n::tr("Connecting to your account…"), crate::i18n::tr("Please wait…"), false);
                 }
                 Some(LoginAction::Status { title, status }) => {
@@ -484,12 +528,7 @@ impl MatchEvent for LoginScreen {
                     user_input.set_text(cx, "");
                     password_input.set_text(cx, "");
                     server_input.set_text(cx, "");
-                    if self.password_visible {
-                        self.password_visible = false;
-                        password_input.toggle_is_password(cx);
-                        show.set_visible(cx, true);
-                        hide.set_visible(cx, false);
-                    }
+                    self.reset_server(cx);
                     modal.close(cx);
                 }
                 Some(LoginAction::LoginFailure(error)) => {
@@ -508,9 +547,8 @@ impl MatchEvent for LoginScreen {
         }
         self.view.button(cx, ids!(login_button)).set_enabled(cx, !self.login_pending);
         self.view.button(cx, ids!(browser_login_button)).set_enabled(cx, !self.login_pending);
-        self.view.button(cx, ids!(google_login_button)).set_enabled(cx, !self.login_pending);
-        self.view.button(cx, ids!(github_login_button)).set_enabled(cx, !self.login_pending);
-        self.view.button(cx, ids!(check_server_button)).set_enabled(cx, !self.login_pending && !self.discovery_pending);
+        self.view.button(cx, ids!(edit_server_button)).set_enabled(cx, !self.login_pending);
+        self.view.button(cx, ids!(continue_server_button)).set_enabled(cx, !self.login_pending && !self.discovery_pending);
         self.redraw(cx);
     }
 }

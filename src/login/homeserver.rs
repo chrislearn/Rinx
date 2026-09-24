@@ -74,11 +74,17 @@ pub fn password_identifier(user: &str) -> Result<UserIdentifier> {
 }
 
 #[derive(Clone, Debug)]
+pub struct LoginProvider {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct LoginMethods {
     pub homeserver: String,
     pub password: bool,
     pub sso: bool,
-    pub providers: Vec<String>,
+    pub providers: Vec<LoginProvider>,
 }
 
 pub async fn login_methods(client: &Client) -> Result<LoginMethods> {
@@ -96,7 +102,10 @@ pub async fn login_methods(client: &Client) -> Result<LoginMethods> {
                 methods.sso = true;
                 methods
                     .providers
-                    .extend(sso.identity_providers.into_iter().map(|p| p.name));
+                    .extend(sso.identity_providers.into_iter().map(|p| LoginProvider {
+                        id: p.id,
+                        name: p.name,
+                    }));
             }
             _ => {}
         }
@@ -121,14 +130,16 @@ pub async fn discover(user: &str, server: &str) -> Result<LoginMethods> {
 }
 
 #[cfg(not(target_os = "ios"))]
-pub async fn browser_login<F, Fut>(client: &Client, open: F) -> matrix_sdk::Result<()>
+pub async fn browser_login<F, Fut>(client: &Client, provider_id: Option<&str>, open: F) -> matrix_sdk::Result<()>
 where
     F: FnOnce(String) -> Fut + Send + 'static,
     Fut: std::future::Future<Output = matrix_sdk::Result<()>> + Send + 'static,
 {
-    client
-        .matrix_auth()
-        .login_sso(open)
+    let mut login = client.matrix_auth().login_sso(open);
+    if let Some(id) = provider_id {
+        login = login.identity_provider_id(id);
+    }
+    login
         .initial_device_display_name("Rinx")
         .request_refresh_token()
         .await?;
@@ -280,17 +291,18 @@ mod tests {
         let server = Server::new();
         let methods = login_methods(&server.client().await).await.unwrap();
         assert!(methods.password && methods.sso);
-        assert_eq!(methods.providers, ["Company SSO"]);
+        assert_eq!(methods.providers[0].id, "company-custom-id");
+        assert_eq!(methods.providers[0].name, "Company SSO");
     }
 
     #[cfg(not(target_os = "ios"))]
     #[tokio::test]
-    async fn browser_callback_exchanges_token_and_requests_refresh() {
+    async fn selected_provider_uses_advertised_id_and_exchanges_token() {
         let server = Server::new();
         let client = server.client().await;
-        browser_login(&client, |link| async move {
+        browser_login(&client, Some("company-custom-id"), |link| async move {
             let url = Url::parse(&link).unwrap();
-            assert!(url.path().ends_with("/login/sso/redirect"));
+            assert!(url.path().ends_with("/login/sso/redirect/company-custom-id"));
             let redirect = url
                 .query_pairs()
                 .find(|(k, _)| k == "redirectUrl")
@@ -333,7 +345,7 @@ mod tests {
         let client = server.client().await;
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
-            browser_login(&client, |link| async move {
+            browser_login(&client, None, |link| async move {
                 let url = Url::parse(&link).unwrap();
                 let redirect = url
                     .query_pairs()
