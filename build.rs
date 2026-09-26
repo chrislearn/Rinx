@@ -1,4 +1,15 @@
 fn main() {
+    // cargo-makepad discovers resources of Git/registry dependencies through
+    // a package-name.path file beside the compiled libraries. Rinx is also a
+    // hosted dependency, so publish its resource root like makepad-widgets.
+    let out_dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    let profile_dir = out_dir.ancestors().nth(3).unwrap();
+    std::fs::write(
+        profile_dir.join("rinx.path"),
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+    )
+    .expect("write Rinx resource path for cargo-makepad");
+
     // Detect `cargo packager` builds using the `CARGO_PACKAGER_FORMAT` env var.
     println!("cargo::rustc-check-cfg=cfg(packaging_build)");
     println!("cargo:rerun-if-env-changed=CARGO_PACKAGER_FORMAT");
