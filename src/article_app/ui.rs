@@ -111,7 +111,7 @@ script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
     mod.widgets.ArticleLabel = Label {width: Fill height: Fit flow: Flow.Right{wrap: true} draw_text +: {color: #x191919 text_style: theme.font_regular{font_size: 13}}}
-    mod.widgets.ArticleButton = RobrixNeutralIconButton {grab_key_focus: false height: 42 padding: Inset{left: 12 right: 12} draw_text +: {color: #x333333 text_style: theme.font_regular{font_size: 12}} draw_bg +: {color: #xffffff color_hover: #xf2f5f3 color_down: #xe7f2e9 border_radius: 6}}
+    mod.widgets.ArticleButton = RobrixNeutralIconButton {grab_key_focus: false height: 42 margin: 0 padding: Inset{left: 12 right: 12} draw_text +: {color: #x333333 text_style: theme.font_regular{font_size: 12}} draw_bg +: {color: #xffffff color_hover: #xf2f5f3 color_down: #xe7f2e9 border_radius: 6}}
     mod.widgets.ArticlePrimary = mod.widgets.ArticleButton {width: Fill height: 46 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #x07c160 color_hover: #x06ad56 color_down: #x05984b} draw_text +: {color: #xffffff color_hover: #xffffff color_down: #xffffff}}
     mod.widgets.ArticleInput = TextInput {width: Fill height: 44 draw_cursor +: {color: #x07c160} draw_bg +: {color: #xffffff color_hover: #xffffff color_focus: #xffffff color_empty: #xffffff border_color: #xe5e5e5 border_color_focus: #x07c160} draw_text +: {color: #x191919 color_focus: #x191919 color_hover: #x191919 text_style: theme.font_regular{font_size: 14}}}
     mod.widgets.ArticleHtml = Html {selectable: true width: Fill height: Fit padding: 0 font_size: 14 font_color: #x191919 draw_text.color: #x191919 text_style_normal: theme.font_regular{font_size: 14} text_style_bold: theme.font_bold{font_size: 14} text_style_italic: theme.font_italic{font_size: 14} text_style_bold_italic: theme.font_bold_italic{font_size: 14} rmath := ArticleMath {} rdiagram := ArticleDiagram {} rimage := ArticleImage {} remoji := ArticleEmoji {} rcode := ArticleCode {} rcell := ArticleCell {}}
@@ -152,7 +152,7 @@ script_mod! {
         width: Fill height: Fill flow: Down draw_bg.color: #xffffff
         padding: Inset{top: mod.widgets.SAFE_INSET_PAD_TOP + #(TOP) bottom: mod.widgets.SAFE_INSET_PAD_BOTTOM}
         header := SolidView {width: Fill height: 52 flow: Right align: Align{y: 0.5} padding: Inset{left: 8 right: 12} spacing: 8 draw_bg.color: #xededed
-            article_back := RobrixNeutralIconButton {width: 36 height: 44 padding: 12 spacing: 0 draw_bg +: {color: #x00000000 color_hover: #x00000000 color_down: #x00000000 border_size: 0} draw_icon +: {svg: ICON_CHEVRON_LEFT color: #x191919} icon_walk: Walk{width: 8 height: 14}}
+            article_back := RobrixNeutralIconButton {width: 36 height: 44 margin: 0 padding: 12 spacing: 0 draw_bg +: {color: #x00000000 color_hover: #x00000000 color_down: #x00000000 border_size: 0} draw_icon +: {svg: ICON_CHEVRON_LEFT color: #x191919} icon_walk: Walk{width: 8 height: 14}}
             article_heading := mod.widgets.ArticleLabel {width: Fit max_lines: 1 draw_text.text_style: theme.font_bold{font_size: 16}}
             header_fill := View {width: Fill height: Fill}
             // The writing view's article title, centred in the header as in the atlas.
