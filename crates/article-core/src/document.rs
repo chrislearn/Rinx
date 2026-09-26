@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use unicode_segmentation::UnicodeSegmentation;
 
-pub const MAX_BODY: usize = 24_000;
-pub const MAX_BLOCKS: usize = 160;
-pub const MAX_IMAGES: usize = 12;
+pub const MAX_BODY: usize = 512 * 1024;
+pub const MAX_BLOCKS: usize = 8192;
+pub const MAX_IMAGES: usize = 128;
 pub fn new_id() -> String {
     { use rand::RngCore; let mut bytes = [0u8; 16]; rand::thread_rng().fill_bytes(&mut bytes); bytes.iter().map(|byte| format!("{byte:02x}")).collect() }
 }
@@ -16,13 +16,7 @@ pub fn now() -> u64 {
         .unwrap_or_default()
         .as_secs()
 }
-pub fn escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
+pub use makepad_markdown::escape;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,23 +26,52 @@ pub enum Theme {
     Paper,
     Ocean,
     Ink,
+    Magazine,
+    NewYorkTimes,
+    FinancialTimes,
+    Minimal,
+    Tech,
+    Longform,
+    Elegant,
+    DeepReading,
 }
 impl Theme {
-    pub const ALL: [Self; 4] = [Self::Classic, Self::Paper, Self::Ocean, Self::Ink];
+    pub const ALL: [Self; 12] = [
+        Self::Classic, Self::Paper, Self::Ocean, Self::Ink,
+        Self::Magazine, Self::NewYorkTimes, Self::FinancialTimes, Self::Minimal,
+        Self::Tech, Self::Longform, Self::Elegant, Self::DeepReading,
+    ];
     pub fn name(self) -> &'static str {
         match self {
             Self::Classic => "Classic green",
             Self::Paper => "Warm paper",
             Self::Ocean => "Ocean blue",
             Self::Ink => "Minimal ink",
+            Self::Magazine => "Magazine",
+            Self::NewYorkTimes => "New York Times",
+            Self::FinancialTimes => "Financial Times",
+            Self::Minimal => "Minimal",
+            Self::Tech => "Tech",
+            Self::Longform => "Longform",
+            Self::Elegant => "Elegant",
+            Self::DeepReading => "Deep reading",
         }
     }
+    /// (paper, ink, accent) colors.
     pub fn colors(self) -> (u32, u32, u32) {
         match self {
             Self::Classic => (0xffffff, 0x191919, 0x07a858),
             Self::Paper => (0xfaf5eb, 0x443d32, 0x987550),
             Self::Ocean => (0xf4f9fc, 0x263c4b, 0x398cba),
             Self::Ink => (0xffffff, 0x202020, 0x353535),
+            Self::Magazine => (0xffffff, 0x1a1a1a, 0xc0392b),
+            Self::NewYorkTimes => (0xffffff, 0x121212, 0x326891),
+            Self::FinancialTimes => (0xfff1e5, 0x33302e, 0x990f3d),
+            Self::Minimal => (0xffffff, 0x333333, 0x888888),
+            Self::Tech => (0xf7f9fc, 0x1f2937, 0x2563eb),
+            Self::Longform => (0xfdfdfb, 0x2b2b2b, 0x7a5c3e),
+            Self::Elegant => (0xfbf8f3, 0x3a3230, 0xb08d57),
+            Self::DeepReading => (0xf8f6f1, 0x2d2a26, 0x5b6b4f),
         }
     }
 }
@@ -64,6 +87,10 @@ pub enum BlockKind {
     Numbered,
     Image,
     Divider,
+    /// A complete Markdown structure edited as source and rendered in previews.
+    Markdown,
+    /// Imported HTML is retained verbatim; rendering always sanitizes it.
+    Html,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,6 +161,9 @@ impl Block {
         italic: Option<bool>,
         link: Option<Option<String>>,
     ) -> Result<(), String> {
+        if matches!(self.kind, BlockKind::Markdown | BlockKind::Html) {
+            return Err("Edit this block's formatting in its source.".into());
+        }
         if selection.start > selection.end
             || selection.end > self.text.len()
             || !self.text.is_char_boundary(selection.start)
@@ -261,6 +291,8 @@ impl Block {
     pub fn html(&self) -> String {
         let content = self.inline_html();
         match self.kind {
+            BlockKind::Markdown => crate::markup::markdown_html(&self.text),
+            BlockKind::Html => crate::markup::html_fragment(&self.text),
             BlockKind::Paragraph => format!("<p>{content}</p>"),
             BlockKind::Heading2 => format!("<h2>{content}</h2>"),
             BlockKind::Heading3 => format!("<h3>{content}</h3>"),
@@ -328,6 +360,20 @@ pub struct Document {
     pub cover: Option<Cover>,
     pub blocks: Vec<Block>,
     pub modified: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reference_definitions: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imported_source: Option<ImportedSource>,
+    /// Original relative image references mapped to imported article assets.
+    /// Filesystem paths stay in host-only local metadata, never publications.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub resource_bindings: std::collections::BTreeMap<String, String>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImportedSource {
+    pub text: String,
+    pub blocks_hash: String,
 }
 impl Default for Document {
     fn default() -> Self {
@@ -343,12 +389,17 @@ impl Default for Document {
             cover: None,
             blocks: vec![Block::new(BlockKind::Paragraph, "")],
             modified: now(),
+            reference_definitions: String::new(),
+            imported_source: None,
+            resource_bindings: Default::default(),
         }
     }
 }
 impl Document {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema != 2
+            || self.reference_definitions.len() > MAX_BODY
+            || self.imported_source.as_ref().is_some_and(|s| s.text.len() > MAX_BODY || s.blocks_hash.len() != 64)
             || !valid_id(&self.id)
             || self.title.chars().count() > 120
             || self.title.chars().any(char::is_control)
@@ -391,8 +442,8 @@ impl Document {
                 }
             }
         }
-        if self.asset_ids().len() > MAX_IMAGES {
-            return Err("Use at most 12 images per article.".into());
+        if self.asset_ids().len() > MAX_IMAGES || self.resource_bindings.iter().any(|(url,id)|url.len()>4096 || !valid_id(id)) {
+            return Err("Use at most 128 images per article.".into());
         }
         if let Some(c) = &self.cover {
             if !valid_id(&c.asset) || c.focal_x > 1000 || c.focal_y > 1000 {
@@ -415,6 +466,7 @@ impl Document {
     }
     pub fn asset_ids(&self) -> Vec<String> {
         let mut ids = std::collections::BTreeSet::new();
+        ids.extend(self.resource_bindings.values().cloned());
         if let Some(c) = &self.cover {
             ids.insert(c.asset.clone());
         }
@@ -422,26 +474,74 @@ impl Document {
             if let Some(a) = &b.asset {
                 ids.insert(a.clone());
             }
+            // Blocks kept as source (such as several images in one paragraph) refer
+            // to images inline; those images are uploaded and verified like the rest.
+            if matches!(b.kind, BlockKind::Markdown | BlockKind::Html) {
+                for rest in b.text.split("asset:").skip(1) {
+                    let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect();
+                    if valid_id(&id) {
+                        ids.insert(id);
+                    }
+                }
+            }
         }
         ids.into_iter().collect()
     }
     pub fn stats(&self) -> (usize, usize, usize) {
-        let chars = self
-            .blocks
-            .iter()
-            .map(|b| b.text.chars().filter(|c| !c.is_whitespace()).count())
-            .sum::<usize>();
-        (chars, (chars / 350 + 1).max(1), self.asset_ids().len())
+        let chars = self.blocks.iter().map(visible_chars).sum::<usize>();
+        (chars, (chars / 350 + 1).max(1), self.asset_ids().len() + crate::render::image_requests(self).len())
     }
     pub fn html(&self) -> String {
         format!(
             "<h1>{}</h1><p>{}</p>{}",
             escape(&self.title),
             escape(&self.author),
-            self.blocks.iter().map(Block::html).collect::<String>()
+            self.blocks.iter().map(|b| self.block_html(b)).collect::<String>()
         )
     }
+    pub fn block_html(&self, block: &Block) -> String {
+        if block.kind == BlockKind::Markdown && !self.reference_definitions.is_empty() {
+            crate::markup::markdown_html(&format!("{}\n\n{}", block.text, self.reference_definitions))
+        } else {
+            block.html()
+        }
+    }
+    pub fn block_html_with_math(&self, block: &Block, render: impl FnMut(&crate::math::Formula) -> String) -> String {
+        if block.kind == BlockKind::Markdown {
+            crate::math::markdown_html(&format!("{}\n\n{}", block.text, self.reference_definitions), render)
+        } else {
+            block.html()
+        }
+    }
+    pub fn is_html_source(&self) -> bool {
+        self.blocks.len() == 1 && self.blocks[0].kind == BlockKind::Html
+    }
+    pub fn block_html_with_renderer(&self, block: &Block, renderer: &mut dyn crate::render::Renderer) -> String {
+        match block.kind {
+            BlockKind::Markdown => crate::math::markdown_html_with_renderer(&format!("{}\n\n{}", block.text, self.reference_definitions), renderer),
+            BlockKind::Html => crate::markup::html_fragment_with_renderer(&block.text, renderer),
+            _ => crate::markup::html_fragment_with_renderer(&block.html(), renderer),
+        }
+    }
+    fn blocks_hash(&self) -> String {
+        blake3::hash(&serde_json::to_vec(&self.blocks).expect("article blocks serialize")).to_hex().to_string()
+    }
+    /// Keep the original spelling until the body is edited. Metadata-only edits
+    /// do not discard it; the block digest prevents stale source from winning.
+    pub fn retain_source(&mut self, source: &str) {
+        self.imported_source = Some(ImportedSource { text: source.into(), blocks_hash: self.blocks_hash() });
+    }
     pub fn from_markdown(title: &str, markdown: &str) -> Result<Self, String> {
+        crate::markup::import_markdown(title, markdown)
+    }
+    pub fn from_html(title: &str, html: &str) -> Result<Self, String> {
+        if html.len() > MAX_BODY { return Err("Article exceeds its size limits.".into()); }
+        let mut doc = Self { title: title.into(), blocks: vec![Block::new(BlockKind::Html, html)], ..Self::default() };
+        doc.retain_source(html);
+        doc.validate()?;
+        Ok(doc)
+    }
+    pub(crate) fn from_visual_markdown(title: &str, markdown: &str) -> Result<Self, String> {
         if markdown.len() > MAX_BODY {
             return Err("Article exceeds its size limits.".into());
         }
@@ -493,9 +593,20 @@ impl Document {
         Ok(doc)
     }
     pub fn markdown(&self) -> String {
-        self.blocks
+        if let Some(source) = &self.imported_source {
+            if source.blocks_hash == self.blocks_hash() { return source.text.clone(); }
+        }
+        self.markdown_with_block_lines().0
+    }
+
+    /// Current block serialization and their 1-based starting lines. The editor
+    /// parses this as one document so references and TOC retain global context.
+    /// This does not replace the exact imported source returned by `markdown`.
+    pub fn markdown_with_block_lines(&self) -> (String, Vec<usize>) {
+        let parts = self.blocks
             .iter()
             .map(|b| {
+                if matches!(b.kind, BlockKind::Markdown | BlockKind::Html) { return b.text.clone(); }
                 if b.kind == BlockKind::Image {
                     return format!(
                         "![{}](asset:{})",
@@ -560,10 +671,50 @@ impl Document {
                 };
                 format!("{prefix}{}", s.replace('\n', continuation))
             })
-            .collect::<Vec<_>>()
-            .join("\n\n")
+            .collect::<Vec<_>>();
+        let mut line = 1;
+        let starts = parts.iter().map(|part| {
+            let start = line;
+            line += part.bytes().filter(|b| *b == b'\n').count() + 2;
+            start
+        }).collect();
+        let mut source = parts.join("\n\n");
+        if !self.reference_definitions.is_empty() {
+            source.push_str("\n\n");
+            source.push_str(&self.reference_definitions);
+        }
+        (source, starts)
     }
 }
+/// Characters a reader sees in a block: for blocks kept as Markdown or HTML
+/// source, their text without markup, image references or tags.
+fn visible_chars(block: &Block) -> usize {
+    let count = |s: &str| s.chars().filter(|c| !c.is_whitespace()).count();
+    match block.kind {
+        BlockKind::Markdown => {
+            let mut images = 0usize;
+            let mut chars = 0;
+            for event in Parser::new(&block.text) {
+                match event {
+                    Event::Start(Tag::Image { .. }) => images += 1,
+                    Event::End(TagEnd::Image) => images = images.saturating_sub(1),
+                    Event::Text(text) | Event::Code(text) if images == 0 => chars += count(&text),
+                    _ => {}
+                }
+            }
+            chars
+        }
+        BlockKind::Html => {
+            let mut in_tag = false;
+            block.text.chars().filter(|&c| {
+                match c { '<' => in_tag = true, '>' => { in_tag = false; return false } _ => {} }
+                !in_tag && !c.is_whitespace()
+            }).count()
+        }
+        _ => count(&block.text),
+    }
+}
+
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 100
@@ -593,16 +744,31 @@ mod tests {
         assert!(b.format(1..2, Some(true), None, None).is_err());
     }
     #[test]
-    fn rejects_remote_images_and_executable_markup() {
+    fn preserves_markup_without_activating_images_or_scripts() {
         for text in [
             "![pixel](https://bad.invalid/a.png)",
             "<script>alert(1)</script>",
             "[x](javascript:alert)",
         ] {
-            assert!(Document::from_markdown("A", text).is_err());
+            let document = Document::from_markdown("A", text).unwrap();
+            assert_eq!(document.markdown(), text);
+            let html = document.html();
+            assert!(!html.contains("<img"));
+            assert!(!html.contains("<script"));
+            assert!(!html.contains("javascript:"));
         }
         let d = Document::from_markdown("A", "![山谷](asset:asset_1)").unwrap();
         assert_eq!(d.asset_ids(), vec!["asset_1"]);
+        // Images inside blocks kept as Markdown source count too.
+        let mut d = Document::default();
+        let mut block = Block::new(BlockKind::Markdown, "![a](asset:asset_2)\n![b](asset:asset_3)");
+        block.asset = None;
+        d.blocks.push(block);
+        assert_eq!(d.asset_ids(), vec!["asset_2", "asset_3"]);
+        // Their image references and markup are not counted as text.
+        d.blocks.push(Block::new(BlockKind::Markdown, "**粗体** and `x`"));
+        d.blocks.push(Block::new(BlockKind::Html, "<p>ab <b>c</b></p>"));
+        assert_eq!(d.stats().0, 2 + 3 + 1 + 3);
     }
     #[test]
     fn literal_markdown_punctuation_is_not_reinterpreted() {
@@ -625,7 +791,8 @@ mod tests {
         let next = Document::from_markdown(&doc.title, &doc.markdown()).unwrap();
         assert_eq!(next.blocks[0].text, doc.blocks[0].text);
         assert_eq!(next.blocks[0].kind, BlockKind::Quote);
-        assert!(Document::from_markdown("A", "- outer\n  - nested").is_err());
+        let nested = Document::from_markdown("A", "- outer\n  - nested").unwrap();
+        assert_eq!(nested.html().matches("<ul>").count(), 2);
     }
     #[test]
     fn image_requires_asset_and_links_remain_inert_unless_https() {

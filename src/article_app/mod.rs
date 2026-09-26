@@ -5,9 +5,12 @@ use article_makepad::rich_input;
 mod host;
 #[cfg(feature = "html_preview")]
 mod preview;
+mod remote_images;
 mod storage;
 pub(crate) mod backend;
 pub mod ui;
+pub mod window;
+pub mod table_picker;
 pub use model::{ArticlePackage, MSGTYPE};
 pub use ui::{ArticleAction, ArticlePanelWidgetRefExt};
 pub(crate) use model::invalidate_sessions;
@@ -20,5 +23,7 @@ pub fn script_mod(vm:&mut makepad_widgets::ScriptVm) {
         use makepad_widgets::*;
         script_eval!(vm, {mod.widgets.HtmlView = mod.widgets.View{}});
     }
+    table_picker::script_mod(vm);
     ui::script_mod(vm);
+    window::script_mod(vm);
 }

@@ -6,7 +6,7 @@ use matrix_sdk::{notification_settings::RoomNotificationMode, ruma::OwnedUserId,
 use crate::{
     home::{invite_modal::InviteModalAction, rooms_list::RoomNotificationModeUpdated},
     logout::logout_confirm_modal::LogoutAction,
-    profile::user_profile::UserProfile,
+    profile::user_profile::{ShowUserProfileAction, UserProfile, UserProfileAndRoomId},
     shared::{avatar::{AvatarState, AvatarWidgetRefExt}, navigation_bar_button::NavigationBarButtonWidgetRefExt},
     sliding_sync::{current_user_id, get_client, spawn_async_task, submit_async_request, MatrixRequest},
     utils::{self, RoomNameId},
@@ -43,18 +43,22 @@ script_mod! {
                 }
             }
             Member := mod.widgets.MobileSection {
-                height: 62 flow: Right spacing: 12 padding: Inset{left: 20 right: 20}
-                align: Align{y: 0.5}
-                avatar := mod.widgets.MobileAvatar {width: 40 height: 40}
-                View {
-                    width: Fill height: Fit flow: Down spacing: 3
-                    name := Label {
-                        width: Fill max_lines: 1 text_overflow: Ellipsis
-                        draw_text +: {color: #x191919 text_style: theme.font_regular {font_size: 12}}
-                    }
-                    user_id := Label {
-                        width: Fill max_lines: 1 text_overflow: Ellipsis
-                        draw_text +: {color: #x888888 text_style: theme.font_regular {font_size: 9}}
+                // Clicking a member opens their profile (DM, block, ...).
+                row := NavigationBarButton {
+                    width: Fill height: 62 flow: Right spacing: 12 padding: Inset{left: 20 right: 20}
+                    align: Align{y: 0.5}
+                    draw_bg +: {color_hover: #xdedede color_active: #xdedede border_radius: 0}
+                    avatar := mod.widgets.MobileAvatar {width: 40 height: 40}
+                    View {
+                        width: Fill height: Fit flow: Down spacing: 3
+                        name := Label {
+                            width: Fill max_lines: 1 text_overflow: Ellipsis
+                            draw_text +: {color: #x191919 text_style: theme.font_regular {font_size: 12}}
+                        }
+                        user_id := Label {
+                            width: Fill max_lines: 1 text_overflow: Ellipsis
+                            draw_text +: {color: #x888888 text_style: theme.font_regular {font_size: 9}}
+                        }
                     }
                 }
             }
@@ -200,6 +204,17 @@ impl Widget for MobileChatInfo {
             for (index, widget) in list.items_with_actions(actions) {
                 if list.was_scrolling() || !widget.navigation_bar_button(cx, ids!(row)).clicked(actions) { continue; }
                 let Some(data) = self.data.as_ref() else { continue };
+                if let Some(profile) = index.checked_sub(3).and_then(|i| data.members.get(i)) {
+                    // The enclosing RoomScreen shows this in its user profile pane.
+                    cx.widget_action(
+                        self.widget_uid(),
+                        ShowUserProfileAction::ShowUserProfile(UserProfileAndRoomId {
+                            user_profile: profile.clone(),
+                            room_id: data.room.room_id().clone(),
+                        }),
+                    );
+                    break;
+                }
                 if index == 1 || index == 2 {
                     cx.action(super::room_history::RoomHistoryAction::Open {
                         room: data.room.clone(),

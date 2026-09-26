@@ -16,6 +16,9 @@ metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 [dependencies]
 article-core = { path = "crates/article-core", features = ["l0"] }
 article-makepad = { path = "crates/article-makepad" }
+## The OctoSense module contract. Only a host build uses it, and the host redirects
+## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
+makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "1d3d383e84a66dbb18a4a860f505430c9d5b20f4", optional = true }
 makepad-html-renderer = { package = "makepad-html", git = "https://github.com/OctoSense-org/makepad-html", rev = "b16565ae1e56dd7c3a87f00455ae327df599ca3b", optional = true, features = ["makepad"] }
 # makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev", features = ["serde"] }
 # makepad-code-editor = { git = "https://github.com/makepad/makepad", branch = "dev" }
@@ -29,7 +32,7 @@ robius-file-picker = { git = "https://github.com/project-robius/robius" }
 robius-location    = { git = "https://github.com/project-robius/robius" }
 robius-open        = { git = "https://github.com/project-robius/robius" }
 robius-share       = { git = "https://github.com/project-robius/robius" }
-robius-speech      = { git = "https://github.com/project-robius/robius", branch = "speech_to_text" }
+robius-speech      = { git = "https://github.com/project-robius/robius", rev = "166991b1b18188ee2d8441f7118721cee2a0c6eb" } # the speech_to_text branch was deleted; this is its last commit (robius PR #25)
 robius-use-makepad = "0.1.1" ## auto-configures all `robius-*` crates to work with Makepad.
 
 
@@ -134,8 +137,22 @@ robius-web-auth-session = { git = "https://github.com/project-robius/robius" }
 webpki-root-certs = "1"
 
 
+## Article editor on desktop: pasting images and picking several images at once.
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+arboard = { version = "3.4", default-features = false, features = ["image-data"] }
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3"
+
+
 [features]
-default = ["html_preview"]
+default = ["standalone"]
+## The standalone app's entry point (window, menus, `app_main!`). A host that
+## links Rinx as a module disables it.
+standalone = []
+## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
+octosense-module = ["dep:makepad-app-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
 html_preview = ["dep:makepad-html-renderer"]
 # Compatibility for existing Rinx build commands.
@@ -410,3 +427,8 @@ needless_late_init = "allow"
 too_many_arguments = "allow"
 uninlined_format_args = "allow"
 used_underscore_binding = "allow"
+
+# Keep all Makepad widgets on the same compatibility revision as the renderer.
+[patch."https://github.com/kevinaboos/makepad"]
+makepad-widgets = { git = "https://github.com/OctoSense-org/makepad", rev = "1d3d383e84a66dbb18a4a860f505430c9d5b20f4" }
+makepad-code-editor = { git = "https://github.com/OctoSense-org/makepad", rev = "1d3d383e84a66dbb18a4a860f505430c9d5b20f4" }

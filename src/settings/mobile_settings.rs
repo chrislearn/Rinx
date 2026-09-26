@@ -151,11 +151,11 @@ script_mod! {
             zoom := ScrollYView {
                 width: Fill height: Fill flow: Down
                 DetailSection {
-                    zoom_small := DetailRow {title.text: #(crate::i18n::tr("Smaller")) title.i18n_text: "Smaller" value.text: "90%"}
+                    zoom_small := DetailRow {title.text: #(crate::i18n::tr("Smaller")) title.i18n_text: "Smaller" value.text: "90%" chevron.visible: false}
                     DetailDivider {}
-                    zoom_default := DetailRow {title.text: #(crate::i18n::tr("Standard")) title.i18n_text: "Standard" value.text: "100%"}
+                    zoom_default := DetailRow {title.text: #(crate::i18n::tr("Standard")) title.i18n_text: "Standard" value.text: "100%" chevron.visible: false}
                     DetailDivider {}
-                    zoom_large := DetailRow {title.text: #(crate::i18n::tr("Larger")) title.i18n_text: "Larger" value.text: "110%"}
+                    zoom_large := DetailRow {title.text: #(crate::i18n::tr("Larger")) title.i18n_text: "Larger" value.text: "110%" chevron.visible: false}
                 }
                 DetailNote {text: #(crate::i18n::tr("Changes the size of text and controls throughout Rinx.")) i18n_text: "Changes the size of text and controls throughout Rinx."}
             }
@@ -179,6 +179,8 @@ script_mod! {
                     show_receipts := SwitchRow {title.text: #(crate::i18n::tr("Show Read Receipts")) title.i18n_text: "Show Read Receipts"}
                 }
                 DetailNote {text: #(crate::i18n::tr("When sharing is off, read markers sync only to your own devices. Turn off automatic marking to mark chats as read manually.")) i18n_text: "When sharing is off, read markers sync only to your own devices. Turn off automatic marking to mark chats as read manually."}
+                DetailSection {moments_sharing := SwitchRow {title.text: #(crate::i18n::tr("Share Moments with DM contacts")) title.i18n_text: "Share Moments with DM contacts"}}
+                DetailNote {text: #(crate::i18n::tr("On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.")) i18n_text: "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way."}
                 DetailSection {blocked_row := DetailRow {title.text: #(crate::i18n::tr("Blocked Users")) title.i18n_text: "Blocked Users"}}
             }
             blocked := View {
@@ -295,6 +297,17 @@ impl Widget for MobileSettings {
             self.redraw(cx);
         }
         let Event::Actions(actions) = event else { return; };
+        // Show the Moments sharing setting here rather than in `draw_walk()`:
+        // `set_active` moves the switch through its animator, which has no effect mid-draw.
+        let sharing_toggle = self.view.check_box(cx, ids!(moments_sharing.toggle));
+        let share = crate::moments::dm_sharing::sharing_setting().unwrap_or(true);
+        if sharing_toggle.active(cx) != share {
+            sharing_toggle.set_active(cx, share, Animate::No);
+            self.view.redraw(cx);
+        }
+        if let Some(share) = self.view.check_box(cx, ids!(moments_sharing.toggle)).changed(actions) {
+            crate::moments::dm_sharing::change_sharing_setting(share);
+        }
         for action in actions {
             if matches!(action.downcast_ref::<LogoutAction>(), Some(LogoutAction::LogoutSuccess) | Some(LogoutAction::ClearAppState {..})) {
                 self.profile = None; self.history.clear(); self.page = Page::Settings;

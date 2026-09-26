@@ -279,9 +279,17 @@ script_mod! {
             CachedWidget {
                 home_button := mod.widgets.HomeButton {}
             }
+            contacts_button := mod.widgets.NavigationTabButton {
+                tooltip_text: #(crate::i18n::tr("Contacts"))
+                icon.draw_icon.svg: ICON_PEOPLE
+            }
             moments_button := mod.widgets.NavigationTabButton {
                 tooltip_text: "Moments"
                 icon.draw_icon.svg: ICON_GLOBE
+            }
+            article_editor_button := mod.widgets.NavigationTabButton {
+                tooltip_text: #(crate::i18n::tr("Article editor"))
+                icon.draw_icon.svg: ICON_EDIT
             }
             CachedWidget {
                 add_room_button := mod.widgets.AddRoomButton {}
@@ -576,9 +584,11 @@ impl NavigationTabBar {
             self.selected_tab = t;
         }
         let home    = self.view.navigation_bar_button(cx, ids!(home_button));
+        let contacts = self.view.navigation_bar_button(cx, ids!(contacts_button));
         let add     = self.view.navigation_bar_button(cx, ids!(add_room_button));
         let profile = self.view.profile_icon(cx, ids!(profile_icon));
         home.set_selected(cx, self.selected_tab == SelectedTab::Home);
+        contacts.set_selected(cx, self.selected_tab == SelectedTab::Contacts);
         add.set_selected(cx, self.selected_tab == SelectedTab::AddRoom);
         profile.set_selected(cx, matches!(self.selected_tab, SelectedTab::Settings | SelectedTab::Me));
         let chats_uid = self.view.navigation_bar_button(cx, ids!(chats_tab)).widget_uid();
@@ -611,6 +621,7 @@ impl Widget for NavigationTabBar {
             for (id, tab) in [
                 (ids!(chats_tab), SelectedTab::Home),
                 (ids!(contacts_tab), SelectedTab::Contacts),
+                (ids!(contacts_button), SelectedTab::Contacts),
                 (ids!(discover_tab), SelectedTab::Discover),
                 (ids!(me_tab), SelectedTab::Me),
             ] {
@@ -656,6 +667,9 @@ impl Widget for NavigationTabBar {
             if self.view.navigation_bar_button(cx, ids!(moments_button)).clicked(actions) {
                 cx.action(crate::moments::ui::MomentsAction::Open {author: None});
             }
+            if self.view.navigation_bar_button(cx, ids!(article_editor_button)).clicked(actions) {
+                cx.action(crate::article_app::ArticleAction::Open);
+            }
             if self.view.navigation_bar_button(cx, ids!(toggle_spaces_bar_button)).clicked(actions) {
                 self.is_spaces_bar_shown = !self.is_spaces_bar_shown;
                 cx.action(NavigationBarAction::ToggleSpacesBar);
@@ -697,6 +711,14 @@ impl Widget for NavigationTabBar {
         // first draw so a new mobile bar doesn't remain visually unselected
         // until a tap or an unrelated sync signal arrives.
         self.apply_selected_tab(cx, None);
+        for (id, tooltip) in [
+            (ids!(contacts_button), crate::i18n::tr("Contacts")),
+            (ids!(article_editor_button), crate::i18n::tr("Article editor")),
+        ] {
+            if let Some(mut button) = self.view.navigation_bar_button(cx, id).borrow_mut() {
+                button.set_tooltip_text(tooltip);
+            }
+        }
         step
     }
 }

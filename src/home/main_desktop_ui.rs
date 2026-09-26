@@ -3,6 +3,7 @@ use ruma::OwnedRoomId;
 use tokio::sync::Notify;
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 
+use crate::settings::app_preferences::{AppPreferencesAction, AppPreferencesGlobal};
 use crate::{app::{AppState, AppStateAction, SavedDockState, SelectedRoom}, home::{navigation_tab_bar::{NavigationBarAction, SelectedTab}, rooms_list::RoomsListRef, space_lobby::SpaceLobbyScreenWidgetRefExt}, utils::RoomNameId};
 use super::{invite_screen::InviteScreenWidgetRefExt, room_screen::RoomScreenWidgetRefExt, rooms_list::{AcceptedInviteKind, RoomsListAction}, spaces_bar::SpacesBarAction};
 
@@ -58,7 +59,9 @@ script_mod! {
             // Below are the templates of widgets that can be created within dock tabs.
             rooms_sidebar := mod.widgets.RoomsSideBar {}
             welcome_screen := mod.widgets.WelcomeScreen {}
-            room_screen := mod.widgets.RoomScreen {}
+            room_screen := mod.widgets.RoomScreen {
+                desktop_chat_header +: { visible: true }
+            }
             invite_screen := mod.widgets.InviteScreen {}
             space_lobby_screen := mod.widgets.SpaceLobbyScreen {}
         }
@@ -102,6 +105,13 @@ pub struct MainDesktopUI {
     /// * If true, this widget proceeds to draw the desktop UI as normal.
     #[rust]
     drawn_previously: bool,
+
+    /// Mirrors the `tabbed_chats` preference.
+    ///
+    /// When `false`, the dock behaves like WeChat desktop: its tab bars are hidden
+    /// and at most one room stays open, so selecting a room replaces the open chat.
+    #[rust]
+    tabbed_chats: bool,
 }
 
 impl ScriptHook for MainDesktopUI {
@@ -129,6 +139,7 @@ impl Widget for MainDesktopUI {
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
         if !self.drawn_previously && cx.has_global::<RoomsListRef>() {
+            self.tabbed_chats = cx.global::<AppPreferencesGlobal>().0.tabbed_chats;
             // When changing from Mobile to Desktop view mode, we need to restore the state
             // of this widget, which we get from the `AppState` passed down via `scope`.
             // This includes the currently selected space, which we get from the RoomsList widget.
@@ -237,6 +248,9 @@ impl MainDesktopUI {
             cx.action(MainDesktopUiAction::SaveDockIntoAppState);
             self.open_rooms.insert(room_tab_id, room.clone());
             self.select_room(cx, Some(room));
+            if !self.tabbed_chats {
+                self.close_background_tabs(cx);
+            }
         } else {
             error!("BUG: failed to create tab for {room:?}");
         }
@@ -271,6 +285,71 @@ impl MainDesktopUI {
         self.select_room(cx, room_to_select);
 
         self.init_all_visible_tabs(cx);
+    }
+
+    /// Closes every room tab except the currently-selected one
+    /// (and its main room, when a thread is selected, so that going back works).
+    ///
+    /// Used in single-pane mode, where only the open chat is kept alive.
+    fn close_background_tabs(&mut self, cx: &mut Cx) {
+        let dock = self.view.dock(cx, ids!(dock));
+        let keep = self.most_recently_selected_room.as_ref().map(SelectedRoom::tab_id);
+        let parent_room_id = match self.most_recently_selected_room.as_ref() {
+            Some(SelectedRoom::Thread { room_name_id, .. }) => Some(room_name_id.room_id().clone()),
+            _ => None,
+        };
+        let to_close: Vec<LiveId> = self.open_rooms.iter()
+            .filter(|(tab_id, room)| Some(**tab_id) != keep && !(
+                matches!(room, SelectedRoom::JoinedRoom { .. })
+                    && parent_room_id.as_ref().is_some_and(|id| id == room.room_id())
+            ))
+            .map(|(tab_id, _)| *tab_id)
+            .collect();
+        for tab_id in to_close {
+            if let Some(room) = self.open_rooms.remove(&tab_id) {
+                room.close_thread_timeline(cx);
+                self.room_order.retain(|sr| sr != &room);
+            }
+            dock.close_tab(cx, tab_id);
+        }
+        // Closing tabs lets the dock pick an adjacent tab, so reassert our selection.
+        if let Some(tab_id) = keep {
+            dock.select_tab(cx, tab_id);
+        }
+        self.init_all_visible_tabs(cx);
+    }
+
+    /// Shows or hides the tab bars of all content panes (not the rooms sidebar),
+    /// according to `self.tabbed_chats`.
+    fn apply_tab_bar_visibility(&self, cx: &mut Cx) {
+        let dock = self.view.dock(cx, ids!(dock));
+        let Some(mut dock_items) = dock.clone_state() else { return };
+        let hide = !self.tabbed_chats;
+        let mut changed = false;
+        for item in dock_items.values_mut() {
+            if let DockItem::Tabs { tabs, hide_tab_bar, .. } = item
+                && !tabs.contains(&id!(rooms_sidebar_tab))
+                && *hide_tab_bar != hide
+            {
+                *hide_tab_bar = hide;
+                changed = true;
+            }
+        }
+        if changed {
+            dock.load_state_preserving_items(cx, dock_items);
+        }
+    }
+
+    /// Switches between single-pane and tabbed mode.
+    fn set_tabbed_chats(&mut self, cx: &mut Cx, tabbed: bool) {
+        self.tabbed_chats = tabbed;
+        if !tabbed {
+            self.close_background_tabs(cx);
+        }
+        self.apply_tab_bar_visibility(cx);
+        self.init_all_visible_tabs(cx);
+        self.redraw(cx);
+        cx.action(MainDesktopUiAction::SaveDockIntoAppState);
     }
 
     /// Closes all tabs
@@ -447,6 +526,11 @@ impl MainDesktopUI {
             Some(selected_room) => self.focus_or_create_tab(cx, selected_room),
             None => self.most_recently_selected_room = None,
         }
+        if !self.tabbed_chats {
+            self.close_background_tabs(cx);
+        }
+        self.apply_tab_bar_visibility(cx);
+        self.init_all_visible_tabs(cx);
         app_state.selected_room = selected_room;
         self.redraw(cx);
     }
@@ -535,6 +619,15 @@ impl WidgetMatchEvent for MainDesktopUI {
                 let tab = selected.tab_id();
                 self.focus_or_create_tab(cx, selected);
                 self.view.dock(cx, ids!(dock)).item(tab).as_room_screen().jump_to_history_event(cx, event.clone());
+            }
+
+            if let Some(AppPreferencesAction::TabbedChatsChanged(tabbed)) = action.downcast_ref() {
+                // Before the first draw, the dock hasn't been loaded yet;
+                // `draw_walk()` picks up the preference when it loads the dock.
+                if self.drawn_previously && *tabbed != self.tabbed_chats {
+                    self.set_tabbed_chats(cx, *tabbed);
+                }
+                continue;
             }
 
             if let Some(MainDesktopUiAction::CloseAllTabs { on_close_all }) = action.downcast_ref() {
@@ -628,6 +721,16 @@ impl WidgetMatchEvent for MainDesktopUI {
             // Handle RoomsList actions, which are updates from the rooms list.
             match widget_action.cast_ref() {
                 RoomsListAction::Selected(selected_room) => {
+                    // Contacts can open a DM or a group while the chat dock is
+                    // covered. Restore the home dock before selecting that room.
+                    let from_contacts = scope.data.get::<AppState>().is_some_and(|app| app.selected_tab == SelectedTab::Contacts);
+                    if from_contacts {
+                        if self.selected_space.is_some() {
+                            let app_state = scope.data.get_mut::<AppState>().unwrap();
+                            self.switch_dock_to_space(cx, app_state, None);
+                        }
+                        cx.action(NavigationBarAction::GoToHome);
+                    }
                     // Note that this cannot be performed within draw_walk() as the draw flow prevents from
                     // performing actions that would trigger a redraw, and the Dock internally performs (and expects)
                     // a redraw to be happening in order to draw the tab content.

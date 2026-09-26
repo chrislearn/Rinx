@@ -5,7 +5,8 @@
 //!   * It includes a title label, a search bar, and the RoomsList.
 //! * On a wide desktop view, it acts as a permanent tab that is on the left side of the dock.
 //!   * It only includes a title label and the RoomsList, because the SearcBar
-//!     is at the top of the HomeScreen in Desktop view.
+//!     is at the top of the HomeScreen in Desktop view, and spaces are listed
+//!     in the navigation rail rather than behind an "All Chats | Spaces" switch.
 
 use makepad_widgets::*;
 
@@ -51,15 +52,12 @@ script_mod! {
             CachedWidget {
                 rooms_list_header := RoomsListHeader {}
             }
-            ChatViewSwitch {}
+            // No "All Chats | Spaces" switch here: on desktop, spaces live in the
+            // navigation rail on the left, and selecting one filters this list.
             file_transfer_entry := MobileRow {height: 46 title.text: #(crate::i18n::tr("File Transfer")) title.i18n_text: "File Transfer" icon.draw_icon.svg: ICON_FILE}
             conversations := View {
                 width: Fill height: Fill
                 CachedWidget {rooms_list := RoomsList {}}
-            }
-            spaces_tree := SolidView {
-                width: Fill height: Fill visible: false draw_bg.color: #xffffff
-                CachedWidget {joined_spaces := JoinedSpaces {}}
             }
         },
 
@@ -196,7 +194,9 @@ impl Widget for RoomsSideBar {
     }
 
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        let spaces = cx.global::<ChatsViewState>().spaces;
+        // The desktop layout has no spaces tree (the rail lists spaces instead).
+        let spaces = cx.global::<ChatsViewState>().spaces
+            && !crate::home::home_screen::effective_is_desktop(cx);
         self.view.view(cx, ids!(conversations)).set_visible(cx, !spaces);
         self.view.view(cx, ids!(spaces_tree)).set_visible(cx, spaces);
         self.view.navigation_bar_button(cx, ids!(all_chats)).set_selected(cx, !spaces);

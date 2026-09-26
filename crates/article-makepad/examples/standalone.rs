@@ -7,6 +7,8 @@ use article_core::{
     storage::LocalStore,
 };
 use article_makepad::{presentation, rich_input::ArticleRichInputWidgetRefExt};
+use article_makepad::body_selection::{ArticleSelection, SelectionUpdate};
+use article_core::editing::EditHistory;
 use std::{path::{Path, PathBuf}, time::Duration};
 app_main!(App);
 
@@ -41,9 +43,12 @@ script_mod! {
                         }
                     }
                     ScrollYView {width: Fill height: Fill
-                        preview := Html {width: Fill height: Fit padding: 10
+                        preview := Html {width: Fill height: Fit padding: 10 selectable: true
                             text_style_normal: theme.font_regular{font_size: 14}
                             text_style_bold: theme.font_bold{font_size: 14}
+                            rmath := ArticleMath {} rdiagram := ArticleDiagram {}
+                            rimage := ArticleImage {} remoji := ArticleEmoji {}
+                            rcode := ArticleCode {} rcell := ArticleCell {}
                         }
                     }
                     status := Label {text: "Ready / 就绪"}
@@ -74,13 +79,18 @@ struct App {
     #[rust] consent: Option<ConsentGrant>,
     #[rust] document: Document,
     #[rust] selected: usize,
+    #[rust] body_selection: ArticleSelection,
+    #[rust] history: EditHistory,
 }
 impl App {
     fn refresh(&self, cx: &mut Cx) {
         self.ui.text_input(cx, ids!(title)).set_text(cx, &self.document.title);
         let mut preview = self.ui.html(cx, ids!(preview));
         presentation::style_html(cx, preview.clone(), &self.document);
-        preview.set_text(cx, &self.document.html());
+        let images=article_makepad::content::Images::default();
+        let mut renderer=article_makepad::content::NativeRenderer{images:&images,size:if self.document.large_type {16.0}else{14.0},ink:self.document.theme.colors().1};
+        let html=article_core::markdown_render::render(&self.document.markdown(),&mut renderer).iter().map(|b|article_makepad::content::native_html(&b.html)).collect::<String>();
+        preview.set_text(cx, &html);
         self.ui.redraw(cx);
     }
     fn load(&mut self, cx: &mut Cx) {
@@ -90,6 +100,9 @@ impl App {
                 self.document = library.documents.into_iter().next().unwrap_or_else(||
                     Document::from_markdown("山野来信 · Independent host", "你好世界。Select words and apply **bold** formatting.\n\n## 共享组件\n\n草稿、字体和文章主题，无需登录任何服务。").unwrap());
                 self.selected = 0;
+                self.body_selection.reset();
+                self.history.clear();
+                self.ui.portal_list(cx, ids!(blocks)).set_first_id_and_scroll(0, 0.0);
                 self.refresh(cx);
                 self.ui.label(cx, ids!(status)).set_text(cx, "Loaded / 已打开");
             }
@@ -108,6 +121,7 @@ impl MatchEvent for App {
             self.selected = index;
             let input = row.article_rich_input(cx, ids!(rich));
             if input.changed(actions).is_some() {
+                self.history.checkpoint(&self.document);
                 if let (Some(block), Some((text, marks))) = (self.document.blocks.get_mut(index), input.content()) {
                     block.text = text; block.marks = marks;
                 }
@@ -115,6 +129,18 @@ impl MatchEvent for App {
         }
         for (id, bold) in [(id!(bold), true), (id!(italic), false)] {
             if self.ui.button(cx, &[id]).clicked(actions) {
+                if let Some(selection) = self.body_selection.selection {
+                    let (start, _) = selection.ordered();
+                    let flags = self.document.blocks[start.block].flags_at(start.byte);
+                    self.history.checkpoint(&self.document);
+                    for (index, block) in self.document.blocks.iter_mut().enumerate() {
+                        if let Some(range) = selection.range(index, block.text.len()).filter(|r| !r.is_empty()) {
+                            let _ = block.format(range, if bold { Some(!flags.0) } else { None },
+                                if bold { None } else { Some(!flags.1) }, None);
+                        }
+                    }
+                    continue;
+                }
                 let row = self.ui.portal_list(cx, ids!(blocks)).item(cx, self.selected, id!(Text));
                 let input = row.article_rich_input(cx, ids!(rich));
                 if input.toggle_format(cx, bold) {
@@ -125,7 +151,7 @@ impl MatchEvent for App {
             }
         }
         if self.ui.button(cx, ids!(theme)).clicked(actions) {
-            let next = (Theme::ALL.iter().position(|t| *t == self.document.theme).unwrap_or(0) + 1) % 4;
+            let next = (Theme::ALL.iter().position(|t| *t == self.document.theme).unwrap_or(0) + 1) % Theme::ALL.len();
             self.document.theme = Theme::ALL[next];
         }
         if self.ui.button(cx, ids!(save)).clicked(actions) {
@@ -146,8 +172,13 @@ impl MatchEvent for App {
                     if let Some(block) = self.document.blocks.get(index) {
                         let row = list.item(&mut cx, index, id!(Text));
                         let input = row.article_rich_input(&cx, ids!(rich));
-                        presentation::style_input(&mut cx, input, &self.document, block);
+                        presentation::style_input(&mut cx, input.clone(), &self.document, block);
+                        input.set_empty_text(&mut cx, if presentation::show_body_placeholder(&self.document, index) {
+                            "写下你的文章 / Write your article…".into()
+                        } else { String::new() });
+                        self.body_selection.apply_to_input(&mut cx, index, &input, &self.document);
                         row.draw_all(&mut cx, &mut Scope::empty());
+                        self.body_selection.after_draw(&mut cx, index, &input);
                     }
                 }
             }
@@ -165,7 +196,16 @@ impl AppMain for App {
         self::script_mod(vm)
     }
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        let list = self.ui.portal_list(cx, ids!(blocks));
+        match self.body_selection.handle_event(cx, event, &list, &mut self.document, &mut self.history) {
+            SelectionUpdate::Changed => { self.refresh(cx); return; }
+            SelectionUpdate::Handled => { return; }
+            SelectionUpdate::Pass => {}
+        }
         if !matches!(event, Event::Draw(_)) { self.ui.handle_event(cx, event, &mut Scope::empty()); }
+        if matches!(event, Event::MouseDown(_) | Event::MouseUp(_)) {
+            self.body_selection.after_event(cx, &list, &self.document);
+        }
         self.match_event(cx, event);
     }
 }

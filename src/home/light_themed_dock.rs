@@ -18,15 +18,10 @@ script_mod! {
 
             pixel: fn() {
                 let sdf = Sdf2d.viewport(self.pos * self.rect_size)
+                let active = max(self.hover, self.drag)
 
-                // Body: dark gray by default (matches the default dark theme's
-                // `color_bg_app`), transitions to purple on hover/drag.
-                // Mildly rounded corners soften the edges where panels meet.
-                let body_color = mix(
-                    #4D4D4D
-                    mix(self.color_hover, self.color_drag, self.drag)
-                    self.hover
-                )
+                // Body: blends into the background when idle, so panels read as
+                // one surface; tinted only while hovered or dragged.
                 sdf.box(
                     0.0,
                     0.0,
@@ -34,9 +29,22 @@ script_mod! {
                     self.rect_size.y,
                     1.5
                 )
-                sdf.fill(body_color)
+                sdf.fill(mix(
+                    self.color
+                    mix(self.color_hover, self.color_drag, self.drag)
+                    active
+                ))
 
-                // Draw the grab bar shape
+                // A faint 1px hairline marks the boundary while idle.
+                if self.is_vertical > 0.5 {
+                    sdf.rect(0.0, self.rect_size.y * 0.5 - 0.5, self.rect_size.x, 1.0)
+                }
+                else {
+                    sdf.rect(self.rect_size.x * 0.5 - 0.5, 0.0, 1.0, self.rect_size.y)
+                }
+                sdf.fill(mix(#x00000012, #x00000000, active))
+
+                // Grab bar: only appears (white) when hovered/dragged.
                 if self.is_vertical > 0.5 {
                     sdf.box(
                         self.splitter_pad
@@ -55,10 +63,7 @@ script_mod! {
                         self.border_radius
                     )
                 }
-
-                // Grab bar: white when hovered/dragged, otherwise matches body
-                let grab_color = mix(self.color, #fff, self.hover)
-                return sdf.fill_keep(grab_color)
+                return sdf.fill_keep(mix(#xffffff00, #xffffff, self.hover))
             }
         }
 

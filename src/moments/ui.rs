@@ -1,5 +1,5 @@
 //! Native Moments surfaces; content comes from the active Matrix account.
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::{BTreeSet, HashMap}, path::PathBuf};
 use makepad_widgets::*;
 use ruma::{OwnedUserId, OwnedRoomId, OwnedEventId, TransactionId};
 use crate::{
@@ -61,6 +61,7 @@ enum Command {
     Hide(OwnedUserId, bool),
     Seen(Vec<OwnedEventId>),
     FileTransfer(bool),
+    ShareWithDmContacts(bool),
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum RefreshOrigin {
@@ -134,6 +135,8 @@ struct Picked {
     session: u64,
     result: Result<PathBuf, String>,
 }
+/// The gap between photos in a Moments photo grid.
+const ALBUM_GAP: f64 = 3.0;
 const CAPTION: f64 = if cfg!(target_os = "macos") { 28.0 } else { 0.0 };
 
 script_mod! {
@@ -144,10 +147,14 @@ script_mod! {
     }
     let Hint = Label {width: Fill height: Fit flow: Flow.Right{wrap: true} draw_text +: {color: #x888888 text_style: theme.font_regular{font_size: 10}}}
     let Body = Label {width: Fill height: Fit flow: Flow.Right{wrap: true} draw_text +: {color: #x191919 text_style: theme.font_regular{font_size: 12}}}
-    let Photo = TextOrImage {width: Fill height: 82
-        image_view +: {height: Fill image +: {height: Fill fit: ImageFit.Smallest}}
+    // A photo cropped to fill its square grid cell, like WeChat Moments.
+    let Photo = TextOrImage {width: Fill height: Fill
+        image_view +: {height: Fill image +: {width: Fill height: Fill fit: ImageFit.CropToFill}}
         text_view +: {height: Fill label +: {max_lines: 2 draw_text.text_style.font_size: 9}}
     }
+    // Keeps its third of the row even when its photo is hidden, so a partly
+    // filled row doesn't stretch its photos.
+    let Cell = View {width: Fill height: Fill}
     mod.widgets.MomentsPanel = #(MomentsPanel::register_widget(vm)) {
         ..mod.widgets.SolidView
         width: Fill height: Fill flow: Down draw_bg.color: #xededed
@@ -173,10 +180,12 @@ script_mod! {
                     View {width: Fill height: Fit flow: Down spacing: 10
                     post_author := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: #x576b95 text_style: theme.font_bold{font_size: 12}}}
                     post_body := Body {max_lines: 6 text_overflow: Ellipsis}
-                    album := View {width: Fill height: Fit flow: Down spacing: 4 visible: false
-                        row0 := View {width: Fill height: 82 flow: Right spacing: 4 a0 := Photo{} a1 := Photo{} a2 := Photo{}}
-                        row1 := View {width: Fill height: 82 flow: Right spacing: 4 a3 := Photo{} a4 := Photo{} a5 := Photo{}}
-                        row2 := View {width: Fill height: 82 flow: Right spacing: 4 a6 := Photo{} a7 := Photo{} a8 := Photo{}}
+                    // Rows are made square-celled at draw time; see `square_album_rows()`.
+                    // The transparent backgrounds give the grid and rows a measurable area.
+                    album := View {width: Fill height: Fit flow: Down spacing: 3 visible: false show_bg: true draw_bg.color: #x00000000
+                        row0 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a0 := Photo{}} Cell{a1 := Photo{}} Cell{a2 := Photo{}}}
+                        row1 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a3 := Photo{}} Cell{a4 := Photo{}} Cell{a5 := Photo{}}}
+                        row2 := View {width: Fill height: 82 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{a6 := Photo{}} Cell{a7 := Photo{}} Cell{a8 := Photo{}}}
                     }
                     post_meta := Hint {}
                     post_interactions := Hint {draw_text.color: #x576b95}
@@ -194,6 +203,12 @@ script_mod! {
             composer_audience := Body {draw_text.color: #x576b95}
             Hint {text: #(crate::i18n::tr("Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers.")) i18n_text: "Everyone in this timeline can see its posts, comments, likes and members. Invitations apply to this whole timeline. Earlier history may be unavailable to new viewers."}
             moments_body := TextInput {width: Fill height: 150 empty_text: #(crate::i18n::tr("What's on your mind?")) i18n_empty_text: "What's on your mind?" is_multiline: true}
+            // Thumbnails of the photos/videos picked for this post, in a 3x3 grid like WeChat.
+            compose_album := View {width: Fill height: Fit flow: Down spacing: 3 visible: false show_bg: true draw_bg.color: #x00000000
+                row0 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c0 := Photo{}} Cell{c1 := Photo{}} Cell{c2 := Photo{}}}
+                row1 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c3 := Photo{}} Cell{c4 := Photo{}} Cell{c5 := Photo{}}}
+                row2 := View {width: Fill height: 96 flow: Right spacing: 3 show_bg: true draw_bg.color: #x00000000 Cell{c6 := Photo{}} Cell{c7 := Photo{}} Cell{c8 := Photo{}}}
+            }
             selected_media := Hint {}
             View {width: Fill height: 40 flow: Right spacing: 8
                 moments_add_media := ActionButton {text: #(crate::i18n::tr("Add photo / video")) i18n_text: "Add photo / video"}
@@ -245,6 +260,22 @@ script_mod! {
             }
         }
         audience_page := View {visible: false width: Fill height: Fill flow: Down padding: 16 spacing: 12
+            // Share with DM contacts, like WeChat's friend circle; see `super::dm_sharing`.
+            View {width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
+                Body {width: Fill text: #(crate::i18n::tr("Share with everyone I chat with 1-on-1")) i18n_text: "Share with everyone I chat with 1-on-1"}
+                share_dm_contacts := ToggleFlat {
+                    width: 46 height: 28 padding: 0 text: "" label_walk: Walk{width: 0 height: 0}
+                    draw_bg +: {pixel: fn() {
+                        let sdf = Sdf2d.viewport(self.pos * self.rect_size)
+                        sdf.box(0.0, 0.0, 46.0, 28.0, 14.0)
+                        sdf.fill((#xdcdcdc).mix(#x07c160, self.active))
+                        sdf.circle(14.0 + 18.0 * self.active, 14.0, 12.0)
+                        sdf.fill(#xffffff)
+                        return sdf.result
+                    }}
+                }
+            }
+            Hint {text: #(crate::i18n::tr("DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way.")) i18n_text: "DM contacts who use Rinx and share this way join your audience automatically, and you join theirs. On by default; your Matrix profile shows that you share this way."}
             Hint {text: #(crate::i18n::tr("One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received.")) i18n_text: "One audience for all your posts. Viewers see each other's comments, likes and membership. Removing a viewer prevents future access after sync; it cannot recall content already received."}
             audience_name := Body {draw_text.color: #x576b95}
             setup_recovery := View {visible: false width: Fill height: Fit flow: Down spacing: 6
@@ -318,6 +349,17 @@ pub struct MomentsPanel {
     comments: Vec<Entry>,
     #[rust]
     paths: Vec<PathBuf>,
+    /// The `paths` currently loaded into the composer's thumbnail grid.
+    #[rust]
+    album_paths: Vec<PathBuf>,
+    /// Square cell sides for the feed's and the composer's photo grids, as last measured.
+    #[rust]
+    feed_album_side: f64,
+    #[rust]
+    compose_album_side: f64,
+    /// The height last applied to each photo-grid row, to avoid re-applying it every frame.
+    #[rust]
+    album_row_heights: HashMap<WidgetUid, f64>,
     #[rust]
     media: Option<MediaCache>,
     #[rust]
@@ -351,6 +393,38 @@ fn next_request() -> u64 {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
     NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
+
+fn composer_draft_from_bytes(bytes: Option<&[u8]>) -> ComposerDraft {
+    bytes
+        .and_then(|bytes| serde_json::from_slice(bytes).ok())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod draft_tests {
+    use super::*;
+
+    #[test]
+    fn switching_to_account_without_draft_clears_previous_composer() {
+        let first = ComposerDraft {
+            body: "private note".into(),
+            paths: vec![PathBuf::from("private-photo.png")],
+        };
+        let first_bytes = serde_json::to_vec(&first).unwrap();
+        assert_eq!(composer_draft_from_bytes(Some(&first_bytes)).body, first.body);
+
+        let second = composer_draft_from_bytes(None);
+        assert!(second.body.is_empty());
+        assert!(second.paths.is_empty());
+    }
+
+    #[test]
+    fn corrupt_draft_does_not_retain_previous_composer() {
+        let draft = composer_draft_from_bytes(Some(b"not json"));
+        assert!(draft.body.is_empty());
+        assert!(draft.paths.is_empty());
+    }
+}
 impl MomentsPanel {
     fn save_draft(&self, cx: &mut Cx) {
         let Some(owner) = &self.owner else { return };
@@ -380,16 +454,16 @@ impl MomentsPanel {
     fn restore_draft(&mut self, cx: &mut Cx) {
         let Some(owner) = &self.owner else { return };
         let path = crate::persistence::persistent_state_dir(owner).join("moments-composer.json");
-        if let Ok(bytes) = std::fs::read(path) {
-            if let Ok(draft) = serde_json::from_slice::<ComposerDraft>(&bytes) {
-                self.text_input(cx, ids!(moments_body))
-                    .set_text(cx, &draft.body);
-                self.paths = draft.paths;
-            }
-        }
+        let bytes = std::fs::read(path).ok();
+        let draft = composer_draft_from_bytes(bytes.as_deref());
+        self.text_input(cx, ids!(moments_body)).set_text(cx, &draft.body);
+        self.paths = draft.paths;
     }
     fn reset(&mut self, cx: &mut Cx) {
         self.save_draft(cx);
+        self.text_input(cx, ids!(moments_body)).set_text(cx, "");
+        self.paths.clear();
+        self.album_paths.clear();
         cx.stop_timer(self.timer);
         self.pending = None;
         self.owner = None;
@@ -508,6 +582,7 @@ impl MomentsPanel {
                     Command::Invitation(room,accept)=>{service.invitation(&room,accept).await?;let mut feed=feed;feed.timelines.remove(&room);Outcome::Feed(service.load(feed,false).await?)},
                     Command::Choose(room)=>{service.choose(room.clone()).await?;Outcome::Ready(service.validate(&room).await?)},
                     Command::Hide(author,hidden)=>{service.hide(author,hidden).await?;Outcome::Feed(service.load(feed,false).await?)},
+                    Command::ShareWithDmContacts(share)=>{service.set_share_with_dm_contacts(share).await?;Outcome::Feed(service.load(feed,false).await?)},
                     Command::Seen(ids)=>{service.mark_seen(ids).await?;Outcome::Changed},
                     Command::FileTransfer(new)=>Outcome::Transfer(if new {service.new_file_transfer().await?}else{service.file_transfer().await?}),
                 })
@@ -522,10 +597,10 @@ impl MomentsPanel {
         self.redraw(cx);
     }
     fn back(&mut self, cx: &mut Cx) {
-        if self.editing.take().is_some() {
-            self.text_input(cx, ids!(moments_comment)).set_text(cx, "");
-            self.redraw(cx);
-            return;
+        // Editing must never consume navigation, including stale edit state
+        // left behind after a post disappears from the detail page.
+        if self.page == Page::Details || self.editing.is_some() {
+            self.leave_detail(cx);
         }
         if self.page == Page::Feed || self.page == Page::Transfer {
             cx.action(MomentsAction::Close);
@@ -537,6 +612,11 @@ impl MomentsPanel {
             Page::Feed
         };
         self.redraw(cx);
+    }
+    fn leave_detail(&mut self, cx: &mut Cx) {
+        self.editing = None;
+        self.detail = None;
+        self.text_input(cx, ids!(moments_comment)).set_text(cx, "");
     }
     fn open_detail(&mut self, cx: &mut Cx, post: Entry) {
         self.media_index = 0;
@@ -550,6 +630,69 @@ impl MomentsPanel {
         }
         self.redraw(cx);
     }
+    /// The side of a square cell in a 3-column photo grid, measured from the grid
+    /// as just drawn (list items' areas are only valid right after drawing them).
+    fn measure_album_side(cx: &mut Cx, album: &ViewRef) -> Option<f64> {
+        let width = album.area().rect(cx).size.x;
+        (width > 0.0).then(|| ((width - 2.0 * ALBUM_GAP) / 3.0).floor())
+    }
+
+    /// Makes the visible rows of a 3-column photo grid `side` tall, so its
+    /// photos form squares that follow the grid's width.
+    fn square_album_rows(
+        cx: &mut Cx,
+        album: &ViewRef,
+        photo_count: usize,
+        side: f64,
+        applied: &mut HashMap<WidgetUid, f64>,
+    ) {
+        if side <= 0.0 {
+            return;
+        }
+        for (id, first) in [(ids!(row0), 0), (ids!(row1), 3), (ids!(row2), 6)] {
+            let row = album.view(cx, id);
+            if photo_count > first && applied.get(&row.widget_uid()) != Some(&side) {
+                // Set the walk directly: this runs mid-draw (inside the feed's PortalList),
+                // where re-entering the script VM via `script_apply_eval!` would panic.
+                if let Some(mut view) = row.borrow_mut() {
+                    view.walk.height = Size::Fixed(side);
+                }
+                applied.insert(row.widget_uid(), side);
+            }
+        }
+    }
+
+    /// Shows the picked photos/videos as thumbnails in the composer,
+    /// reloading them from disk only when the selection changes.
+    fn sync_compose_album(&mut self, cx: &mut Cx) {
+        let album = self.view(cx, ids!(compose_album));
+        Self::square_album_rows(cx, &album, self.paths.len(), self.compose_album_side, &mut self.album_row_heights);
+        if self.album_paths == self.paths {
+            return;
+        }
+        self.album_paths = self.paths.clone();
+        let count = self.paths.len();
+        self.view(cx, ids!(compose_album)).set_visible(cx, count > 0);
+        for (id, n) in [(ids!(compose_album.row0), 0), (ids!(compose_album.row1), 3), (ids!(compose_album.row2), 6)] {
+            self.view(cx, id).set_visible(cx, count > n);
+        }
+        let slots = [ids!(c0), ids!(c1), ids!(c2), ids!(c3), ids!(c4), ids!(c5), ids!(c6), ids!(c7), ids!(c8)];
+        for (i, id) in slots.iter().enumerate() {
+            let photo = self.text_or_image(cx, *id);
+            photo.set_visible(cx, i < count);
+            let Some(path) = self.paths.get(i) else { continue };
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            // Videos (or anything the image loader can't decode) show their file name instead.
+            let shown = photo.show_image(cx, None, |cx, image| {
+                image.load_image_file_by_path(cx, path)?;
+                Ok::<_, ImageError>(image.size_in_pixels(cx).unwrap_or((1, 1)))
+            });
+            if shown.is_err() {
+                photo.show_text(cx, name);
+            }
+        }
+    }
+
     fn pick_media(&mut self) {
         if self.paths.len() >= MAX_MEDIA {
             self.status = crate::i18n::tr("Choose at most nine photos or videos.").into();
@@ -969,6 +1112,7 @@ impl Widget for MomentsPanel {
                         );
                     }
                     if self.button(cx, ids!(moments_hide)).clicked(actions) {
+                        self.leave_detail(cx);
                         self.page = Page::Feed;
                         self.run(cx, Command::Hide(post.sender.clone(), true));
                     }
@@ -982,6 +1126,7 @@ impl Widget for MomentsPanel {
                             cx,
                             Command::Redact(post.room.clone(), vec![post.id.clone()]),
                         );
+                        self.leave_detail(cx);
                         self.page = Page::Feed;
                     }
                     if self.button(cx, ids!(moments_comment_send)).clicked(actions)
@@ -1050,6 +1195,9 @@ impl Widget for MomentsPanel {
                 }
             }
             Page::Audience => {
+                if let Some(share) = self.check_box(cx, ids!(share_dm_contacts)).changed(actions) {
+                    self.run(cx, Command::ShareWithDmContacts(share));
+                }
                 if self.button(cx, ids!(moments_retry_setup)).clicked(actions) {
                     self.run(cx, Command::RetrySetup);
                 }
@@ -1249,6 +1397,11 @@ impl Widget for MomentsPanel {
             .map(|o| self.feed.own(o).into_iter().cloned().collect())
             .unwrap_or_default();
         let hidden: Vec<_> = self.feed.preferences.hidden.iter().cloned().collect();
+        // Mirror the saved preference, unless a change to it is still being applied.
+        let share_toggle = self.check_box(cx, ids!(share_dm_contacts));
+        if !self.busy && share_toggle.active(cx) != self.feed.preferences.share_with_dm_contacts {
+            share_toggle.set_active(cx, self.feed.preferences.share_with_dm_contacts, Animate::No);
+        }
         self.label(cx, ids!(audience_name)).set_text(
             cx,
             &self
@@ -1272,6 +1425,7 @@ impl Widget for MomentsPanel {
                         .join(", ")
                 }).to_string())]),
         );
+        self.sync_compose_album(cx);
         self.label(cx, ids!(selected_media)).set_text(
             cx,
             &crate::i18n::format("{0} / 9 selected\n{1}", &[("0", (self.paths.len()).to_string()), ("1", (self.paths
@@ -1302,7 +1456,7 @@ impl Widget for MomentsPanel {
         self.label(cx, ids!(editor_hint))
             .set_visible(cx, self.editing.is_some());
         self.label(cx, ids!(editor_hint))
-            .set_text(cx, crate::i18n::tr("Editing your text · Back cancels editing"));
+            .set_text(cx, crate::i18n::tr("Editing your text · Back discards changes and returns"));
         if let Some(post) = self.detail.clone() {
             if let Some(t) = self.feed.timelines.get(&post.room) {
                 if let Some(updated) = t
@@ -1313,7 +1467,7 @@ impl Widget for MomentsPanel {
                 {
                     self.detail = Some(updated);
                 } else if t.loaded {
-                    self.detail = None;
+                    self.leave_detail(cx);
                     self.status = crate::i18n::tr("This post was removed.").into();
                     self.page = Page::Feed;
                 }
@@ -1447,6 +1601,8 @@ impl Widget for MomentsPanel {
                         );
                         let media = post.media();
                         row.view(cx, ids!(album)).set_visible(cx, !media.is_empty());
+                        let album = row.view(cx, ids!(album));
+                        Self::square_album_rows(cx, &album, media.len(), self.feed_album_side, &mut self.album_row_heights);
                         for (id, n) in [(ids!(row0), 0), (ids!(row1), 3), (ids!(row2), 6)] {
                             row.view(cx, id).set_visible(cx, media.len() > n);
                         }
@@ -1472,6 +1628,15 @@ impl Widget for MomentsPanel {
                             }
                         }
                         row.draw_all(cx, scope);
+                        if !media.is_empty()
+                            && let Some(side) = Self::measure_album_side(cx, &album)
+                            && (side - self.feed_album_side).abs() > 0.5
+                        {
+                            self.feed_album_side = side;
+                            // Mark our area dirty instead of `self.redraw()`, which would
+                            // re-borrow the PortalList that is drawing this item.
+                            self.view.area().redraw(cx);
+                        }
                     }
                 }
                 Page::Details => {
@@ -1551,6 +1716,15 @@ impl Widget for MomentsPanel {
                 _ => {}
             }
         }
+        if self.page == Page::Compose && !self.paths.is_empty() {
+            let album = self.view(cx, ids!(compose_album));
+            if let Some(side) = Self::measure_album_side(cx, &album)
+                && (side - self.compose_album_side).abs() > 0.5
+            {
+                self.compose_album_side = side;
+                self.view.area().redraw(cx);
+            }
+        }
         DrawStep::done()
     }
 }
@@ -1564,13 +1738,17 @@ fn date(timestamp: u64) -> String {
         .unwrap_or_default()
 }
 impl MomentsPanelRef {
-    pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MomentsAction) {
+    /// Applies `action` to this panel.
+    ///
+    /// `modal` is the modal hosting this panel, which is opened or closed to match;
+    /// it's `None` when the panel lives in its own window instead.
+    pub fn action(&self, cx: &mut Cx, modal: Option<&ModalRef>, action: &MomentsAction) {
         let Some(mut inner) = self.borrow_mut() else {
             return;
         };
         if matches!(action, MomentsAction::Close) {
             inner.reset(cx);
-            modal.close(cx);
+            if let Some(modal) = modal { modal.close(cx); }
             return;
         }
         inner.reset(cx);
@@ -1581,7 +1759,7 @@ impl MomentsPanelRef {
         inner.pending = Service::current()
             .and_then(|s| s.pending().ok().flatten())
             .filter(|p| p.confirmed.is_none());
-        modal.open(cx);
+        if let Some(modal) = modal { modal.open(cx); }
         match action {
             MomentsAction::Open { author } => {
                 inner.author = author.clone();
@@ -1608,7 +1786,7 @@ impl MomentsPanelRef {
 }
 
 #[cfg(test)]
-mod tests {
+mod refresh_tests {
     use super::*;
 
     #[test]
@@ -1645,5 +1823,74 @@ mod tests {
             refresh_failure_notice(RefreshOrigin::FollowUp, true, 3, false),
             RefreshFailureNotice::StaleWarning
         );
+    }
+}
+
+#[cfg(test)]
+mod navigation_tests {
+    use super::*;
+
+    fn panel() -> (Cx, MomentsPanel) {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let panel = cx.with_vm(|vm| {
+            makepad_widgets::script_mod(vm);
+            MomentsPanel::script_new(vm)
+        });
+        (cx, panel)
+    }
+
+    fn edited_post() -> Entry {
+        Entry {
+            room: ruma::room_id!("!moments:example.org").to_owned(),
+            id: ruma::event_id!("$post").to_owned(),
+            sender: ruma::user_id!("@author:example.org").to_owned(),
+            timestamp: 0,
+            content: super::super::model::post_content("Published text", &[]),
+            edited: false,
+        }
+    }
+
+    #[test]
+    fn back_during_edit_returns_to_feed_immediately() {
+        let (mut cx, mut panel) = panel();
+        panel.page = Page::Details;
+        panel.detail = Some(edited_post());
+        panel.editing = panel.detail.clone();
+        panel.back(&mut cx);
+        assert!(panel.page == Page::Feed);
+        assert!(panel.editing.is_none());
+        assert!(panel.detail.is_none());
+    }
+
+    #[test]
+    fn feed_back_closes_even_with_stale_edit_state() {
+        let (mut cx, mut panel) = panel();
+        panel.editing = Some(edited_post());
+        let actions = cx.capture_actions(|cx| panel.back(cx));
+        assert!(actions.iter().any(|a| matches!(
+            a.downcast_ref::<MomentsAction>(), Some(MomentsAction::Close)
+        )));
+        assert!(panel.editing.is_none());
+    }
+
+    #[test]
+    fn back_does_not_wait_for_in_flight_operation() {
+        let (mut cx, mut panel) = panel();
+        panel.page = Page::Compose;
+        panel.busy = true;
+        panel.mutating = true;
+        panel.back(&mut cx);
+        assert!(panel.page == Page::Feed);
+    }
+
+    #[test]
+    fn audience_back_returns_to_its_opening_page() {
+        let (mut cx, mut panel) = panel();
+        for destination in [Page::Feed, Page::Compose] {
+            panel.page = Page::Audience;
+            panel.audience_return = destination;
+            panel.back(&mut cx);
+            assert!(panel.page == destination);
+        }
     }
 }
