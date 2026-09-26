@@ -720,7 +720,7 @@ pub enum MatrixRequest {
     ///
     /// While an SSO request is in flight, the login screen will temporarily prevent the user
     /// from submitting another redundant request, until this request has succeeded or failed.
-    SpawnSSOServer { homeserver_url: String },
+    SpawnSSOServer { homeserver_url: String, provider_id: Option<String> },
     CancelSsoLogin,
     /// Subscribe to typing notices for the given room.
     ///
@@ -2106,11 +2106,11 @@ async fn matrix_worker_task(
                 }
             }
 
-            MatrixRequest::SpawnSSOServer { homeserver_url } => {
+            MatrixRequest::SpawnSSOServer { homeserver_url, provider_id } => {
                 if sso_task.as_ref().is_some_and(|task| !task.is_finished()) { continue; }
                 let sender = login_sender.clone();
                 sso_task = Some(Handle::current().spawn(async move {
-                    match run_sso_login(homeserver_url).await {
+                    match run_sso_login(homeserver_url, provider_id).await {
                         Ok((client, session)) => {
                             Cx::post_action(LoginAction::SsoPending(false));
                             Cx::post_action(LoginAction::Status {
@@ -4461,7 +4461,7 @@ fn handle_load_app_state(user_id: OwnedUserId) {
         match load_app_state(&user_id).await {
             Ok(Some(app_state)) => {
                 log!("Loaded app state from persistent storage. Restoring now...");
-                Cx::post_action(AppStateAction::RestoreAppStateFromPersistentState(app_state));
+                Cx::post_action(AppStateAction::RestoreAppStateFromPersistentState { user_id, app_state });
             }
             Ok(None) => {
                 // No saved file (fresh install) or file was unreadable; nothing to restore.
@@ -5668,9 +5668,8 @@ async fn room_avatar(room: &Room, room_name_id: &RoomNameId) -> FetchedRoomAvata
     utils::avatar_from_room_name(room_name_id.name_for_avatar())
 }
 
-/// Let the selected homeserver present its own provider chooser. Provider IDs
-/// are server-defined and must never be guessed from a vendor's brand name.
-async fn run_sso_login(homeserver_url: String) -> Result<(Client, ClientSessionPersisted)> {
+/// Use only provider IDs advertised by the selected homeserver.
+async fn run_sso_login(homeserver_url: String, provider_id: Option<String>) -> Result<(Client, ClientSessionPersisted)> {
     Cx::post_action(LoginAction::Status {
         title: "Connecting to your server".into(),
         status: "Checking browser sign-in support…".into(),
@@ -5682,17 +5681,22 @@ async fn run_sso_login(homeserver_url: String) -> Result<(Client, ClientSessionP
     if !methods.sso {
         bail!("This server does not advertise Matrix SSO. Use password sign-in if offered. OAuth-only and QR sign-in are not supported yet.");
     }
+    if let Some(id) = provider_id.as_deref() {
+        if !methods.providers.iter().any(|provider| provider.id == id) {
+            bail!("This sign-in provider is no longer offered by the server. Choose a method again.");
+        }
+    }
     warmup_homeserver_connection(&client).await?;
     Cx::post_action(LoginAction::Status {
         title: "Continue in your browser".into(),
         status: "Choose your server's sign-in provider, complete authentication, then return to Rinx.".into(),
     });
     #[cfg(not(target_os = "ios"))]
-    crate::login::homeserver::browser_login(&client, |sso_url| async move {
+    crate::login::homeserver::browser_login(&client, provider_id.as_deref(), |sso_url| async move {
         Uri::new(&sso_url).open().map_err(|_| Error::Io(io::Error::other("Unable to open your browser.")))
     }).await?;
     #[cfg(target_os = "ios")]
-    run_ios_sso_flow(&client).await?;
+    run_ios_sso_flow(&client, provider_id.as_deref()).await?;
     Ok((client, session))
 }
 
@@ -5717,6 +5721,7 @@ async fn warmup_homeserver_connection(client: &Client) -> matrix_sdk::HttpResult
 #[cfg(target_os = "ios")]
 async fn run_ios_sso_flow(
     client: &Client,
+    provider_id: Option<&str>,
 ) -> std::result::Result<
     matrix_sdk::ruma::api::client::session::login::v3::Response,
     matrix_sdk::Error,
@@ -5730,7 +5735,7 @@ async fn run_ios_sso_flow(
 
     let auth = client.matrix_auth();
     let sso_url = auth
-        .get_sso_login_url(REDIRECT_URL, None)
+        .get_sso_login_url(REDIRECT_URL, provider_id)
         .await?;
 
     // Bridge the OS completion callback into a Rust oneshot. Mutex<Option>
