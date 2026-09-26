@@ -805,6 +805,9 @@ impl MatchEvent for App {
 
 impl App {
     fn clear_session_ui(&mut self, cx: &mut Cx) {
+        for window in [HostedWindow::Moments, HostedWindow::Article] {
+            self.close_hosted_window(cx, window, true);
+        }
         let modal = self.ui.modal(cx, ids!(moments_modal));
         self.ui.moments_panel(cx, ids!(moments_modal.content)).action(cx, Some(&modal), &MomentsAction::Close);
         self.moments_window_host(cx).close(cx);
@@ -1445,6 +1448,32 @@ impl AppState {
 #[cfg(test)]
 mod session_state_tests {
     use super::*;
+
+    #[test]
+    fn session_cleanup_closes_hosted_account_windows() {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        // Preference broadcasts need a host window slot, but no native window.
+        let window = WindowHandle::new(&mut cx);
+        window.cancel_initial_create(&mut cx);
+        let mut app = cx.with_vm(|vm| {
+            makepad_widgets::script_mod(vm);
+            register_widgets(vm);
+            App::script_new(vm)
+        });
+        app.embedded = true;
+        app.hosted_windows = vec![
+            (HostedWindow::Moments, WidgetRef::default()),
+            (HostedWindow::Article, WidgetRef::default()),
+        ];
+        app.app_state.logged_in = true;
+        app.app_state.app_prefs.send_on_enter = false;
+
+        app.clear_session_ui(&mut cx);
+
+        assert!(app.hosted_windows.is_empty());
+        assert!(!app.app_state.logged_in);
+        assert!(app.app_state.app_prefs.send_on_enter);
+    }
 
     #[test]
     fn expired_session_clears_state_before_another_account_logs_in() {
