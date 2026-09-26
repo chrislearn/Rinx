@@ -345,6 +345,8 @@
   "Missing mini app": "小应用不存在",
   "Moment": "动态",
   "Moments": "朋友圈",
+  "Moments couldn't refresh. Check the service or network, then retry.": "朋友圈暂时无法刷新。请检查服务或网络后重试。",
+  "Moments may be out of date. Check the service or network.": "朋友圈内容可能不是最新。请检查服务或网络。",
   "Moments · {invites} invitation{0}": "朋友圈 · {invites} 条邀请{0}",
   "Mon": "周一",
   "Monday": "星期一",
