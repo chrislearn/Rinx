@@ -10,6 +10,7 @@
 #![cfg(feature = "octos-remote")]
 
 use std::io::BufRead;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,6 +20,10 @@ use octosense_app_peers::*;
 struct Proc(std::process::Child);
 impl Drop for Proc {
     fn drop(&mut self) {
+        // `octos serve` starts gateway children: stop its whole process group.
+        let _ = std::process::Command::new("kill")
+            .args(["-TERM", &format!("-{}", self.0.id())])
+            .status();
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
@@ -102,6 +107,7 @@ fn standalone_rinx_uses_an_explicit_authenticated_remote_server() {
             .args(["serve", "--port", &port.to_string(), "--auth-token", token, "--data-dir"])
             .arg(&server_dir)
             .env("OCTOS_HOME", &server_dir)
+            .process_group(0)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
