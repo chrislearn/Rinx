@@ -18,7 +18,7 @@ and is now a default feature;
 `article_blitz` remains a compatibility feature alias for existing commands.
 No downstream Blitz Cargo patch overrides are necessary.
 
-`src/article_app/preview.rs` remains an app-specific adapter: it converts validated
+`apps/article-editor/native/preview.rs` remains an app-specific adapter: it converts validated
 article documents to HTML, grants already-authorized asset bytes, schedules the
 render, and checks the login/grant/request lifecycle before display.
 Drafts, themes, Markdown, consent, Matrix credentials, storage, publication and

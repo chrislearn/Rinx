@@ -1,4 +1,11 @@
 fn main() {
+    println!("cargo:rerun-if-changed=system-apps.json");
+    println!("cargo:rerun-if-changed=apps");
+    let root = std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let catalog = rinx_system_apps::pack(&root).expect("validate Rinx system apps");
+    let catalog_path = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("system-apps.json");
+    std::fs::write(catalog_path, serde_json::to_vec(&catalog).unwrap()).expect("embed Rinx system apps");
+
     // cargo-makepad discovers resources of Git/registry dependencies through
     // a package-name.path file beside the compiled libraries. Rinx is also a
     // hosted dependency, so publish its resource root like makepad-widgets.

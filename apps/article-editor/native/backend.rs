@@ -808,7 +808,7 @@ mod tests {
 
     #[tokio::test]
     async fn editor_markdown_fits_after_matrix_encryption() {
-        let source = include_str!("../../lab/article-editor/render-comparison/source.md");
+        let source = include_str!("../../../lab/article-editor/render-comparison/source.md");
         let doc = Document::from_markdown("Markdown 格式测试", source).unwrap();
         let stored = serde_json::to_vec(&doc).unwrap();
         let transaction = "r".repeat(100);

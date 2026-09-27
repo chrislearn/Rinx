@@ -2023,7 +2023,7 @@ impl RoomScreen {
             RoomInputPopupMenuAction::SendCurrentLocation => {
                 room_input_bar.show_current_location_preview(cx);
             }
-            RoomInputPopupMenuAction::ArticleEditor => cx.action(crate::article_app::ArticleAction::Open),
+            RoomInputPopupMenuAction::ArticleEditor => crate::system_apps::open_article(cx),
             RoomInputPopupMenuAction::ShareMiniApp => {
                 if let Some(timeline) = self.timeline_kind.clone() {
                     cx.action(crate::mini_app::MiniAppAction::Compose(timeline));

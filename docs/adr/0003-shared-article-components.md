@@ -21,7 +21,7 @@ Split reusable Rust libraries from host orchestration:
   OctoSense dependency. Octoscript L0 is an optional static library dependency.
 - `article-makepad`: native rich text input, layout, shared editor/reader styling
   and optional Apple PingFang setup. No application or Matrix dependency.
-- `src/article_app`: Robrix-specific screens, navigation, localization, image
+- `apps/article-editor/native`: Robrix-specific screens, navigation, localization, image
   picker, consent UI, Matrix wire format, target selection, E2EE media,
   publication retries, replacement events and withdrawal. Robrix supplies
   `RobrixArticleHost` and `RobrixPublisher` to the shared code.

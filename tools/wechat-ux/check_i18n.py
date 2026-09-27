@@ -2,6 +2,7 @@
 """Check catalog parity, placeholders, and explicit Rust UI translation keys."""
 import json
 import re
+from itertools import chain
 from pathlib import Path
 
 
@@ -17,7 +18,7 @@ def main():
         assert fields(key)==fields(zh[key]), 'Placeholder mismatch: '+key
     missing=[]
     sites=0
-    for path in (root/'src').rglob('*.rs'):
+    for path in chain((root/'src').rglob('*.rs'), (root/'apps').rglob('*.rs')):
         for match in re.finditer(r'i18n::(?:tr|format)\(\s*("(?:\\.|[^"\\])*")',path.read_text()):
             sites+=1
             key=json.loads(match[1])

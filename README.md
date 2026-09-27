@@ -1,5 +1,7 @@
 # Rinx
 
+English | [简体中文](README.zh-CN.md)
+
 A native Matrix messenger from [Upstream Labs](https://github.com/upstreamlabs), with a WeChat-style interface, English/Chinese support, Moments, and scoped mini apps.
 
 Rinx is an independent continuation of [`OctoSense-org/robrix2`'s `wechat-ui` branch](https://github.com/OctoSense-org/robrix2/tree/wechat-ui), starting at `16913e0c6f0397b4ed1272b7dcd421935521d5f3`. That branch's commit history is preserved here. Development now lives on this repository's **`main`** branch.
@@ -14,6 +16,10 @@ Rinx is an independent continuation of [`OctoSense-org/robrix2`'s `wechat-ui` br
 - Mini-app consent scoped to the signed-in user, plus optional Hagency integration.
 
 The renderer remains experimental: grayscale/sepia filters have known failures; arbitrary WeChat HTML import and complete WeChat compatibility are not claimed. See the [integration evidence](lab/article-html-integration/README.md) and [mini-app authority design](docs/adr/0002-octoscript-mini-app-authority.md).
+
+## Built-in apps
+
+Rinx bundles native and OctoScript apps through `system-apps.json`. The native article editor lives under `apps/article-editor/`; both deployments share its catalog and host-service contracts. See the [app development guide](apps/README.md) and [ADR 0008](docs/adr/0008-rinx-system-app-catalog.md).
 
 ## Build and run
 
