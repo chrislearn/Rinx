@@ -1,8 +1,9 @@
 # ADR 0007: Host-owned Octos app peers and Rinx deployment modes
 
 - Date: 2026-09-26
-- Status: Accepted; implemented in part (see the implementation record). Hosted
-  ROM Home on the OnePlus 6 and the native hosted desktop flow remain unverified.
+- Status: Accepted; implemented (see the implementation record). Hosted ROM Home
+  on the OnePlus 6 is unverified; the signed-in native desktop exchange is
+  covered only by headless real-kernel tests.
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md) and
   [ADR 0006](0006-shared-app-hub-miniapps.md). Proposes replacing AppCard-dependent
   connection discovery and mini-app-owned agent allocation, while retaining the
@@ -420,22 +421,24 @@ Acceptance must cover:
 
 ## Implementation record
 
-The decision is implemented across four repositories. Kernel contracts came
-first, and each consumer builds on the published revision of the one before it.
-The review questions were resolved with the conservative options below and are
-listed for the owners' confirmation.
+The decision is implemented across six repositories. Kernel contracts came
+first, and each consumer builds on the published revision of the one before
+it. The review questions were resolved with the conservative options below and
+are listed for the owners' confirmation.
 
-| Layer | Repository and change | What it provides |
+| Layer | Change (merge) | What it provides |
 | --- | --- | --- |
-| Kernel | octos-org/octos#2555, UPCR-2026-034 | Control of a host-owned app peer is bound to a host token minted at creation. Allocation is exclusive (no shared namespace or workspace), and torn bindings fail closed. `peer/prepare` with `model` (parity with `peer_handoff`, effective model and fallback reported), `memory_namespace` (host-owned app peer bound to its workspace and an app/account memory namespace, system originator persisted), `resume` and a kernel-provisioned workspace for remote hosts. Adds `peer/model/set` (one peer's lane between turns, profile default untouched), `peer/context/open|close` (bound request contexts: kernel-minted sessions, child namespaces, refusal after close) and memory isolation for capture, retrieval, prompt injection, episodes and the refresh sweep |
-| Capability contract | OctoSense-App-Hub#14 (`9e986135`, on main from `46d67e51`) | The exact `octos.*` and `matrix.*` service names, admitted by exact name, with store wording; history does not grant turns |
-| Broker | OctoSense-System-Apps#14, #15, #16 (`crates/app-peers`, `4fa0f122`) | The contract Rinx consumes (`OctosAppService`, `OctosContext`), creation-time injection (`offer` / `claim` / `withdraw`) and the broker used for all three deployments. The broker makes one system-owned peer per app and account and one kernel request context per mini-app instance, checks the lease on every request and before every reply, and refuses a kernel without UPCR-2026-034. It keeps each peer's host token (shell: `<core_dir>/../app-peers`; Rinx: `octos/peers`, mode 0600). It runs over the shell kernel, an owned local kernel or a token-authenticated remote server |
-| Rinx | this change | `src/octos_service.rs` selects the deployment: hosted from module creation, standalone local or remote from Rinx's assistant settings. `src/module.rs` declares the four `octos.*` services and claims the injected service. Mini apps get request contexts (`src/octoscript_apps/octos.rs`); admission and dispatch use exact names. Account changes revoke; hosted close releases; standalone exit stops only an owned runtime. The `octos-local` / `octos-remote` features keep the runtime out of `octosense-module` builds |
+| Kernel | octos-org/octos#2555 (`552767dd`), UPCR-2026-034 | `peer/prepare` with `model` (parity with `peer_handoff`; effective model and fallback reported), `memory_namespace` (host-owned app peer bound to its workspace and an app/account memory namespace, system originator persisted), `resume`, and a kernel-provisioned workspace for remote hosts. Control of a host-owned peer is bound to a host token minted at creation (only its SHA-256 is stored). Allocation is exclusive: no shared namespace, context subspace or workspace. Torn bindings fail closed. `peer/model/set` changes one peer's lane between turns without touching the profile default. `peer/context/open\|close` provide bound request contexts. Memory isolation covers capture, retrieval, prompt injection, episodes and the refresh sweep |
+| Capability contract | OctoSense-App-Hub#14 (`9e986135`) | The exact `octos.*` and `matrix.*` service names, admitted by exact name, with store wording; history does not grant turns |
+| Broker | OctoSense-System-Apps#14 (`3daf54e8`), #15 (`64aa865e`), #16 (`4fa0f122`), #17 (`cc1cee3e`) | `crates/app-peers`: the contract Rinx consumes (`OctosAppService`, `OctosContext`), creation-time injection (`offer` / `claim` / `withdraw`), and one broker for all three deployments. It keeps one system-owned peer per app and account and one kernel request context per mini-app instance. The lease is checked on every request and before every reply, and host tokens are kept. The connector authenticates remote servers by token only. #17 moves the shell kernel to octos `552767dd` |
+| Runtime | makepad#35 (`db4691d0`), OctoScript-Makepad#46 (`c3d53ba8`) | Splash `reapply_text` and stateful mini-app inputs on the current runtime (the ADR 0005 additions from makepad#32 / OSM#40, without #32's Android Back part) |
+| Shells | OctoSense-Desktop#50 (`c806921c`, then #41 `1e8b217`), OctoSense-ROM#34 (landed with #24 `1dc753a7`) | `app_peers_host`: a module whose declared `octos.*` services host policy grants gets a scoped service for its instance at `create`, released at teardown. Rinx is linked as a module (`octosense-module` only). CI keeps its standalone features out of every graph. No `www.github.com` patch; AppCard stays opt-in |
+| Rinx | #25 (`086208d7`, stacked on #24; on main with #24 `5cf70a82`, which both shells pin) | `src/octos_service.rs` selects the deployment: hosted from module creation, standalone local or remote from Rinx's settings. `module.rs` declares the four `octos.*` services and claims the injected service. Mini apps get request contexts, and admission and dispatch use exact names. Account changes revoke, hosted close releases, standalone exit stops only an owned runtime |
 
-`KernelProvider::shared` and the AppCard connection discovery are gone. No mode
+`KernelProvider::shared` and AppCard connection discovery are gone. No mode
 starts a fallback kernel or substitutes an ordinary privileged session. A hosted
-Rinx without an injected service has no assistant. Its AI settings entry points
-to OctoSense's Settings → Accounts → AI providers.
+Rinx without an injected service has no assistant; its settings entry points to
+OctoSense's Settings → Accounts → AI providers.
 
 ### Decisions on the open review questions
 
@@ -449,47 +452,50 @@ to OctoSense's Settings → Accounts → AI providers.
 - **Model selection.** Host policy may set a configured lane for an app's peer
   (`BrokerConfig::model_lane`, `peer/model/set`). No app-facing API selects a
   model or provider.
-- **Remote credentials.** The standalone remote server token stays in memory and is
-  asked for again after a restart. Only the URL and profile are persisted. The
-  connector authenticates by token only. The kernel's per-peer host token is a
-  capability for Rinx's own peer, not a server login. It is kept in a 0600 file
-  so a restart resumes the peer.
-- **Runtime.** Rinx moves to makepad `db4691d0` (makepad#35, Splash
-  `reapply_text`) and OctoScript-Makepad `c3d53ba8` (OSM#46, stateful inputs),
-  the current runtime plus the two ADR 0005 additions. OctoSense shells can
-  therefore link it at their pins.
+- **Credentials.** The standalone remote server token stays in memory and is
+  asked for again after a restart; only the URL and profile are persisted. The
+  kernel's per-peer host token is a capability for the app's own peer, kept
+  with mode 0600 (shell: `<core_dir>/../app-peers`; Rinx: `octos/peers`) so a
+  restart resumes the peer.
+- **Session-plane trust.** The kernel enforces a bound session's workspace,
+  memory and closure. Who may drive a profile's sessions is the profile's raw
+  surface, as for every session. Apps never receive raw OUP.
 
 ### Acceptance evidence (2026-09-27)
 
-Kernel builds are octos#2555 (`5dad8f5f`) in release. Models are standard-library
-Python fixtures; no provider key or Matrix credential is used anywhere.
+Kernels are release builds of octos#2555. Models are standard-library Python
+fixtures. No provider key or Matrix credential is used anywhere.
 
 | Criterion | Evidence | State |
 | --- | --- | --- |
-| 1. Declarations select services; ungranted calls denied; non-AI apps allocate no peer | App Hub admission tests (exact names, prefixes refused, history ≠ turn); app-peers `effective_services`, `apps_without_assistant_services_allocate_no_peer`, `history_access_does_not_allow_a_turn_and_ungranted_apps_get_no_context` (no kernel connection made); Rinx module declaration | Met (headless) |
-| 2. Rinx and another app share one kernel and settings without AppCard, independently addressable | app-peers `two_apps_share_one_kernel_and_closing_one_leaves_the_other_usable` on a real kernel: one kernel generation, two connections, distinct peers owned by `_main:api:octosense#system` | Met (headless); native desktop pending the shell wiring |
-| 3. System agent input, peer question, answer, continuation, interrupt | `the_system_agent_and_the_app_peer_exchange_a_question_and_answer` (`peer_send_input` → `ask_user_question` → kernel wake → `peer_respond` → "PEER GOT 42") and `closing_the_app_interrupts_its_peers_running_work` (`active` → `interrupted`), real kernel, scripted model | Met (headless, scripted model) |
-| 4. Launch/close/restart/logout preserve ownership; no old reply reaches a new account or instance | Kernel: closed contexts refused at bootstrap and at every turn start. Broker: late-reply tests on the scripted and the real kernel (a slow turn during an account switch delivers nothing). Restart resumes the same peer (real kernel, and Rinx `standalone_local`) | Met (headless) |
-| 5. Workspace, transcript, memory and tool isolation, incl. automatic injection and simultaneous mini-app requests | octos `should_isolate_app_peer_workspace_and_memory_from_the_system_and_each_other`, `should_open_isolated_request_contexts_and_refuse_them_after_close`, `should_never_extract_an_app_bound_session_into_the_profile_memory`; Rinx `standalone_local` (two contexts, one peer) | Met (kernel tests) |
-| 6. Model selection affects only the intended peer, keeps credentials with the host, reports fallback, leaves the default | octos `should_select_a_configured_model_for_one_peer_without_touching_the_profile_default` (a context runs on its peer's lane) | Met (kernel tests) |
-| 7. Standalone local and remote work without OctoSense; hosted cannot spawn a kernel; closing leaves others usable | Rinx `tests/standalone_local.rs` and `tests/standalone_remote.rs` below. `cargo tree` of `--no-default-features --features octosense-module` has no `octosense-octos-core`. app-peers release test | Met (process level); native UI pending |
-| 8. macOS desktop and OnePlus 6 ROM Home native flows | — | **Unverified.** The phone is in use by someone else and was not touched |
+| 1. Declarations select services; ungranted calls denied; non-AI apps allocate no peer | App Hub admission tests (exact names, prefixes refused, history ≠ turn). app-peers `apps_without_assistant_services_allocate_no_peer` and `history_access_does_not_allow_a_turn_and_ungranted_apps_get_no_context` (no kernel connection). Shell `a_granted_module_gets_its_service_at_creation_and_others_get_none` (ROM Home and Desktop) | Met (headless) |
+| 2. Rinx and another app share one kernel and settings without AppCard, independently addressable | app-peers `two_apps_share_one_kernel_and_closing_one_leaves_the_other_usable` (real kernel: one generation, two connections, distinct peers owned by `_main:api:octosense#system`). Native Desktop run: Rinx launched from the dock as an in-process module with AppCard neither linked nor opened | Met headless; native launch verified. A signed-in native exchange is unverified |
+| 3. System agent input, peer question, answer, continuation, interrupt | `the_system_agent_and_the_app_peer_exchange_a_question_and_answer`: `peer_send_input` → `ask_user_question` → kernel wake → `peer_respond` → continuation. `closing_the_app_interrupts_its_peers_running_work`: the turn goes `active` → `interrupted`. Both on a real kernel with a scripted model | Met (headless, scripted model) |
+| 4. Launch/close/restart/logout preserve ownership; no old reply reaches a new account or instance | Kernel: closed or never-opened contexts are refused at bootstrap and at every turn start, and control needs the host token. Broker: a late reply after an account switch delivers nothing (scripted and real kernel). A restart resumes the same peer via the persisted token (real kernel, and Rinx `standalone_local`) | Met (headless) |
+| 5. Workspace, transcript, memory and tool isolation, incl. automatic injection and simultaneous mini-app requests | octos `should_isolate_app_peer_workspace_and_memory_from_the_system_and_each_other`, `should_open_isolated_request_contexts_and_refuse_them_after_close`, `should_refuse_a_binding_that_shares_state_with_another_app_peer`, `should_never_extract_an_app_bound_session_into_the_profile_memory` | Met (kernel tests) |
+| 6. Model selection affects only the intended peer, keeps credentials with the host, reports fallback, leaves the default | octos `should_select_a_configured_model_for_one_peer_without_touching_the_profile_default`; a request context runs on its peer's lane | Met (kernel tests) |
+| 7. Standalone local and remote work without OctoSense; hosted cannot spawn a kernel; closing leaves others usable | Rinx `tests/standalone_local.rs` and `tests/standalone_remote.rs`. The shell tests `rinx_is_hosted_with_the_shells_service_and_starts_no_kernel`. Shell CI keeps Rinx's `standalone` / `octos-local` / `octos-remote` out of every graph. Native Desktop run: no kernel process started by launching Rinx | Met (process level + native launch) |
+| 8. macOS desktop and OnePlus 6 ROM Home native flows | macOS Desktop: hosted launch only (hidden window, remote bridge). OnePlus 6: nothing | **Partially verified** on macOS; **ROM Home on device is unverified**, because the phone is in use by someone else and was not touched |
 
 Deployment completion criteria:
 
 | Mode | Evidence | State |
 | --- | --- | --- |
-| Standalone local | `standalone_rinx_owns_one_local_runtime_and_stops_only_it`: no kernel before the first request; the packaged kernel (explicit path, never PATH) under Rinx's data root; two mini apps share it with separate contexts; exit stops Rinx's kernel and leaves another owner's; restart resumes the same peer | Met at process level |
-| Standalone remote | `standalone_rinx_uses_an_explicit_authenticated_remote_server` against `octos serve --auth-token <fixture>`: wrong token refused; turn in a server-provisioned workspace; the token never written to disk; an account change drops the late reply; exit leaves the server running | Met at process level |
-| Hosted desktop | Broker and injection tested; shell wiring follows in the OctoSense-Desktop change | Pending |
-| Hosted ROM Home | — | Unverified (no device access) |
+| Standalone local | `standalone_rinx_owns_one_local_runtime_and_stops_only_it`: no kernel before the first request, then the packaged kernel (explicit path, never PATH) under Rinx's data root. Two mini apps share it with separate contexts. Exit stops Rinx's kernel and leaves another owner's running. A restart resumes the same peer | Met at process level |
+| Standalone remote | `standalone_rinx_uses_an_explicit_authenticated_remote_server` against `octos serve --auth-token <fixture>`: a wrong token is refused, a turn runs in a server-provisioned workspace, the server token is never written to disk, an account change drops the late reply, and exit leaves the server running | Met at process level |
+| Hosted desktop | Launch before AppCard: native (Desktop#50 build, hidden window). System peer, question/answer and second-app survival: real-kernel broker tests. A signed-in Rinx mini app exchanging with the system agent natively: not run (needs a Matrix account) | Partially verified |
+| Hosted ROM Home | ROM#34 builds and its tests pass on macOS and in CI; no APK was installed | Unverified (no device access) |
 
-Rinx checks: `cargo test --locked --features agent_chat --lib` (218 passed), `cargo check --lib`
-and `cargo check --lib --no-default-features --features octosense-module` without
-new warnings.
+Known limits and follow-ups:
 
-Known limits: the kernel queued a second `peer_send_input` to an already-used
-peer without running it within two minutes in one scripted run. The exchange
-itself is covered by the first-input test; a kernel follow-up is recorded.
-Per-app token/tool budgets and fair scheduling beyond the kernel's existing
-limits are not part of this change.
+- In one scripted run the kernel accepted a second `peer_send_input` to a peer
+  that had already answered once, but did not run it within two minutes. The
+  first exchange is covered. This is a kernel follow-up.
+- Rinx's `ServiceExecutor` (the system agent operating Rinx's UI or Matrix
+  actions) still returns unavailable. Peer messaging is available, but no
+  authorized app operations are defined yet.
+- In-flight turns fail with a retry message when the shell restarts its kernel
+  (provider change). The broker reconnects and resumes the peer on the next
+  request.
+- Per-app token/tool budgets and fair scheduling beyond the kernel's existing
+  limits are not part of this change.
