@@ -21,6 +21,8 @@ use std::{
 #[derive(Clone, Debug)]
 pub enum MiniAppsAction {
     Open,
+    /// The assistant opened the reviewed app: show its review; Run grants it.
+    OpenReviewed,
     Close,
 }
 script_mod! {
@@ -88,6 +90,8 @@ pub struct MiniAppsPanel {
     #[rust]
     reviewed_room: String,
     #[rust]
+    review_notice: String,
+    #[rust]
     package: Option<Package>,
     #[rust]
     lease: Option<Lease>,
@@ -135,6 +139,17 @@ impl MiniAppsPanel {
         self.view.view(cx, ids!(approval)).set_visible(cx, false);
         self.view.splash(cx, ids!(card)).set_text(cx, "");
         self.view.view(cx, ids!(import_form)).set_visible(cx, true);
+        self.publish_to_assistant();
+    }
+    /// What the assistant's `status` and `open_mini_app` see of this screen.
+    fn publish_to_assistant(&self) {
+        let reviewed = self.package.as_ref().map(|package| crate::assistant::ReviewedApp {
+            id: package.manifest.id.clone(),
+            name: package.manifest.name.clone(),
+            room: Some(self.reviewed_room.clone()).filter(|room| !room.is_empty()),
+        });
+        let running = self.lease.as_ref().and(self.package.as_ref()).map(|p| p.manifest.name.clone());
+        crate::assistant::set_mini_apps(reviewed, running);
     }
     fn show_approval(&mut self, cx: &mut Cx) {
         if let Some(approval) = self.approvals.front() {
@@ -207,9 +222,12 @@ impl MiniAppsPanel {
             ruma::RoomId::parse(room.trim()).map_err(|_| "Invalid Matrix room ID")?;
         }
         let services = package.manifest.capabilities.join(", ");
-        self.notice(cx,&format!("{} {} · Local unsigned bundle\nServices: {}\nAllowed room: {}\nRun grants these services for this session. Octos turns may use the connected core's tools.",package.manifest.name,package.manifest.version,services,if room.trim().is_empty(){"None"}else{room.trim()}));
+        self.review_notice = format!("{} {} · Local unsigned bundle\nServices: {}\nAllowed room: {}\nRun grants these services for this session. Octos turns may use the connected core's tools.",package.manifest.name,package.manifest.version,services,if room.trim().is_empty(){"None"}else{room.trim()});
+        let notice = self.review_notice.clone();
+        self.notice(cx, &notice);
         self.reviewed_room = room.trim().to_string();
         self.package = Some(package);
+        self.publish_to_assistant();
         Ok(())
     }
     fn run(&mut self, cx: &mut Cx) -> Result<(), String> {
@@ -291,6 +309,7 @@ impl MiniAppsPanel {
         splash.set_host_tag(cx, Some(self.tag.clone()));
         self.assets = Some(server);
         self.lease = Some(lease);
+        self.publish_to_assistant();
         self.render(cx)?;
         let calls = self.package.as_ref().unwrap().bindings.on_open.clone();
         for call in calls {
@@ -653,6 +672,17 @@ impl MiniAppsPanelRef {
                     inner.show_assistant_status(cx);
                     // Hosted Rinx uses OctoSense's AI settings: no endpoint
                     // or key form of its own.
+                    inner
+                        .view
+                        .view(cx, ids!(import_form.core))
+                        .set_visible(cx, !crate::octos_service::is_hosted());
+                    modal.open(cx);
+                }
+                MiniAppsAction::OpenReviewed => {
+                    inner.open = true;
+                    let notice = inner.review_notice.clone();
+                    inner.notice(cx, &notice);
+                    inner.show_assistant_status(cx);
                     inner
                         .view
                         .view(cx, ids!(import_form.core))
