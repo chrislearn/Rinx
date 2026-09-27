@@ -644,6 +644,26 @@ passes login, restore, account switch, login failure and logout for all
 three deployments. Rinx's service dependency follows OctoSense `c806889`
 and its renamed `octosense-kernel` crate.
 
-Native assistant requests, consent dialogs and cross-app exchanges still
-need verification with this fix. The validation packages do not replace
-normal Rinx, Home or Bridge.
+The signed-in test also found that the mini-app adapter wrapped every
+completed result as `text`, hiding `session_id` and `messages` from history
+callbacks. It now preserves the broker's result while retaining the reply
+size limit; regression tests cover session, history, turn and error results.
+
+The follow-up OnePlus APK `2026092712` (OctoSense `0336018`, Rinx `11d794d6`)
+includes both fixes and the merged shared shell from `c806889`. Native UI
+checks pass for Matrix session restoration, profile access, Octos session
+open/history, an AI reply, and a tool approval prompt whose Deny action
+reaches the kernel. Closing during a delayed response returns to Discover
+without a late UI update; reopening creates a new context and replies again.
+System Back closes the mini-app; an edge swipe from Discover returns to the
+launcher with the same host process. Process inspection finds exactly one
+kernel child under that host. The standalone APK `2026092710` built from
+the same Rinx source also starts and discovers matrix.org.
+
+AI replies use a temporary scripted provider with the real packaged Android
+kernel. Its profile and its own ADB reverse tunnel are removed afterward.
+No Matrix messages were sent and no room access was granted to the fixture.
+These checks do not claim paid-provider inference, native cross-app agent
+exchange, approval acceptance, or privileged production Home/Bridge
+integration. The validation packages do not replace normal Rinx, Home or
+Bridge.
