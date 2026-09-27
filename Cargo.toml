@@ -20,7 +20,7 @@ uuid = { version = "1", features = ["v4"] }
 ## The assistant (ADR 0007): the scoped service contract a host injects. The
 ## local-runtime and remote connectors are optional (`octos-local`,
 ## `octos-remote`), so a hosted build links no runtime of its own.
-octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "4fa0f122ab01d58e468d339f1920ec2758741012" }
+octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense.git", rev = "f38aa250c0d37f44d3f0426242bec1606b61e616" }
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
 octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
