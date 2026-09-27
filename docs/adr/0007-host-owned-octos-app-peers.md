@@ -633,6 +633,17 @@ updated graph:
   exists under the host UID before an authorized request. These tests use
   the separate validation identity, not the privileged Home/Bridge identity.
 
-Signed-in native mini-app requests, consent dialogs and cross-app exchanges
-remain unverified until a Matrix login is provided in the validation app.
-The validation packages do not replace normal Rinx, Home or Bridge.
+The subsequent signed-in OnePlus check successfully read the Matrix profile
+through the native mini-app, but exposed an account-binding error: login
+invalidated the previous session before storing the new Matrix client, so
+the injected assistant retained a signed-out account. Client replacement
+now revokes old contexts, stores the new client, then binds the assistant.
+Invalidation after login failure explicitly revokes instead of reading the
+stale client. An offline regression using real SDK sessions and the broker
+passes login, restore, account switch, login failure and logout for all
+three deployments. Rinx's service dependency follows OctoSense `c806889`
+and its renamed `octosense-kernel` crate.
+
+Native assistant requests, consent dialogs and cross-app exchanges still
+need verification with this fix. The validation packages do not replace
+normal Rinx, Home or Bridge.

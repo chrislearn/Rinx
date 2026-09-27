@@ -7908,11 +7908,11 @@ dependencies = [
 [[package]]
 name = "octosense-app-peers"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=c8068891a3a454a3a9b5b02236971294973e5087#c8068891a3a454a3a9b5b02236971294973e5087"
 dependencies = [
  "futures-util",
  "log",
- "octosense-octos-core",
+ "octosense-kernel",
  "serde_json",
  "tokio",
  "tokio-tungstenite 0.24.0",
@@ -7932,9 +7932,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "octosense-kernel"
+version = "0.1.0"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=c8068891a3a454a3a9b5b02236971294973e5087#c8068891a3a454a3a9b5b02236971294973e5087"
+dependencies = [
+ "log",
+ "octos-cli",
+ "octosense-llm-config",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "octosense-llm-config"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=c8068891a3a454a3a9b5b02236971294973e5087#c8068891a3a454a3a9b5b02236971294973e5087"
 dependencies = [
  "argon2",
  "chacha20poly1305 0.10.1",
@@ -7945,19 +7958,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "url",
-]
-
-[[package]]
-name = "octosense-octos-core"
-version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
-dependencies = [
- "log",
- "octos-cli",
- "octosense-llm-config",
- "serde_json",
- "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]

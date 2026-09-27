@@ -3085,6 +3085,16 @@ fn get_room_timeline(room_id: &RoomId) -> Option<Arc<Timeline>> {
 /// The logged-in Matrix client, which can be freely and cheaply cloned.
 static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
 
+/// Revoke the old session before replacing it, then bind the assistant to
+/// the newly installed account. Used for both fresh login and session restore.
+pub(crate) fn replace_client(client: Option<Client>) -> Option<Client> {
+    crate::article_app::invalidate_sessions();
+    crate::octoscript_apps::invalidate_sessions();
+    let previous = std::mem::replace(&mut *CLIENT.lock().unwrap(), client);
+    crate::octos_service::sync_account();
+    previous
+}
+
 pub fn get_client() -> Option<Client> {
     CLIENT.lock().unwrap().clone()
 }
@@ -3503,9 +3513,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
         enqueue_rooms_list_update(RoomsListUpdate::Status { status });
 
         // Store this active client in our global Client state so that other tasks can access it.
-        crate::article_app::invalidate_sessions();
-        crate::octoscript_apps::invalidate_sessions();
-        if let Some(_existing) = CLIENT.lock().unwrap().replace(client.clone()) {
+        if let Some(_existing) = replace_client(Some(client.clone())) {
             error!("BUG: unexpectedly replaced an existing client when initializing the matrix client.");
         }
 
@@ -3551,9 +3559,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
                 enqueue_rooms_list_update(RoomsListUpdate::Status { status: err_msg });
                 // Clear the stored client so the next login attempt doesn't trigger the
                 // "unexpectedly replaced an existing client" warning.
-                crate::article_app::invalidate_sessions();
-                crate::octoscript_apps::invalidate_sessions();
-                let _ = CLIENT.lock().unwrap().take();
+                let _ = replace_client(None);
                 abort_and_await_handles(&mut subscriber_task_handles).await;
                 continue 'login_loop;
             }
@@ -3706,9 +3712,7 @@ async fn start_matrix_client_login_and_sync(rt: Handle) {
                 }
             }
             // No-ops if `clear_app_state` already cleared these.
-            crate::article_app::invalidate_sessions();
-            crate::octoscript_apps::invalidate_sessions();
-            let _ = CLIENT.lock().unwrap().take();
+            let _ = replace_client(None);
             let _ = SYNC_SERVICE.lock().unwrap().take();
             SYNC_SERVICE_ASSUMED_RUNNING.store(false, Ordering::Release);
             continue 'login_loop;
@@ -5988,9 +5992,7 @@ impl UserPowerLevels {
 /// Keeps `REQUEST_SENDER` alive, and also the `matrix_worker_task
 /// which needs to keep running to receive the next login request.
 pub async fn clear_app_state(config: &LogoutConfig) -> Result<()> {
-    crate::article_app::invalidate_sessions();
-    crate::octoscript_apps::invalidate_sessions();
-    CLIENT.lock().unwrap().take();
+    replace_client(None);
     SYNC_SERVICE.lock().unwrap().take();
     SYNC_SERVICE_ASSUMED_RUNNING.store(false, Ordering::Release);
     set_blocked_users(HashSet::default());
