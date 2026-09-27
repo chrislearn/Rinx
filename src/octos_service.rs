@@ -143,6 +143,14 @@ pub fn sync_account() {
     }
 }
 
+/// Revoke requests immediately, including when login failed but the Matrix
+/// client has not been cleared yet. Never rebind that stale client's account.
+pub fn revoke_account() {
+    if let Some(service) = state().service.clone() {
+        service.set_account(None);
+    }
+}
+
 /// Hosted Rinx is closing: release its leases, leave the shared kernel.
 pub fn release() {
     let service = state().service.take();
@@ -415,6 +423,84 @@ mod local {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Exercise real SDK session restoration and broker account gates without
+    /// starting a kernel, contacting a homeserver or writing a user profile.
+    #[tokio::test]
+    async fn matrix_login_restore_switch_and_logout_bind_and_revoke_assistant_contexts() {
+        use octosense_app_peers::{broker::{BoxFuture, Broker, BrokerConfig, Connector, Link}, ContextSpec};
+        use crate::sliding_sync::replace_client;
+
+        struct Offline;
+        impl Connector for Offline {
+            fn available(&self) -> Result<(), String> { Err("offline test".into()) }
+            fn connect(&self) -> BoxFuture<'static, Result<Box<dyn Link>, String>> {
+                panic!("account binding must not need a kernel connection");
+            }
+            fn owns_runtime(&self) -> bool { false }
+            fn shutdown(&self) {}
+        }
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                replace_client(None);
+                *state() = State::default();
+            }
+        }
+        let _reset = Reset;
+        async fn client(user: &str) -> matrix_sdk::Client {
+            let client = matrix_sdk::Client::builder()
+                .homeserver_url("http://127.0.0.1:1")
+                .server_versions([matrix_sdk::ruma::api::MatrixVersion::V1_0])
+                .build().await.unwrap();
+            client.matrix_auth().restore_session(
+                serde_json::from_value(serde_json::json!({
+                    "user_id": user, "device_id": "ACCOUNT_BINDING_TEST",
+                    "access_token": "offline-fixture-token"
+                })).unwrap(),
+                Default::default(),
+            ).await.unwrap();
+            client
+        }
+        let alice = client("@alice:example.org").await;
+        let bob = client("@bob:example.org").await;
+        for deployment in [Deployment::Hosted, Deployment::StandaloneLocal, Deployment::StandaloneRemote] {
+            replace_client(None);
+            *state() = State::default();
+            let service: Arc<dyn OctosAppService> = Arc::new(Broker::new(
+                BrokerConfig::new(deployment, "_main", "_main:api:root", "rinx", "Rinx", rinx_services()),
+                Arc::new(Offline),
+            ));
+            match deployment {
+                Deployment::Hosted => install_hosted(Some(service.clone())),
+                Deployment::StandaloneLocal => install_standalone(service.clone(), StandaloneMode::Local),
+                Deployment::StandaloneRemote => install_standalone(service.clone(), StandaloneMode::Remote {
+                    url: "ws://127.0.0.1:1".into(), profile: "_main".into(),
+                }),
+            }
+            let open = |account: &str| service.open_context(ContextSpec {
+                account: account.into(), instance: "test-mini-app".into(), services: rinx_services(),
+            });
+            assert!(open("@alice:example.org").is_err());
+            replace_client(Some(alice.clone()));
+            let first = open("@alice:example.org").expect("login must bind the new account");
+            replace_client(Some(alice.clone()));
+            assert!(!first.is_open(), "even the same account's old login must be revoked");
+            let restored = open("@alice:example.org").expect("restored login must be bound");
+            replace_client(Some(bob.clone()));
+            assert!(!restored.is_open());
+            assert!(open("@alice:example.org").is_err());
+            let current = open("@bob:example.org").unwrap();
+            crate::octoscript_apps::invalidate_sessions();
+            assert!(!current.is_open(), "login failure must revoke before CLIENT is cleared");
+            assert!(open("@bob:example.org").is_err());
+            replace_client(Some(bob.clone()));
+            let relogged = open("@bob:example.org").unwrap();
+            replace_client(None);
+            assert!(!relogged.is_open());
+            assert!(open("@bob:example.org").is_err());
+        }
+    }
 
     #[test]
     fn standalone_mode_round_trips_without_secrets() {

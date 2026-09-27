@@ -102,6 +102,7 @@ pub mod media_cache;
 pub mod verification;
 
 pub mod utils;
+mod http;
 pub mod temp_storage;
 pub mod location;
 pub mod image_utils;

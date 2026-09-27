@@ -20,7 +20,7 @@ uuid = { version = "1", features = ["v4"] }
 ## The assistant (ADR 0007): the scoped service contract a host injects. The
 ## local-runtime and remote connectors are optional (`octos-local`,
 ## `octos-remote`), so a hosted build links no runtime of its own.
-octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense.git", rev = "b803dba9750eee55fe7657dc0205026e11931005" }
+octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense.git", rev = "35d9d1218e1b8b165977a4f019fdea9f2675dc90" }
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
 octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
@@ -328,6 +328,8 @@ icons = [
     "./resources/icon.ico",
 ]
 out_dir = "./dist"
+# One pinned local assistant runtime; installed beside Rinx by the packager.
+external-binaries = ["./dist/runtime/octos"]
 
 ## Here, we define the list of resource directories for both Makepad and Rinx.
 ## The `src` directory is based on `./dist/` as the `out_dir` (above), which is where the
@@ -345,6 +347,7 @@ resources = [
     { src = "./LICENSE", target = "licenses/LICENSE" },
     { src = "./LICENSE-MIT", target = "licenses/LICENSE-MIT" },
     { src = "./NOTICE", target = "licenses/NOTICE" },
+    { src = "./dist/runtime/licenses/octos-LICENSE", target = "licenses/octos-LICENSE" },
     { src = "./dist/resources/rinx", target = "rinx" },
 ]
 
@@ -358,7 +361,8 @@ robius-packaging-commands before-each-package \
     --force-makepad \
     --binary-name rinx \
     --path-to-binary ./target/release/rinx \
-    --add-deb-dep geoclue-2.0
+    --add-deb-dep geoclue-2.0 &&
+python3 tools/package-octos.py desktop
 """
 
 ## This is not yet implemented, so remove it.

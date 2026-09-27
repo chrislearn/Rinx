@@ -57,6 +57,12 @@ fn mini_app_value(data: &Value) -> Value {
     json!({"text": data.get("text").cloned().unwrap_or(Value::Null), "event": event})
 }
 
+fn completed_reply(result: Result<Value, String>) -> ServiceEvent {
+    // The broker already returns each service's public result. Wrapping all
+    // results in `text` hides session_id/messages from history callbacks.
+    ServiceEvent::Complete(result.and_then(rinx_miniapp_core::bounded_reply))
+}
+
 fn forward(lease: Lease, reply: SyncSender<ServiceEvent>) -> octosense_app_peers::EventSink {
     let reply = std::sync::Mutex::new(reply);
     Arc::new(move |event| {
@@ -75,11 +81,7 @@ fn forward(lease: Lease, reply: SyncSender<ServiceEvent>) -> octosense_app_peers
                     Err(_) => return,
                 }
             }
-            ContextEvent::Complete(result) => ServiceEvent::Complete(
-                result
-                    .map(|v| json!({"text": v.get("text").cloned().unwrap_or(v.clone()), "turn_id": v.get("turn_id")}))
-                    .and_then(rinx_miniapp_core::bounded_reply),
-            ),
+            ContextEvent::Complete(result) => completed_reply(result),
         };
         if let Ok(reply) = reply.lock() {
             let _ = reply.try_send(event);
@@ -145,6 +147,23 @@ impl OctosProvider for ContextProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn service_callbacks_keep_session_history_and_turn_fields() {
+        for result in [
+            json!({"open": true, "model": {"lane": "primary"}}),
+            json!({"session_id": "context-a", "messages": [{"role": "assistant", "content": "hello"}]}),
+            json!({"turn_id": "turn-a", "text": "hello"}),
+        ] {
+            let ServiceEvent::Complete(Ok(reply)) = completed_reply(Ok(result.clone())) else {
+                panic!("expected a successful service callback");
+            };
+            assert_eq!(reply, result);
+        }
+        assert!(matches!(completed_reply(Err("revoked".into())), ServiceEvent::Complete(Err(e)) if e == "revoked"));
+        let too_large = json!({"messages": ["x".repeat(rinx_miniapp_core::MAX_REPLY_BYTES)]});
+        assert!(matches!(completed_reply(Ok(too_large)), ServiceEvent::Complete(Err(_))));
+    }
 
     #[test]
     fn approval_requests_keep_the_shape_the_native_prompt_reads() {

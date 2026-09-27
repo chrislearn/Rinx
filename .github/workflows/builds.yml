@@ -191,6 +191,7 @@ jobs:
       - name: Install Android toolchain
         run: |
           cargo makepad android install-toolchain --full-ndk
+          rustup target add aarch64-linux-android
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -202,7 +203,8 @@ jobs:
           RUSTFLAGS: "-D warnings"
           AWS_LC_SYS_CMAKE_BUILDER: 1
         run: |
-          cargo makepad android build -p rinx \
+          python3 tools/package-octos.py android -- \
+          cargo makepad android --abi=aarch64 build -p rinx \
           --config profile.dev.opt-level=0 \
           --config profile.dev.debug=false \
           --config profile.dev.lto=\"off\" \
@@ -224,6 +226,7 @@ jobs:
       - name: Install Android toolchain
         run: |
           cargo makepad android install-toolchain --full-ndk
+          rustup target add aarch64-linux-android
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -235,7 +238,8 @@ jobs:
           RUSTFLAGS: "-D warnings"
           AWS_LC_SYS_CMAKE_BUILDER: 1
         run: |
-          cargo makepad android build -p rinx \
+          python3 tools/package-octos.py android -- \
+          cargo makepad android --abi=aarch64 build -p rinx \
           --config profile.dev.opt-level=0 \
           --config profile.dev.debug=false \
           --config profile.dev.lto=\"off\" \
@@ -265,6 +269,7 @@ jobs:
       - name: Install Android toolchain
         run: |
           cargo makepad android install-toolchain --full-ndk
+          rustup target add aarch64-linux-android
 
       - name: Install Ninja
         run: choco install ninja -y
@@ -278,7 +283,8 @@ jobs:
         run: |
           ## Note: we can't use the profile here because cargo-makepad doesn't support custom profiles.
           # cargo makepad android build -p rinx --profile fast
-          cargo makepad android build -p rinx \
+          python3 tools/package-octos.py android -- \
+          cargo makepad android --abi=aarch64 build -p rinx \
           --config profile.dev.opt-level=0 \
           --config profile.dev.debug=false \
           --config profile.dev.lto=\"off\" \

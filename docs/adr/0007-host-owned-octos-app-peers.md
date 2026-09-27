@@ -499,7 +499,7 @@ fixtures. No provider key or Matrix credential is used anywhere.
 | 5. Workspace, transcript, memory and tool isolation, incl. automatic injection and simultaneous mini-app requests | octos `should_isolate_app_peer_workspace_and_memory_from_the_system_and_each_other`, `should_open_isolated_request_contexts_and_refuse_them_after_close`, `should_refuse_a_binding_that_shares_state_with_another_app_peer`, `should_never_extract_an_app_bound_session_into_the_profile_memory` | Met (kernel tests) |
 | 6. Model selection affects only the intended peer, keeps credentials with the host, reports fallback, leaves the default | octos `should_select_a_configured_model_for_one_peer_without_touching_the_profile_default`; a request context runs on its peer's lane | Met (kernel tests) |
 | 7. Standalone local and remote work without OctoSense; hosted cannot spawn a kernel; closing leaves others usable | Rinx `tests/standalone_local.rs` and `tests/standalone_remote.rs`. The shell tests `rinx_is_hosted_with_the_shells_service_and_starts_no_kernel`. Shell CI keeps Rinx's `standalone` / `octos-local` / `octos-remote` out of every graph. Native Desktop run: no kernel process started by launching Rinx | Met (process level + native launch) |
-| 8. macOS desktop and OnePlus 6 ROM Home native flows | macOS Desktop: hosted launch only (hidden window, remote bridge). OnePlus 6: nothing | **Partially verified** on macOS; **ROM Home on device is unverified**, because the phone is in use by someone else and was not touched |
+| 8. macOS desktop and OnePlus 6 ROM Home native flows | macOS: native standalone discovery and earlier hosted launch/close/reopen. OnePlus 6: standalone and separate hosted validation APKs launch; matrix.org discovery, single-event Back/edge swipe, IME dismissal, background/resume and restart verified (details below) | **Partially verified**: signed-in mini-app/approval flows and privileged production ROM integration remain unverified |
 
 Deployment completion criteria:
 
@@ -508,13 +508,17 @@ Deployment completion criteria:
 | Standalone local | `standalone_rinx_owns_one_local_runtime_and_stops_only_it`: no kernel before the first request, then the packaged kernel (explicit path, never PATH) under Rinx's data root. Two mini apps share it with separate contexts. Exit stops Rinx's kernel and leaves another owner's running. A restart resumes the same peer | Met at process level |
 | Standalone remote | `standalone_rinx_uses_an_explicit_authenticated_remote_server` against `octos serve --auth-token <fixture>`: a wrong token is refused, a turn runs in a server-provisioned workspace, the server token is never written to disk, an account change drops the late reply, and exit leaves the server running | Met at process level |
 | Hosted desktop | Launch before AppCard: native (Desktop#50 build, hidden window). System peer, question/answer and second-app survival: real-kernel broker tests. A signed-in Rinx mini app exchanging with the system agent natively: not run (needs a Matrix account) | Partially verified |
-| Hosted ROM Home | ROM#34 builds and its tests pass on macOS and in CI; no APK was installed | Unverified (no device access) |
+| Hosted ROM Home | Consolidated OctoSense test APK installed separately on OnePlus 6: native launch, Back, edge swipe, background/resume and restart. No Rinx-owned kernel starts before authorization | Partially verified; signed-in mini-app flows and the privileged installed Home/Bridge are not covered |
 
 Known limits and follow-ups:
 
-- In one scripted run the kernel accepted a second `peer_send_input` to a peer
-  that had already answered once, but did not run it within two minutes. The
-  first exchange is covered. This is a kernel follow-up.
+- The initial repeated-input check passed against `552767dd` after the
+  scripted model used unique tool-call IDs (System Apps #18). That did not
+  cover providers that reuse an ID in a later turn. The consolidated
+  OctoSense fixture deliberately reuses `call_1`; kernel `a6ea8505` handles
+  that case. Both the question/answer exchange and the next system-to-peer
+  input now pass on the real Android kernel. The earlier unique-ID result
+  alone was insufficient to claim repeated-input compatibility.
 - Rinx's `ServiceExecutor` now serves the first action set: `status`,
   `list_rooms`, `open_room`, `draft_message`, `read_room` (grant-gated),
   `open_mini_app` (the reviewed app only; Run still grants it) and
@@ -528,3 +532,138 @@ Known limits and follow-ups:
   request.
 - Per-app token/tool budgets and fair scheduling beyond the kernel's existing
   limits are not part of this change.
+
+### Deployment validation follow-up (2026-09-26)
+
+The initial validation used System Apps `cc1cee3` and kernel `552767dd`,
+matching the shell contracts before the repository consolidation. [Runtime packaging](../../packaging/README-octos.md)
+builds the pinned executable for desktop and Android and includes its license.
+Hosted builds continue to use only the injected service.
+
+Rechecked in isolated worktrees and disposable data directories:
+
+- All 20 app-peers tests pass, including five tests using the real pinned
+  kernel and a scripted model. The repeated-input regression is in
+  [System Apps #18](https://github.com/OctoSense-org/OctoSense-System-Apps/pull/18).
+- Standalone local and authenticated remote process tests pass with the
+  aligned dependency. The local test also passes from a private bundle with
+  `RINX_OCTOS_BIN` removed, finding the adjacent packaged executable.
+- Six packaging checks pass, including seven-character Git revisions from
+  shallow source builds. cargo-packager 0.10.1 produces a macOS bundle
+  with `Contents/MacOS/octos` and its license. This inclusion check reuses the
+  existing fast-build Rinx binary; it is not a notarized distribution test.
+- Native Makepad instrumentation verifies the standalone development bundle's
+  login screen and hosted Rinx's launch, close and reopen in the rebuilt
+  Desktop #41 shell. Both native test processes exited after capture. The
+  hosted launch starts no child kernel before an authorized request.
+- The pinned Android kernel cross-builds as an aarch64 ELF PIE with 16 KB
+  load-segment alignment and only Android system-library dependencies.
+- Standalone Android builds as the separate `dev.makepad.rinx.validation`
+  package. APK v2/v3 signature verification passes and the bundled
+  `lib/arm64-v8a/liboctos.so` matches the staged kernel's SHA-256 exactly.
+  This development APK is installed under its separate package on OnePlus 6.
+
+Signed-in native mini-app AI/approval flows still require a disposable Matrix
+login. No normal Rinx account or AI credentials are copied into the test apps.
+
+The merged ROM Home source also produced development-signed Home and Bridge
+APKs using the ROM-patched cargo-makepad. The Home APK contains the exact pinned
+kernel. Neither APK was installed; the installed Home remains untouched.
+
+#### OnePlus 6 follow-up (2026-09-27)
+
+The phone runs Android 15. The packaged kernel starts under the separate test
+app's UID and reports `552767d`, the abbreviated pinned revision. Sixteen
+checks pass against that Android executable over stdio with a scripted model:
+two app peers and three isolated request contexts, streamed/persisted replies,
+history isolation, host-token rejection, repeated turns, the system agent's
+input/question/answer exchange and second input, and context closure while
+another context remains usable. This exercises the kernel protocol, not a
+signed-in native mini-app flow.
+
+The native standalone UI exposed a reqwest 0.13 Android verifier panic during
+the browser-registration metadata request. Auxiliary HTTP clients now use the
+same bundled trust roots as the Matrix client, retaining certificate and
+hostname verification. This also covers article image downloads and the
+optional agent transport. Nine homeserver tests pass. The rebuilt test APK
+successfully discovers matrix.org and renders its sign-in choices on the phone.
+
+A separate `dev.makepad.octosense.rinxvalidation` APK launches Rinx in-process
+and displays its sign-in screen. Its validation manifest omits the Home intent;
+it does not replace the installed Home or Bridge. The unrelated privileged
+bridge correctly rejects its test identity. Native Back testing exposed the
+shell's Activity fallback closing the host before its Rust navigation handles
+Back. Subsequent predictive-Back testing also caught duplicate compatibility
+key events. The corrected callback and key routing are verified below.
+Signed-in native AI/approval flows and production ROM integration are not yet
+claimed complete.
+
+#### Consolidated runtime validation (2026-09-27)
+
+Rinx `e6443ae1` follows main’s app-peers pin `OctoSense@f38aa250`, Makepad
+`6cf03859` and kernel `a6ea8505`. Runtime packaging follows that kernel pin.
+The preceding results identify the earlier builds; these checks use the
+updated graph:
+
+- Six packaging checks and nine homeserver tests pass. Both Rinx CI jobs pass.
+- On macOS, Makepad instrumentation verifies native startup and public
+  matrix.org discovery. Real-kernel process tests pass for packaged local
+  discovery (without `RINX_OCTOS_BIN`), per-context isolation, restart and
+  owner-only shutdown, and for the authenticated remote deployment.
+- OnePlus 6 standalone validation package version `2026092708` starts and
+  discovers matrix.org without the verifier panic. Its packaged kernel's
+  hash matches the source-build receipt and reports `a6ea850` on the phone.
+- All 16 Android kernel checks pass using the consolidated scripted-model
+  fixture, including repeated tool-call IDs across turns. These are protocol
+  tests under the test app's UID, separate from native signed-in UI tests.
+- The consolidated OctoSense dependency check finds one Rinx, one Makepad
+  runtime and one shared Octos service; the hosted graph contains no Rinx
+  standalone kernel features.
+- The hosted validation APK (`2026092710`, OctoSense `33eaf68`, Rinx
+  `e6443ae1`) includes the same verified Android kernel. It fixes the renamed
+  phone crate's theme asset path and owns system Back through Android's
+  dispatcher. The Makepad overlay suppresses the compatibility Back key
+  while that callback is registered, preventing two navigations per press.
+  The clean pinned runtime plus both patches reproduces the locked tree.
+- On OnePlus 6, the Back key and an edge swipe each produce exactly one
+  navigation event and return Rinx to the launcher without closing the host.
+  IME Back dismisses the keyboard before app navigation. Reopen and
+  background/resume keep the same host process. After process restart,
+  Rinx launches again and discovers matrix.org. No separate kernel process
+  exists under the host UID before an authorized request. These tests use
+  the separate validation identity, not the privileged Home/Bridge identity.
+
+The subsequent signed-in OnePlus check successfully read the Matrix profile
+through the native mini-app, but exposed an account-binding error: login
+invalidated the previous session before storing the new Matrix client, so
+the injected assistant retained a signed-out account. Client replacement
+now revokes old contexts, stores the new client, then binds the assistant.
+Invalidation after login failure explicitly revokes instead of reading the
+stale client. An offline regression using real SDK sessions and the broker
+passes login, restore, account switch, login failure and logout for all
+three deployments. Rinx's service dependency follows OctoSense `c806889`
+and its renamed `octosense-kernel` crate.
+
+The signed-in test also found that the mini-app adapter wrapped every
+completed result as `text`, hiding `session_id` and `messages` from history
+callbacks. It now preserves the broker's result while retaining the reply
+size limit; regression tests cover session, history, turn and error results.
+
+The follow-up OnePlus APK `2026092712` (OctoSense `0336018`, Rinx `11d794d6`)
+includes both fixes and the merged shared shell from `c806889`. Native UI
+checks pass for Matrix session restoration, profile access, Octos session
+open/history, an AI reply, and a tool approval prompt whose Deny action
+reaches the kernel. Closing during a delayed response returns to Discover
+without a late UI update; reopening creates a new context and replies again.
+System Back closes the mini-app; an edge swipe from Discover returns to the
+launcher with the same host process. Process inspection finds exactly one
+kernel child under that host. The standalone APK `2026092710` built from
+the same Rinx source also starts and discovers matrix.org.
+
+AI replies use a temporary scripted provider with the real packaged Android
+kernel. Its profile and its own ADB reverse tunnel are removed afterward.
+No Matrix messages were sent and no room access was granted to the fixture.
+These checks do not claim paid-provider inference, native cross-app agent
+exchange, approval acceptance, or privileged production Home/Bridge
+integration. The validation packages do not replace normal Rinx, Home or
+Bridge.

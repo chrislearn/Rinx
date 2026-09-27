@@ -11,7 +11,7 @@ pub struct Transport(reqwest::Client);
 impl Transport {
     pub fn new() -> Result<Self> {
         Ok(Self(
-            reqwest::Client::builder()
+            crate::http::client_builder()
                 .no_proxy()
                 .redirect(reqwest::redirect::Policy::none())
                 .timeout(std::time::Duration::from_secs(15))

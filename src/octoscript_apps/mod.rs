@@ -8,7 +8,7 @@ pub fn invalidate_sessions() {
     AUTHORITY.invalidate();
     // Account change or logout: the assistant's contexts of the previous
     // account are revoked too (ADR 0007).
-    crate::octos_service::sync_account();
+    crate::octos_service::revoke_account();
     // And the assistant's waiting and running calls.
     crate::assistant::invalidate();
 }
