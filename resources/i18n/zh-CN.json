@@ -1085,5 +1085,6 @@
   "Revoke": "撤销",
   "Assistant access": "助理访问权限",
   "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>": "<ul><li>此账号允许助理读取的聊天。每一个都是你选择了“始终允许”；撤销后，助理会再次询问。</li></ul>",
-  "The assistant may not read any chat.": "助理不能读取任何聊天。"
+  "The assistant may not read any chat.": "助理不能读取任何聊天。",
+  "Chats this account lets the assistant read. Revoke one and the assistant asks again.": "此账号允许助理读取的聊天。撤销后，助理会再次询问。"
 }

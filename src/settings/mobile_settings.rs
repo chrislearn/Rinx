@@ -182,6 +182,19 @@ script_mod! {
                 DetailSection {moments_sharing := SwitchRow {title.text: #(crate::i18n::tr("Share Moments with DM contacts")) title.i18n_text: "Share Moments with DM contacts"}}
                 DetailNote {text: #(crate::i18n::tr("On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way.")) i18n_text: "On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. Your Matrix profile shows that you share this way."}
                 DetailSection {blocked_row := DetailRow {title.text: #(crate::i18n::tr("Blocked Users")) title.i18n_text: "Blocked Users"}}
+                DetailSection {assistant_row := DetailRow {title.text: #(crate::i18n::tr("Assistant access")) title.i18n_text: "Assistant access"}}
+                DetailNote {text: #(crate::i18n::tr("Chats this account lets the assistant read. Revoke one and the assistant asks again.")) i18n_text: "Chats this account lets the assistant read. Revoke one and the assistant asks again."}
+            }
+            assistant_access := View {
+                width: Fill height: Fill flow: Down
+                assistant_empty := DetailNote {text: #(crate::i18n::tr("The assistant may not read any chat.")) i18n_text: "The assistant may not read any chat."}
+                assistant_list := PortalList {
+                    width: Fill height: Fill
+                    Room := DetailSection {
+                        revoke := DetailRow {title +: {width: Fill text_overflow: Ellipsis} value +: {width: Fit text: #(crate::i18n::tr("Revoke")) i18n_text: "Revoke"}}
+                        DetailDivider {}
+                    }
+                }
             }
             blocked := View {
                 width: Fill height: Fill flow: Down
@@ -216,21 +229,21 @@ script_mod! {
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
-enum Page { #[default] Settings, Personal, Name, Photo, Account, General, Language, Hagency, Zoom, Images, Privacy, Blocked, About }
+enum Page { #[default] Settings, Personal, Name, Photo, Account, General, Language, Hagency, Zoom, Images, Privacy, Blocked, Assistant, About }
 impl Page {
     fn id(self) -> LiveId { match self {
         Self::Settings => id!(settings), Self::Personal => id!(personal), Self::Name => id!(name),
         Self::Photo => id!(photo), Self::Account => id!(account), Self::General => id!(general),
         Self::Zoom => id!(zoom), Self::Images => id!(images), Self::Privacy => id!(privacy),
         Self::Blocked => id!(blocked), Self::About => id!(about), Self::Language => id!(language),
-        Self::Hagency => id!(hagency),
+        Self::Hagency => id!(hagency), Self::Assistant => id!(assistant_access),
     }}
     fn title(self) -> &'static str { crate::i18n::tr(match self {
         Self::Settings => crate::i18n::tr("Settings"), Self::Personal => crate::i18n::tr("Personal Information"), Self::Name => crate::i18n::tr("Name"),
         Self::Photo => crate::i18n::tr("Profile Photo"), Self::Account => crate::i18n::tr("Account and Security"), Self::General => crate::i18n::tr("General"),
         Self::Zoom => crate::i18n::tr("Display Size"), Self::Images => crate::i18n::tr("Chat Image Size"), Self::Privacy => crate::i18n::tr("Privacy"),
         Self::Blocked => crate::i18n::tr("Blocked Users"), Self::About => crate::i18n::tr("About Rinx"), Self::Language => crate::i18n::tr("Language"),
-        Self::Hagency => "Hagency",
+        Self::Hagency => "Hagency", Self::Assistant => crate::i18n::tr("Assistant access"),
     })}
 }
 
@@ -245,6 +258,8 @@ pub struct MobileSettings {
     #[rust] saving_photo: bool,
     #[rust] account_url: AccountManagementUrl,
     #[rust] blocked_users: Vec<OwnedUserId>,
+    /// Rooms the signed-in account lets the assistant read.
+    #[rust] assistant_rooms: Vec<String>,
 }
 impl MobileSettings {
     fn open(&mut self, cx: &mut Cx, page: Page) {
@@ -348,7 +363,7 @@ impl Widget for MobileSettings {
             (ids!(about_row), Page::About), (ids!(personal_row), Page::Personal), (ids!(photo_row), Page::Photo),
             (ids!(name_row), Page::Name), (ids!(more_row), Page::Account), (ids!(zoom_row), Page::Zoom),
             (ids!(images_row), Page::Images), (ids!(blocked_row), Page::Blocked), (ids!(language_row), Page::Language),
-            (ids!(hagency_row), Page::Hagency),
+            (ids!(hagency_row), Page::Hagency), (ids!(assistant_row), Page::Assistant),
         ] { if self.view.navigation_bar_button(cx, path).clicked(actions) { self.open(cx, page); } }
         for (path, language) in [(ids!(language_en), crate::i18n::Language::English), (ids!(language_zh), crate::i18n::Language::Chinese)] {
             if self.view.navigation_bar_button(cx, path).clicked(actions) {
@@ -415,6 +430,15 @@ impl Widget for MobileSettings {
                 }
             }
         }
+        let rooms = self.view.portal_list(cx, ids!(assistant_list));
+        for (index, item) in rooms.items_with_actions(actions) {
+            if item.navigation_bar_button(cx, ids!(revoke)).clicked(actions)
+                && let Some(room_id) = self.assistant_rooms.get(index).cloned()
+                && let Err(e) = crate::assistant::revoke_room(cx, &room_id)
+            {
+                error!("Could not revoke the assistant's access to {room_id}: {e}");
+            }
+        }
         let list = self.view.portal_list(cx, ids!(blocked_list));
         for (index, item) in list.items_with_actions(actions) {
             if item.navigation_bar_button(cx, ids!(unblock)).clicked(actions) {
@@ -464,7 +488,32 @@ impl Widget for MobileSettings {
         let blocked = &self.blocked_users;
         self.view.label(cx, ids!(blocked_row.value)).set_text(cx, &blocked.len().to_string());
         self.view.widget(cx, ids!(blocked_empty)).set_visible(cx, blocked.is_empty());
+        self.assistant_rooms = crate::assistant::granted_rooms();
+        let rooms = &self.assistant_rooms;
+        self.view.label(cx, ids!(assistant_row.value)).set_text(cx, &rooms.len().to_string());
+        self.view.widget(cx, ids!(assistant_empty)).set_visible(cx, rooms.is_empty());
+        let assistant_list = self.view.portal_list(cx, ids!(assistant_list)).widget_uid();
+        let has_rooms_list = cx.has_global::<crate::home::rooms_list::RoomsListRef>();
         while let Some(step) = self.view.draw_walk(cx, scope, walk).step() {
+            if step.widget_uid() == assistant_list {
+                if let Some(mut list) = step.borrow_mut::<PortalList>() {
+                    list.set_item_range(cx, 0, rooms.len());
+                    while let Some(index) = list.next_visible_item(cx) {
+                        if let Some(room_id) = rooms.get(index) {
+                            let name = matrix_sdk::ruma::OwnedRoomId::try_from(room_id.as_str())
+                                .ok()
+                                .filter(|_| has_rooms_list)
+                                .and_then(|id| cx.get_global::<crate::home::rooms_list::RoomsListRef>().get_room_name(&id))
+                                .map(|name| name.display().into_owned())
+                                .unwrap_or_else(|| room_id.clone());
+                            let item = list.item(cx, index, id!(Room));
+                            item.label(cx, ids!(title)).set_text(cx, &name);
+                            item.draw_all(cx, scope);
+                        }
+                    }
+                }
+                continue;
+            }
             if let Some(mut list) = step.borrow_mut::<PortalList>() {
                 list.set_item_range(cx, 0, blocked.len());
                 while let Some(index) = list.next_visible_item(cx) {
