@@ -1086,5 +1086,21 @@
   "Assistant access": "Assistant access",
   "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>": "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>",
   "The assistant may not read any chat.": "The assistant may not read any chat.",
-  "Chats this account lets the assistant read. Revoke one and the assistant asks again.": "Chats this account lets the assistant read. Revoke one and the assistant asks again."
+  "Chats this account lets the assistant read. Revoke one and the assistant asks again.": "Chats this account lets the assistant read. Revoke one and the assistant asks again.",
+  "Bold": "Bold",
+  "Bulleted list": "Bulleted list",
+  "Code": "Code",
+  "Heading": "Heading",
+  "Horizontal rule": "Horizontal rule",
+  "Italic": "Italic",
+  "Numbered list": "Numbered list",
+  "Quote": "Quote",
+  "Undo": "Undo",
+  "Redo": "Redo",
+  "Move up": "Move up",
+  "Move down": "Move down",
+  "Remove block": "Remove block",
+  "Full width": "Full width",
+  "Medium width": "Medium width",
+  "Small width": "Small width"
 }
