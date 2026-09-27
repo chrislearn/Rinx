@@ -91,7 +91,15 @@ pub static RINX_MODULE: RinxModule = RinxModule;
 impl AppModule for RinxModule {
     fn id(&self) -> &'static str { "rinx" }
     fn label(&self) -> &'static str { "Rinx" }
-    fn capabilities(&self) -> &'static [&'static str] { &["net", "storage", "audio.output", "clipboard"] }
+    /// The host reads Rinx's assistant needs from here (ADR 0007): the exact
+    /// App Hub `octos.*` service names its mini-app host serves. Declaring
+    /// them grants nothing; the host intersects them with its policy.
+    fn capabilities(&self) -> &'static [&'static str] {
+        &[
+            "net", "storage", "audio.output", "clipboard",
+            "octos.session.open", "octos.session.history", "octos.turn.start", "octos.turn.interrupt",
+        ]
+    }
     fn open_schema(&self) -> OpenSchema { OpenSchema::new(1) }
 
     fn register(&self, vm: &mut ScriptVm) {
@@ -101,6 +109,15 @@ impl AppModule for RinxModule {
 
     fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
         let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
+        // Hosted mode comes from the shell creating this module: take the
+        // scoped assistant service it offered to THIS instance, if any. No
+        // fallback kernel, no credentials, no AppCard.
+        let assistant = octosense_app_peers::injection::claim(self.id(), &handles.scope.to_string());
+        if owns_runtime {
+            crate::octos_service::install_hosted(assistant);
+        } else if let Some(service) = assistant {
+            service.release();
+        }
         let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
         let root = WidgetRef::script_from_value(vm, value);
         if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {

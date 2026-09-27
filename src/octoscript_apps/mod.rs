@@ -6,6 +6,9 @@ static AUTHORITY: LazyLock<rinx_miniapp_core::SessionAuthority> = LazyLock::new(
 
 pub fn invalidate_sessions() {
     AUTHORITY.invalidate();
+    // Account change or logout: the assistant's contexts of the previous
+    // account are revoked too (ADR 0007).
+    crate::octos_service::sync_account();
 }
 
 pub async fn matrix_request(
@@ -20,7 +23,7 @@ pub async fn matrix_request(
 mod octos;
 mod package;
 pub mod ui;
-pub use octos::KernelProvider;
+pub use octos::ContextProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
 pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {

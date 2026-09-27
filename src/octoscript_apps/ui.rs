@@ -1,6 +1,6 @@
 //! One native mini-app screen shared by standalone and embedded Rinx.
 use super::{
-    InstanceId, KernelProvider, Lease, OctosProvider, ServiceEvent,
+    ContextProvider, InstanceId, Lease, OctosProvider, ServiceEvent,
     package::{Call, Package},
 };
 use makepad_widgets::splash_host::{splash_host_respond, take_splash_host_requests_for};
@@ -36,7 +36,16 @@ script_mod! {
         import_form := View {width: Fill height: Fit flow: Down spacing: 8
             path := TextInput {width: Fill empty_text: "OctoSense bundle folder"}
             room := TextInput {width: Fill empty_text: "Room ID to allow (optional)"}
+            assistant_status := Label {width: Fill draw_text.color: #555 text: ""}
             core := View {width: Fill height: Fit flow: Down spacing: 6
+                local_family := TextInput {width: Fill empty_text: "Assistant on this device: provider (e.g. deepseek)"}
+                local_model := TextInput {width: Fill empty_text: "Model"}
+                local_base_url := TextInput {width: Fill empty_text: "Base URL (optional)"}
+                local_key := TextInput {width: Fill is_password: true empty_text: "API key (kept in Rinx's own runtime)"}
+                local_buttons := View {width: Fill height: Fit spacing: 8
+                    use_local := Button {text: "Use this device"}
+                    turn_off := Button {text: "Turn assistant off"}
+                }
                 endpoint := TextInput {width: Fill empty_text: "Octos server URL"}
                 profile := TextInput {width: Fill empty_text: "Octos profile"}
                 token := TextInput {width: Fill is_password: true empty_text: "Octos access token"}
@@ -83,9 +92,9 @@ pub struct MiniAppsPanel {
     #[rust]
     lease: Option<Lease>,
     #[rust]
-    connection_owner: Option<Provider>,
-    #[rust]
     provider: Option<Provider>,
+    #[rust]
+    octos_unavailable: Option<String>,
     #[rust]
     tag: String,
     #[rust]
@@ -137,51 +146,55 @@ impl MiniAppsPanel {
             .view(cx, ids!(approval))
             .set_visible(cx, !self.approvals.is_empty());
     }
-    fn connect(&mut self, cx: &mut Cx) -> Result<(), String> {
-        #[cfg(feature = "octosense-module")]
-        if crate::module::is_hosted() {
-            return Err("This app uses OctoSense's core connection".into());
-        }
-        let endpoint = self
-            .view
-            .text_input(cx, ids!(import_form.core.endpoint))
-            .text();
-        let url =
-            url::Url::parse(endpoint.trim()).map_err(|_| "Enter a complete Octos server URL")?;
-        if !matches!(url.scheme(), "http" | "https")
-            || url.host_str().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-        {
-            return Err("Use an HTTP or HTTPS URL without embedded credentials".into());
-        }
-        let profile = self
-            .view
-            .text_input(cx, ids!(import_form.core.profile))
-            .text();
-        if profile.trim().is_empty() {
-            return Err("Enter the Octos profile name".into());
-        }
-        let token = self
-            .view
-            .text_input(cx, ids!(import_form.core.token))
-            .text();
-        let provider = KernelProvider::connect(octos_app_transport::TransportConfig {
-            base_url: url,
-            bearer: octos_app_transport::SecretString::new(token),
-            profile_id: octos_app_transport::ProfileId::new(profile.trim()),
-            cursor: None,
-            cursor_file: None,
-            requested_capabilities: octos_app_transport::Capabilities::requested(),
-            workspace_cwd: None,
-            stdio: None,
-        })?;
-        self.connection_owner = Some(provider);
+    fn show_assistant_status(&mut self, cx: &mut Cx) {
+        let status = crate::octos_service::status();
         self.view
-            .text_input(cx, ids!(import_form.core.token))
-            .set_text(cx, "");
-        self.notice(cx, "Octos connection configured. Review and run your app.");
-        Ok(())
+            .label(cx, ids!(import_form.assistant_status))
+            .set_text(cx, &status);
+    }
+    /// An explicit remote server (standalone only; hosted Rinx uses
+    /// OctoSense's AI settings and offers no endpoint or key form).
+    #[cfg_attr(not(feature = "octos-remote"), allow(unused_variables))]
+    fn connect(&mut self, cx: &mut Cx) -> Result<(), String> {
+        if crate::octos_service::is_hosted() {
+            return Err("This app uses OctoSense's AI settings".into());
+        }
+        #[cfg(feature = "octos-remote")]
+        {
+            let endpoint = self.view.text_input(cx, ids!(import_form.core.endpoint)).text();
+            let profile = self.view.text_input(cx, ids!(import_form.core.profile)).text();
+            let token = self.view.text_input(cx, ids!(import_form.core.token)).text();
+            crate::octos_service::use_remote(&endpoint, &profile, &token)?;
+            self.view.text_input(cx, ids!(import_form.core.token)).set_text(cx, "");
+            self.show_assistant_status(cx);
+            Ok(())
+        }
+        #[cfg(not(feature = "octos-remote"))]
+        Err("This build cannot connect to an Octos server".into())
+    }
+    /// Rinx's own local runtime, optionally with a new provider.
+    #[cfg_attr(not(feature = "octos-local"), allow(unused_variables))]
+    fn use_local(&mut self, cx: &mut Cx) -> Result<(), String> {
+        if crate::octos_service::is_hosted() {
+            return Err("This app uses OctoSense's AI settings".into());
+        }
+        #[cfg(feature = "octos-local")]
+        {
+            let family = self.view.text_input(cx, ids!(import_form.core.local_family)).text();
+            let model = self.view.text_input(cx, ids!(import_form.core.local_model)).text();
+            let base = self.view.text_input(cx, ids!(import_form.core.local_base_url)).text();
+            let key = self.view.text_input(cx, ids!(import_form.core.local_key)).text();
+            if family.trim().is_empty() && model.trim().is_empty() {
+                crate::octos_service::use_local()?;
+            } else {
+                crate::octos_service::configure_local_provider(&family, &model, &base, &key)?;
+            }
+            self.view.text_input(cx, ids!(import_form.core.local_key)).set_text(cx, "");
+            self.show_assistant_status(cx);
+            Ok(())
+        }
+        #[cfg(not(feature = "octos-local"))]
+        Err("This build has no local assistant runtime".into())
     }
     fn review(&mut self, cx: &mut Cx) -> Result<(), String> {
         self.stop(cx);
@@ -247,15 +260,24 @@ impl MiniAppsPanel {
         // The local core's default read boundary is its data root. Allocate
         // an account/app child there and then narrow the session to that child.
         // The location comes from the native host, never from bundle input.
-        let root = octos_app_transport::shared::Connection::current()
-            .and_then(|c| c.local_data_root.clone())
-            .unwrap_or_else(|| crate::app_data_dir().to_owned())
-            .join("miniapps")
-            .join(account_dir);
+        // The isolate's own storage stays in Rinx's data dir; the assistant's
+        // workspace for this instance is its kernel request context's.
+        let root = crate::app_data_dir().join("miniapps").join(account_dir);
         let mut settings = package.policy.isolate_settings(&root);
         std::fs::create_dir_all(&settings.jail_root).map_err(|e| e.to_string())?;
-        self.provider =
-            KernelProvider::shared(&settings.jail_root)?.map(|p| p as Arc<dyn OctosProvider>);
+        let wants_octos = package
+            .manifest
+            .capabilities
+            .iter()
+            .any(|c| octosense_app_peers::OCTOS_SERVICES.contains(&c.as_str()));
+        self.provider = None;
+        self.octos_unavailable = None;
+        if wants_octos {
+            match ContextProvider::open(&lease) {
+                Ok(provider) => self.provider = Some(provider as Arc<dyn OctosProvider>),
+                Err(reason) => self.octos_unavailable = Some(reason),
+            }
+        }
         settings.hosts.push(server.allowlist_entry());
         settings.allow_net = true;
         if !package.script {
@@ -352,8 +374,15 @@ impl MiniAppsPanel {
                 let _ = tx.try_send(ServiceEvent::Complete(result));
                 SignalToUI::set_ui_signal();
             });
-        } else if service.starts_with("octos.") {
-            self.provider.as_ref().ok_or("Octos unavailable. Open AppCard in OctoSense to connect the core, then reopen this mini app.")?.request(lease,service,args,tx)?;
+        } else if octosense_app_peers::OCTOS_SERVICES.contains(&service) {
+            let unavailable = self
+                .octos_unavailable
+                .clone()
+                .unwrap_or_else(|| "The assistant is unavailable".into());
+            self.provider
+                .as_ref()
+                .ok_or(unavailable)?
+                .request(lease, service, args, tx)?;
         } else {
             return Err(format!("No adapter for {service}"));
         }
@@ -586,6 +615,12 @@ impl Widget for MiniAppsPanel {
                 .clicked(actions)
             {
                 self.connect(cx)
+            } else if self.view.button(cx, ids!(import_form.core.local_buttons.use_local)).clicked(actions) {
+                self.use_local(cx)
+            } else if self.view.button(cx, ids!(import_form.core.local_buttons.turn_off)).clicked(actions) {
+                let result = crate::octos_service::turn_off();
+                self.show_assistant_status(cx);
+                result
             } else if self.view.button(cx, ids!(review)).clicked(actions) {
                 self.review(cx)
             } else if self.view.button(cx, ids!(run)).clicked(actions) {
@@ -615,11 +650,13 @@ impl MiniAppsPanelRef {
                 MiniAppsAction::Open => {
                     inner.open = true;
                     inner.notice(cx, "Import an OctoSense bundle to review its services.");
-                    #[cfg(feature = "octosense-module")]
+                    inner.show_assistant_status(cx);
+                    // Hosted Rinx uses OctoSense's AI settings: no endpoint
+                    // or key form of its own.
                     inner
                         .view
                         .view(cx, ids!(import_form.core))
-                        .set_visible(cx, !crate::module::is_hosted());
+                        .set_visible(cx, !crate::octos_service::is_hosted());
                     modal.open(cx);
                 }
                 MiniAppsAction::Close => {

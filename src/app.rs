@@ -1317,6 +1317,10 @@ impl App {
 
         self.persist_runtime_state(cx, "shutdown");
 
+        // Standalone exit: release the assistant and stop only a runtime
+        // Rinx owns (a remote server or OctoSense's kernel keeps running).
+        crate::octos_service::shutdown();
+
         if let Err(_e) = crate::sliding_sync::stop_sync_service_for_shutdown(Duration::from_secs(3)) {
             error!("Failed to stop Matrix sync service before shutdown. Error: Timed out.");
         }
