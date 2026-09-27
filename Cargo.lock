@@ -7908,7 +7908,7 @@ dependencies = [
 [[package]]
 name = "octosense-app-peers"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=b803dba9750eee55fe7657dc0205026e11931005#b803dba9750eee55fe7657dc0205026e11931005"
 dependencies = [
  "futures-util",
  "log",
@@ -7934,7 +7934,7 @@ dependencies = [
 [[package]]
 name = "octosense-llm-config"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=b803dba9750eee55fe7657dc0205026e11931005#b803dba9750eee55fe7657dc0205026e11931005"
 dependencies = [
  "argon2",
  "chacha20poly1305 0.10.1",
@@ -7950,7 +7950,7 @@ dependencies = [
 [[package]]
 name = "octosense-octos-core"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=f38aa250c0d37f44d3f0426242bec1606b61e616#f38aa250c0d37f44d3f0426242bec1606b61e616"
+source = "git+https://github.com/OctoSense-org/OctoSense.git?rev=b803dba9750eee55fe7657dc0205026e11931005#b803dba9750eee55fe7657dc0205026e11931005"
 dependencies = [
  "log",
  "octos-cli",
