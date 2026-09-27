@@ -8,7 +8,7 @@ use ruma::{
 use serde::{Deserialize, Serialize};
 
 pub const MSGTYPE: &str = "rs.robius.robrix.article_app";
-const APP_ID: &str = "org.octosense.article-editor";
+const APP_ID: &str = crate::system_apps::ARTICLE_ID;
 pub use article_core::bindings::SOURCE;
 pub fn invalidate_sessions() { AUTHORITY.invalidate(); }
 

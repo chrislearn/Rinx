@@ -492,7 +492,7 @@ impl Widget for MobileHub {
                 self.back(cx);
             }
             if self.view.navigation_bar_button(cx,ids!(discover_mini_apps)).clicked(actions){cx.action(crate::octoscript_apps::MiniAppsAction::Open);}
-            if self.view.navigation_bar_button(cx, ids!(discover_article)).clicked(actions) { cx.action(crate::article_app::ArticleAction::Open); }
+            if self.view.navigation_bar_button(cx, ids!(discover_article)).clicked(actions) { crate::system_apps::open_article(cx); }
             if self.view.navigation_bar_button(cx, ids!(discover_moments)).clicked(actions) {
                 cx.action(crate::moments::ui::MomentsAction::Open {author: None});
             }

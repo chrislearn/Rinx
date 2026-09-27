@@ -370,9 +370,9 @@ record below says what changed:
 | Standalone | Explicit remote connection UI and standalone entry exist | Complete local-runtime provisioning and verify remote workspace behavior |
 
 Relevant Rinx sources: [module](../../src/module.rs),
-[Octos adapter](../../src/octoscript_apps/octos.rs),
-[package admission](../../src/octoscript_apps/package.rs),
-[mini-app UI](../../src/octoscript_apps/ui.rs), and
+[Octos adapter](../../src/host/octos.rs),
+[package admission](../../src/miniapps/package.rs),
+[mini-app UI](../../src/miniapps/ui.rs), and
 [build features](../../Cargo.toml).
 
 Octos source evidence is pinned to inspected revision
@@ -433,7 +433,7 @@ are listed for the owners' confirmation.
 | Broker | OctoSense-System-Apps#14 (`3daf54e8`), #15 (`64aa865e`), #16 (`4fa0f122`), #17 (`cc1cee3e`) | `crates/app-peers`: the contract Rinx consumes (`OctosAppService`, `OctosContext`), creation-time injection (`offer` / `claim` / `withdraw`), and one broker for all three deployments. It keeps one system-owned peer per app and account and one kernel request context per mini-app instance. The lease is checked on every request and before every reply, and host tokens are kept. The connector authenticates remote servers by token only. #17 moves the shell kernel to octos `552767dd` |
 | Runtime | makepad#35 (`db4691d0`), OctoScript-Makepad#46 (`c3d53ba8`) | Splash `reapply_text` and stateful mini-app inputs on the current runtime (the ADR 0005 additions from makepad#32 / OSM#40, without #32's Android Back part) |
 | Shells | OctoSense-Desktop#50 (`c806921c`, then #41 `1e8b217`), OctoSense-ROM#34 (landed with #24 `1dc753a7`) | `app_peers_host`: a module whose declared `octos.*` services host policy grants gets a scoped service for its instance at `create`, released at teardown. Rinx is linked as a module (`octosense-module` only). CI keeps its standalone features out of every graph. No `www.github.com` patch; AppCard stays opt-in |
-| Rinx | #25 (`086208d7`, stacked on #24; on main with #24 `5cf70a82`, which both shells pin) | `src/octos_service.rs` selects the deployment: hosted from module creation, standalone local or remote from Rinx's settings. `module.rs` declares the four `octos.*` services and claims the injected service. Mini apps get request contexts, and admission and dispatch use exact names. Account changes revoke, hosted close releases, standalone exit stops only an owned runtime |
+| Rinx | #25 (`086208d7`, stacked on #24; on main with #24 `5cf70a82`, which both shells pin) | `src/host/service.rs` selects the deployment: hosted from module creation, standalone local or remote from Rinx's settings. `module.rs` declares the four `octos.*` services and claims the injected service. Mini apps get request contexts, and admission and dispatch use exact names. Account changes revoke, hosted close releases, standalone exit stops only an owned runtime |
 
 `KernelProvider::shared` and AppCard connection discovery are gone. No mode
 starts a fallback kernel or substitutes an ordinary privileged session. A hosted

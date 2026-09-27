@@ -979,7 +979,7 @@ impl AppMain for App {
         let mini_modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
         if mini_modal.is_open() && event.back_pressed() {
             self.ui.mini_apps_panel(cx, ids!(octoscript_apps_modal.content))
-                .action(cx, mini_modal, &MiniAppsAction::Close);
+                .back(cx, mini_modal);
             return;
         }
         if let Event::LiveEdit = event {

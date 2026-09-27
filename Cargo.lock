@@ -9328,6 +9328,7 @@ dependencies = [
  "reqwest 0.12.28",
  "rfd",
  "rinx-miniapp-core",
+ "rinx-system-apps",
  "robius-directories",
  "robius-file-picker",
  "robius-location",
@@ -9357,6 +9358,15 @@ dependencies = [
 name = "rinx-miniapp-core"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "rinx-system-apps"
+version = "0.1.0"
+dependencies = [
+ "octosense-app-policy",
  "serde",
  "serde_json",
 ]

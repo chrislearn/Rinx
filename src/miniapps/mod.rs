@@ -1,5 +1,5 @@
 //! Octoscript mini-app hosting with account-bound Matrix and Octos service access.
-mod matrix;
+
 pub use rinx_miniapp_core::{InstanceId, Lease, OctosProvider, ServiceEvent};
 use std::sync::LazyLock;
 static AUTHORITY: LazyLock<rinx_miniapp_core::SessionAuthority> = LazyLock::new(Default::default);
@@ -37,13 +37,13 @@ pub async fn matrix_request(
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let client = crate::sliding_sync::get_client().ok_or("Not logged in")?;
-    matrix::execute(client, lease, service, args).await
+    crate::host::matrix::execute(client, lease, service, args).await
 }
 
-mod octos;
+
 mod package;
 pub mod ui;
-pub use octos::ContextProvider;
+pub use crate::host::octos::ContextProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
 pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {

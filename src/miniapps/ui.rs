@@ -35,8 +35,19 @@ script_mod! {
             close := Button {text: "Back"}
             Label {text: "Mini apps" draw_text.color: #222 draw_text.text_style.font_size: 18}
         }
-        import_form := View {width: Fill height: Fit flow: Down spacing: 8
-            path := TextInput {width: Fill empty_text: "OctoSense bundle folder"}
+        catalog := View {width: Fill height: Fill flow: Down spacing: 12
+            Label {text: #(crate::i18n::tr("Built-in apps")) i18n_text: "Built-in apps" draw_text.color: #222}
+            catalog_list := PortalList {width: Fill height: Fill
+                App := View {width: Fill height: 68 padding: 4
+                    launch := Button {width: Fill height: 60 text: ""}
+                }
+            }
+            import_app := Button {width: Fill text: #(crate::i18n::tr("Import an app")) i18n_text: "Import an app"}
+        }
+        import_form := View {visible: false width: Fill height: Fit flow: Down spacing: 8
+            bundle_path := View {width: Fill height: Fit
+                path := TextInput {width: Fill empty_text: "OctoSense bundle folder"}
+            }
             room := TextInput {width: Fill empty_text: "Room ID to allow (optional)"}
             assistant_status := Label {width: Fill draw_text.color: #555 text: ""}
             core := View {width: Fill height: Fit flow: Down spacing: 6
@@ -58,7 +69,7 @@ script_mod! {
                 run := Button {text: "Run"}
             }
         }
-        notice := Label {width: Fill height: Fit draw_text.color: #333 text: "Import an OctoSense bundle to review its services."}
+        notice := Label {width: Fill height: Fit draw_text.color: #333 text: ""}
         approval := View {visible: false width: Fill height: Fit flow: Down spacing: 8
             details := Label {width: Fill draw_text.color: #222}
             buttons := View {width: Fill height: Fit spacing: 8
@@ -66,7 +77,9 @@ script_mod! {
                 deny := Button {text: "Deny"}
             }
         }
-        card := Splash {width: Fill height: Fill}
+        app_content := View {visible: false width: Fill height: Fill
+            card := Splash {width: Fill height: Fill}
+        }
     }
 }
 type Provider = Arc<dyn OctosProvider>;
@@ -87,6 +100,8 @@ pub struct MiniAppsPanel {
     view: View,
     #[rust]
     open: bool,
+    #[rust]
+    showing_catalog: bool,
     #[rust]
     reviewed_room: String,
     #[rust]
@@ -123,6 +138,44 @@ impl Drop for MiniAppsPanel {
     }
 }
 impl MiniAppsPanel {
+    fn show_catalog(&mut self, cx: &mut Cx) {
+        self.stop(cx);
+        self.package = None;
+        self.review_notice.clear();
+        self.reviewed_room.clear();
+        self.publish_to_assistant();
+        self.showing_catalog = true;
+        self.view.view(cx, ids!(catalog)).set_visible(cx, true);
+        self.view.view(cx, ids!(import_form)).set_visible(cx, false);
+        self.view.view(cx, ids!(app_content)).set_visible(cx, false);
+        self.notice(cx, "");
+    }
+    fn show_import(&mut self, cx: &mut Cx) {
+        self.showing_catalog = false;
+        self.view.view(cx, ids!(catalog)).set_visible(cx, false);
+        self.view.view(cx, ids!(import_form)).set_visible(cx, true);
+        self.view.view(cx, ids!(app_content)).set_visible(cx, true);
+        let imported = self.package.as_ref().and_then(Package::builtin_id).is_none();
+        self.view.view(cx, ids!(bundle_path)).set_visible(cx, imported);
+        self.show_assistant_status(cx);
+        self.view.view(cx, ids!(import_form.core)).set_visible(cx, !crate::octos_service::is_hosted());
+    }
+    fn open_builtin(&mut self, cx: &mut Cx, index: usize) -> Result<(), String> {
+        let app = crate::system_apps::apps().get(index).ok_or("Unknown built-in app")?;
+        if app.native.is_some() {
+            cx.action(MiniAppsAction::Close);
+            crate::system_apps::launch_native(cx, app);
+        } else {
+            self.stop(cx);
+            self.package = None;
+            let package = Package::load_builtin(&app.manifest.id, &crate::app_data_dir().join("miniapps/imports"))?;
+            self.show_import(cx);
+            self.view.text_input(cx, ids!(room)).set_text(cx, "");
+            self.review_package(cx, package)?;
+        }
+        Ok(())
+    }
+
     fn notice(&mut self, cx: &mut Cx, message: &str) {
         self.view.label(cx, ids!(notice)).set_text(cx, message);
     }
@@ -212,17 +265,28 @@ impl MiniAppsPanel {
         Err("This build has no local assistant runtime".into())
     }
     fn review(&mut self, cx: &mut Cx) -> Result<(), String> {
+        let builtin = self.package.as_ref().and_then(Package::builtin_id);
         self.stop(cx);
-        self.package = None;
-        let path = self.view.text_input(cx, ids!(path)).text();
+        if builtin.is_none() { self.package = None; }
         let snapshots = crate::app_data_dir().to_owned().join("miniapps/imports");
-        let package = Package::load_in(&PathBuf::from(path.trim()), &snapshots)?;
+        let package = if let Some(id) = builtin {
+            Package::load_builtin(id, &snapshots)?
+        } else {
+            let path = self.view.text_input(cx, ids!(path)).text();
+            Package::load_in(&PathBuf::from(path.trim()), &snapshots)?
+        };
+        self.review_package(cx, package)
+    }
+    fn review_package(&mut self, cx: &mut Cx, package: Package) -> Result<(), String> {
         let room = self.view.text_input(cx, ids!(room)).text();
         if !room.trim().is_empty() {
             ruma::RoomId::parse(room.trim()).map_err(|_| "Invalid Matrix room ID")?;
         }
         let services = package.manifest.capabilities.join(", ");
-        self.review_notice = format!("{} {} · Local unsigned bundle\nServices: {}\nAllowed room: {}\nRun grants these services for this session. Octos turns may use the connected core's tools.",package.manifest.name,package.manifest.version,services,if room.trim().is_empty(){"None"}else{room.trim()});
+        let imported = package.builtin_id().is_none();
+        let origin = if imported { "Local unsigned bundle" } else { crate::i18n::tr("Built-in apps") };
+        self.view.view(cx, ids!(bundle_path)).set_visible(cx, imported);
+        self.review_notice = format!("{} {} · {}\nServices: {}\nAllowed room: {}\nRun grants these services for this session. Octos turns may use the connected core's tools.",package.manifest.name,package.manifest.version,origin,services,if room.trim().is_empty(){"None"}else{room.trim()});
         let notice = self.review_notice.clone();
         self.notice(cx, &notice);
         self.reviewed_room = room.trim().to_string();
@@ -598,7 +662,20 @@ impl Widget for MiniAppsPanel {
         self.view.handle_event(cx, event, scope);
         if let Event::Actions(actions) = event {
             if self.view.button(cx, ids!(close)).clicked(actions) {
-                cx.action(MiniAppsAction::Close);
+                if self.showing_catalog { cx.action(MiniAppsAction::Close); }
+                else { self.show_catalog(cx); }
+                return;
+            }
+            if self.view.button(cx, ids!(import_app)).clicked(actions) {
+                self.show_import(cx);
+                self.notice(cx, "Import an OctoSense bundle to review its services.");
+            }
+            let list = self.view.portal_list(cx, ids!(catalog_list));
+            for (index, item) in list.items_with_actions(actions) {
+                if !list.was_scrolling() && item.button(cx, ids!(launch)).clicked(actions) {
+                    if let Err(e) = self.open_builtin(cx, index) { self.notice(cx, &e); }
+                    return;
+                }
             }
             let approve = self
                 .view
@@ -654,32 +731,50 @@ impl Widget for MiniAppsPanel {
         }
         if let Event::BackPressed { handled } = event {
             handled.set(true);
-            cx.action(MiniAppsAction::Close);
+            if self.showing_catalog { cx.action(MiniAppsAction::Close); }
+            else { self.show_catalog(cx); }
         }
         self.pump(cx);
     }
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
-        self.view.draw_walk(cx, scope, walk)
+        while let Some(item) = self.view.draw_walk(cx, scope, walk).step() {
+            if let Some(mut list) = item.borrow_mut::<PortalList>() {
+                let apps = crate::system_apps::apps();
+                list.set_item_range(cx, 0, apps.len());
+                while let Some(index) = list.next_visible_item(cx) {
+                    if let Some(app) = apps.get(index) {
+                        let row = list.item(cx, index, id!(App));
+                        row.button(cx, ids!(launch)).set_text(cx, crate::i18n::tr(&app.manifest.name));
+                        row.draw_all(cx, &mut Scope::empty());
+                    }
+                }
+            }
+        }
+        DrawStep::done()
     }
 }
 impl MiniAppsPanelRef {
+    /// Consume Back synchronously before the underlying Rinx/shell navigation.
+    pub fn back(&self, cx: &mut Cx, modal: ModalRef) {
+        let mut close = false;
+        if let Some(mut inner) = self.borrow_mut() {
+            if inner.showing_catalog { close = true; }
+            else { inner.show_catalog(cx); }
+        }
+        if close { self.action(cx, modal, &MiniAppsAction::Close); }
+    }
+
     pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MiniAppsAction) {
         if let Some(mut inner) = self.borrow_mut() {
             match action {
                 MiniAppsAction::Open => {
                     inner.open = true;
-                    inner.notice(cx, "Import an OctoSense bundle to review its services.");
-                    inner.show_assistant_status(cx);
-                    // Hosted Rinx uses OctoSense's AI settings: no endpoint
-                    // or key form of its own.
-                    inner
-                        .view
-                        .view(cx, ids!(import_form.core))
-                        .set_visible(cx, !crate::octos_service::is_hosted());
+                    inner.show_catalog(cx);
                     modal.open(cx);
                 }
                 MiniAppsAction::OpenReviewed => {
                     inner.open = true;
+                    inner.show_import(cx);
                     let notice = inner.review_notice.clone();
                     inner.notice(cx, &notice);
                     inner.show_assistant_status(cx);
