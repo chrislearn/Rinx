@@ -17,11 +17,14 @@ metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 article-core = { path = "crates/article-core", features = ["l0"] }
 rinx-miniapp-core = { path = "crates/miniapp-core" }
 uuid = { version = "1", features = ["v4"] }
-octos-app-transport = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "1576bec6a585758e48c3252030cad2a9bf9c80db" }
+## The assistant (ADR 0007): the scoped service contract a host injects. The
+## local-runtime and remote connectors are optional (`octos-local`,
+## `octos-remote`), so a hosted build links no runtime of its own.
+octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "64aa865e306a1411a3f020903ddb7ac922aa30ae" }
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
 octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
-octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub.git", rev = "b0591e2caa0dc5c62927f7b85dbf826a50618a03", features = ["splash"] }
+octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub.git", rev = "46d67e51b62827a1224b1aacddc2a7b9e69185fc", features = ["splash"] }
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
@@ -157,7 +160,13 @@ dispatch2 = "0.3"
 default = ["standalone"]
 ## The standalone app's entry point (window, menus, `app_main!`). A host that
 ## links Rinx as a module disables it.
-standalone = []
+standalone = ["octos-local", "octos-remote"]
+## Standalone Octos modes (ADR 0007). `octos-local`: Rinx owns one local
+## kernel (the packaged `octos` next to the executable, never one on PATH),
+## started on the first authorized AI request and stopped on exit.
+## `octos-remote`: an explicitly configured remote octos server.
+octos-local = ["octosense-app-peers/octos-core"]
+octos-remote = ["octosense-app-peers/ws"]
 ## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
 octosense-module = ["dep:makepad-app-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.

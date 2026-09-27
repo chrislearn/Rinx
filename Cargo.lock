@@ -174,23 +174,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android_log-sys"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84521a3cf562bc62942e294181d9eef17eb38ceb8c68677bc49f144e4c3d4f8d"
-
-[[package]]
-name = "android_logger"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05b07e8e73d720a1f2e4b6014766e6039fd2e96a4fa44e2a78d0e1fa2ff49826"
-dependencies = [
- "android_log-sys",
- "env_filter 0.1.4",
- "log",
-]
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -948,7 +931,7 @@ dependencies = [
  "quote",
  "regex",
  "rustc-hash 2.1.1",
- "shlex",
+ "shlex 1.3.0",
  "syn 2.0.119",
 ]
 
@@ -1360,7 +1343,7 @@ dependencies = [
  "find-msvc-tools",
  "jobserver",
  "libc",
- "shlex",
+ "shlex 1.3.0",
 ]
 
 [[package]]
@@ -1638,6 +1621,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "037e2a1a92236d0aff7e845093f64661d6df4c02c9fcc61a60e9e1d736fa392f"
 dependencies = [
  "clap",
+ "clap_lex",
+ "is_executable",
+ "shlex 2.0.1",
 ]
 
 [[package]]
@@ -2837,16 +2823,6 @@ dependencies = [
 
 [[package]]
 name = "env_filter"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bf3c259d255ca70051b30e2e95b5446cdb8949ac4cd22c0d7fd634d89f568e2"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
-name = "env_filter"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "900d271a03799a1ee8d1ca9b19893b48ca674a9284fefcfb85f05e74ed314217"
@@ -2869,7 +2845,7 @@ checksum = "de671bd27a75a797dc9ae289ba1e77276e75e2026408aab65185384e2d5cd3f6"
 dependencies = [
  "anstream",
  "anstyle",
- "env_filter 2.0.0",
+ "env_filter",
  "jiff",
  "log",
 ]
@@ -5236,6 +5212,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "is_executable"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82cb6a9f675da968c63b6208c641b9dca58fc0133ae53375736b1767b0cab8bd"
+dependencies = [
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7480,8 +7465,8 @@ dependencies = [
 
 [[package]]
 name = "octos-agent"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -7520,7 +7505,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "shlex",
+ "shlex 1.3.0",
  "similar",
  "tar",
  "tempfile",
@@ -7540,30 +7525,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "octos-app-transport"
-version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-System-Apps.git?rev=1576bec6a585758e48c3252030cad2a9bf9c80db#1576bec6a585758e48c3252030cad2a9bf9c80db"
-dependencies = [
- "android_logger",
- "chrono",
- "futures-util",
- "log",
- "octos-cli",
- "octos-core",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite 0.24.0",
- "tracing-subscriber",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "octos-bus"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "aes 0.8.4",
  "async-trait",
@@ -7591,8 +7555,8 @@ dependencies = [
 
 [[package]]
 name = "octos-cli"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "agent-client-protocol",
  "argon2",
@@ -7671,8 +7635,8 @@ dependencies = [
 
 [[package]]
 name = "octos-core"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "chrono",
  "eyre",
@@ -7685,8 +7649,8 @@ dependencies = [
 
 [[package]]
 name = "octos-diagnostics"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "eyre",
  "octos-core",
@@ -7697,8 +7661,8 @@ dependencies = [
 
 [[package]]
 name = "octos-fleet"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "eyre",
  "octos-core",
@@ -7713,8 +7677,8 @@ dependencies = [
 
 [[package]]
 name = "octos-fleet-worker"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "async-trait",
  "eyre",
@@ -7730,8 +7694,8 @@ dependencies = [
 
 [[package]]
 name = "octos-llm"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -7754,8 +7718,8 @@ dependencies = [
 
 [[package]]
 name = "octos-memory"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "bincode",
  "chrono",
@@ -7773,8 +7737,8 @@ dependencies = [
 
 [[package]]
 name = "octos-pipeline"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7795,8 +7759,8 @@ dependencies = [
 
 [[package]]
 name = "octos-plugin"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "eyre",
  "metrics",
@@ -7810,7 +7774,7 @@ dependencies = [
 [[package]]
 name = "octos-sandbox"
 version = "0.1.0"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "clap",
  "eyre",
@@ -7824,8 +7788,8 @@ dependencies = [
 
 [[package]]
 name = "octos-services"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "chrono",
  "dirs",
@@ -7845,8 +7809,8 @@ dependencies = [
 
 [[package]]
 name = "octos-store"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -7865,8 +7829,8 @@ dependencies = [
 
 [[package]]
 name = "octos-swarm"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7884,8 +7848,8 @@ dependencies = [
 
 [[package]]
 name = "octos-workflows"
-version = "2.0.3-rc.12"
-source = "git+https://github.com/octos-org/octos.git?rev=18fcd3f16e527d2b601d7ae244f056fb711bb6b8#18fcd3f16e527d2b601d7ae244f056fb711bb6b8"
+version = "2.0.3-rc.13"
+source = "git+https://github.com/octos-org/octos.git?rev=6ad76e5c1e659bdf10ec05ae869428b48edccf7f#6ad76e5c1e659bdf10ec05ae869428b48edccf7f"
 dependencies = [
  "chrono",
  "eyre",
@@ -7942,14 +7906,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "octosense-app-peers"
+version = "0.1.0"
+source = "git+https://github.com/OctoSense-org/OctoSense-System-Apps.git?rev=64aa865e306a1411a3f020903ddb7ac922aa30ae#64aa865e306a1411a3f020903ddb7ac922aa30ae"
+dependencies = [
+ "futures-util",
+ "log",
+ "octosense-octos-core",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.24.0",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "octosense-app-policy"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub.git?rev=b0591e2caa0dc5c62927f7b85dbf826a50618a03#b0591e2caa0dc5c62927f7b85dbf826a50618a03"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub.git?rev=46d67e51b62827a1224b1aacddc2a7b9e69185fc#46d67e51b62827a1224b1aacddc2a7b9e69185fc"
 dependencies = [
  "blake3",
  "makepad-widgets",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "octosense-llm-config"
+version = "0.1.0"
+source = "git+https://github.com/OctoSense-org/OctoSense-System-Apps.git?rev=64aa865e306a1411a3f020903ddb7ac922aa30ae#64aa865e306a1411a3f020903ddb7ac922aa30ae"
+dependencies = [
+ "argon2",
+ "chacha20poly1305 0.10.1",
+ "chrono",
+ "flate2",
+ "qrcode",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "url",
+]
+
+[[package]]
+name = "octosense-octos-core"
+version = "0.1.0"
+source = "git+https://github.com/OctoSense-org/OctoSense-System-Apps.git?rev=64aa865e306a1411a3f020903ddb7ac922aa30ae#64aa865e306a1411a3f020903ddb7ac922aa30ae"
+dependencies = [
+ "log",
+ "octos-cli",
+ "octosense-llm-config",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9307,10 +9315,10 @@ dependencies = [
  "mime",
  "mime_guess",
  "num_cpus",
- "octos-app-transport",
  "octoscript-makepad",
  "octoscript-ui-l0",
  "octoscript-widgets",
+ "octosense-app-peers",
  "octosense-app-policy",
  "percent-encoding",
  "pulldown-cmark 0.13.0",
@@ -10534,6 +10542,12 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "signal-hook-registry"
