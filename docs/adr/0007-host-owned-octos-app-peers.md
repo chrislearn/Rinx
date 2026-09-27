@@ -535,3 +535,7 @@ Rechecked in isolated worktrees and disposable data directories:
 Signed-in native mini-app AI/approval flows still require a disposable Matrix
 login. The OnePlus 6 is absent from ADB; the four visible emulators are not
 substitutes for its device test and were left untouched.
+
+The merged ROM Home source also produced development-signed Home and Bridge
+APKs using the ROM-patched cargo-makepad. The Home APK contains the exact pinned
+kernel. Neither APK was installed; the installed Home remains untouched.

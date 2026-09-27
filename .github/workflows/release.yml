@@ -575,7 +575,7 @@ jobs:
           cargo makepad android install-toolchain --full-ndk
           rustup target add aarch64-linux-android
           python3 tools/package-octos.py android
-          echo "MAKEPAD_ANDROID_EXTRA_LIBS=liboctos.so=$PWD/dist/octos-aarch64-linux-android" >> "$GITHUB_ENV"
+          echo "MAKEPAD_ANDROID_EXTRA_LIBS=liboctos.so=$PWD/dist/runtime/octos-aarch64-linux-android" >> "$GITHUB_ENV"
 
       - name: Package (android)
         uses: project-robius/makepad-packaging-action@v1.8.0

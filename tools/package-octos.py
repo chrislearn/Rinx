@@ -127,7 +127,7 @@ def build_kernel(source, lock, work, target, sdk=None, offline=False):
     return work / "build" / target / "release" / ("octos.exe" if "windows" in target else "octos")
 
 
-def stage(kernel, lock, target, source, out=ROOT / "dist", prebuilt=False):
+def stage(kernel, lock, target, source, out=ROOT / "dist/runtime", prebuilt=False):
     # Android executes this PIE binary out of nativeLibraryDir. Packaging a
     # host binary under liboctos.so would install successfully but fail at run.
     if target == ANDROID:

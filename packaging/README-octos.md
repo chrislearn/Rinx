@@ -19,8 +19,10 @@ python3 tools/package-octos.py desktop
 ```
 
 This builds the pinned kernel with `--locked --no-default-features --features
-api,git,ast`, stages `dist/octos-<target>`, its SHA-256 receipt and license,
-and cargo-packager installs it beside Rinx. macOS signs the nested kernel
+api,git,ast`, stages `dist/runtime/octos-<target>`, its SHA-256 receipt and license,
+and cargo-packager installs it beside Rinx. Runtime staging stays below
+`dist/runtime/` so the release uploader cannot mistake a Windows kernel `.exe`
+for a Rinx installer. macOS signs the nested kernel
 before signing and notarizing the app. For cross-packaging, set
 `RINX_KERNEL_TARGET` to the same target passed to cargo-packager; the Rust
 target and platform linker must already be installed.

@@ -329,7 +329,7 @@ icons = [
 ]
 out_dir = "./dist"
 # One pinned local assistant runtime; installed beside Rinx by the packager.
-external-binaries = ["./dist/octos"]
+external-binaries = ["./dist/runtime/octos"]
 
 ## Here, we define the list of resource directories for both Makepad and Rinx.
 ## The `src` directory is based on `./dist/` as the `out_dir` (above), which is where the
@@ -347,7 +347,7 @@ resources = [
     { src = "./LICENSE", target = "licenses/LICENSE" },
     { src = "./LICENSE-MIT", target = "licenses/LICENSE-MIT" },
     { src = "./NOTICE", target = "licenses/NOTICE" },
-    { src = "./dist/licenses/octos-LICENSE", target = "licenses/octos-LICENSE" },
+    { src = "./dist/runtime/licenses/octos-LICENSE", target = "licenses/octos-LICENSE" },
     { src = "./dist/resources/rinx", target = "rinx" },
 ]
 
