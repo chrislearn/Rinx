@@ -518,7 +518,8 @@ Rechecked in isolated worktrees and disposable data directories:
 - Standalone local and authenticated remote process tests pass with the
   aligned dependency. The local test also passes from a private bundle with
   `RINX_OCTOS_BIN` removed, finding the adjacent packaged executable.
-- Four packaging checks pass. cargo-packager 0.10.1 produces a macOS bundle
+- Six packaging checks pass, including seven-character Git revisions from
+  shallow source builds. cargo-packager 0.10.1 produces a macOS bundle
   with `Contents/MacOS/octos` and its license. This inclusion check reuses the
   existing fast-build Rinx binary; it is not a notarized distribution test.
 - Native Makepad instrumentation verifies the standalone development bundle's
@@ -530,12 +531,37 @@ Rechecked in isolated worktrees and disposable data directories:
 - Standalone Android builds as the separate `dev.makepad.rinx.validation`
   package. APK v2/v3 signature verification passes and the bundled
   `lib/arm64-v8a/liboctos.so` matches the staged kernel's SHA-256 exactly.
-  This is a development APK; no device installation is claimed.
+  This development APK is installed under its separate package on OnePlus 6.
 
 Signed-in native mini-app AI/approval flows still require a disposable Matrix
-login. The OnePlus 6 is absent from ADB; the four visible emulators are not
-substitutes for its device test and were left untouched.
+login. No normal Rinx account or AI credentials are copied into the test apps.
 
 The merged ROM Home source also produced development-signed Home and Bridge
 APKs using the ROM-patched cargo-makepad. The Home APK contains the exact pinned
 kernel. Neither APK was installed; the installed Home remains untouched.
+
+#### OnePlus 6 follow-up (2026-09-27)
+
+The phone runs Android 15. The packaged kernel starts under the separate test
+app's UID and reports `552767d`, the abbreviated pinned revision. Sixteen
+checks pass against that Android executable over stdio with a scripted model:
+two app peers and three isolated request contexts, streamed/persisted replies,
+history isolation, host-token rejection, repeated turns, the system agent's
+input/question/answer exchange and second input, and context closure while
+another context remains usable. This exercises the kernel protocol, not a
+signed-in native mini-app flow.
+
+The native standalone UI exposed a reqwest 0.13 Android verifier panic during
+the browser-registration metadata request. Auxiliary HTTP clients now use the
+same bundled trust roots as the Matrix client, retaining certificate and
+hostname verification. This also covers article image downloads and the
+optional agent transport. Nine homeserver tests pass. The rebuilt test APK
+successfully discovers matrix.org and renders its sign-in choices on the phone.
+
+A separate `dev.makepad.octosense.rinxvalidation` APK launches Rinx in-process
+and displays its sign-in screen. Its validation manifest omits the Home intent;
+it does not replace the installed Home or Bridge. The unrelated privileged
+bridge correctly rejects its test identity. Native Back testing exposed the
+shell's Activity fallback closing the host before its Rust navigation handles
+Back; a ROM callback fix and device retest are in progress. Signed-in native
+AI/approval flows and production ROM integration are not yet claimed complete.

@@ -1,7 +1,7 @@
 //! Host-controlled HTTP(S) image loading. Renderers receive bounded PNG bytes only.
 use article_makepad::content::{Images, prepare_image};
 use futures_util::{stream, StreamExt};
-use matrix_sdk::reqwest::{Client, redirect::Policy};
+use matrix_sdk::reqwest::redirect::Policy;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 fn allowed(url: &url::Url) -> bool {
@@ -34,8 +34,8 @@ fn allowed(url: &url::Url) -> bool {
 }
 
 pub async fn load(urls: Vec<String>) -> Images {
-    let Ok(client) = Client::builder()
-                .timeout(Duration::from_secs(20))
+    let Ok(client) = crate::http::client_builder()
+        .timeout(Duration::from_secs(20))
         .user_agent("Rinx article preview")
         .redirect(Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 || !allowed(attempt.url()) {

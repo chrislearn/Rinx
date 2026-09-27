@@ -49,6 +49,13 @@ def host_target():
     return next(line.split(": ", 1)[1] for line in text.splitlines() if line.startswith("host: "))
 
 
+def matches_revision(version, revision):
+    # Git chooses the abbreviation length from the checkout's object set:
+    # a shallow build commonly reports seven characters, a full clone more.
+    match = re.fullmatch(r"octos \S+ \(([0-9a-f]{7,40}) \d{4}-\d{2}-\d{2}\)", version.strip())
+    return bool(match and revision.startswith(match[1]))
+
+
 def prepare_source(lock, work, offline=False):
     source = work / "src"
     if not (source / ".git").exists():
@@ -182,7 +189,7 @@ def main(argv=None):
             parser.error("Prebuilt reuse is limited to the native target; cross builds must use the pinned source")
         kernel = args.kernel.resolve(strict=True)
         version = subprocess.check_output([str(kernel), "--version"], text=True)
-        if lock["revision"][:8] not in version:
+        if not matches_revision(version, lock["revision"]):
             parser.error("Prebuilt kernel does not report the pinned revision")
     else:
         kernel = build_kernel(source, lock, work, target, args.sdk, args.offline)

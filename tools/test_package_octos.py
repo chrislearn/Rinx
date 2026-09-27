@@ -16,6 +16,25 @@ class PackagingTests(unittest.TestCase):
     def test_repository_runtime_and_ohos_contract_have_the_same_pin(self):
         package.read_lock()
 
+    def test_prebuilt_revision_accepts_git_abbreviations(self):
+        revision = package.read_lock()["revision"]
+        for length in (7, 8, 12, 40):
+            with self.subTest(length=length):
+                self.assertTrue(package.matches_revision(
+                    f"octos 2.0.3-rc.13 ({revision[:length]} 2026-09-26)", revision))
+
+    def test_prebuilt_revision_rejects_mismatch_or_unverifiable_output(self):
+        revision = package.read_lock()["revision"]
+        for version in (
+            "octos 2.0.3-rc.13 (abcdef0 2026-09-26)",
+            f"octos 2.0.3-rc.13 ({revision[:8]}0 2026-09-26)",
+            f"octos 2.0.3-rc.13 ({revision[:6]} 2026-09-26)",
+            f"unrelated output containing {revision}",
+            "octos 2.0.3-rc.13",
+        ):
+            with self.subTest(version=version):
+                self.assertFalse(package.matches_revision(version, revision))
+
     def test_mismatched_kernel_pin_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -127,7 +127,10 @@ async fn browser_registration_supported(client: &Client) -> bool {
     let Ok(metadata_url) = client.homeserver().join("_matrix/client/v1/auth_metadata") else {
         return false;
     };
-    let Ok(response) = matrix_sdk::reqwest::Client::new().get(metadata_url).timeout(std::time::Duration::from_secs(10)).send().await else {
+    let Ok(http) = crate::http::client_builder().build() else {
+        return false;
+    };
+    let Ok(response) = http.get(metadata_url).timeout(std::time::Duration::from_secs(10)).send().await else {
         return false;
     };
     if !response.status().is_success() {

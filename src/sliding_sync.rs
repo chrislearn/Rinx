@@ -117,13 +117,9 @@ pub fn build_sqlite_store_config(
 pub(crate) fn use_android_tls_roots(builder: matrix_sdk::ClientBuilder) -> matrix_sdk::ClientBuilder {
     #[cfg(target_os = "android")]
     let builder = {
-        let roots = webpki_root_certs::TLS_SERVER_ROOT_CERTS
-            .iter()
-            .filter_map(|der| matrix_sdk::reqwest::Certificate::from_der(der.as_ref()).ok())
-            .collect();
         builder
             .disable_built_in_root_certificates()
-            .add_root_certificates(roots)
+            .add_root_certificates(crate::http::android_root_certificates())
     };
     builder
 }
