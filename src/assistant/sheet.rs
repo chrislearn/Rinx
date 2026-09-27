@@ -32,24 +32,25 @@ script_mod! {
         }
 
         buttons_view := ModalButtonsRow {
+            spacing: 10
             deny_button := RobrixNeutralIconButton {
-                width: Fit{min: FitBound.Abs(110.0)},
+                width: Fit{min: FitBound.Abs(88.0)},
                 align: Align{x: 0.5, y: 0.5}
-                padding: 15,
+                padding: Inset{left: 12, right: 12, top: 14, bottom: 14},
                 icon_walk: Walk{width: 0, height: 0, margin: 0}
                 text: #(crate::i18n::tr("Deny")) i18n_text: "Deny"
             }
             always_button := RobrixPositiveIconButton {
-                width: Fit{min: FitBound.Abs(110.0)},
+                width: Fit{min: FitBound.Abs(88.0)},
                 align: Align{x: 0.5, y: 0.5}
-                padding: 15,
+                padding: Inset{left: 12, right: 12, top: 14, bottom: 14},
                 icon_walk: Walk{width: 0, height: 0, margin: 0}
                 text: #(crate::i18n::tr("Always allow")) i18n_text: "Always allow"
             }
             once_button := RobrixPositiveIconButton {
-                width: Fit{min: FitBound.Abs(110.0)},
+                width: Fit{min: FitBound.Abs(88.0)},
                 align: Align{x: 0.5, y: 0.5}
-                padding: 15,
+                padding: Inset{left: 12, right: 12, top: 14, bottom: 14},
                 icon_walk: Walk{width: 0, height: 0, margin: 0}
                 text: #(crate::i18n::tr("Allow once")) i18n_text: "Allow once"
             }
