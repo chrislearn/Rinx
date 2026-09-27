@@ -63,6 +63,8 @@ pub mod block_user_modal;
 /// Shared UI components.
 pub mod shared;
 pub mod mini_app;
+pub mod octoscript_apps;
+pub mod octos_service;
 pub mod article_app;
 pub mod forwarding;
 pub mod moments;
