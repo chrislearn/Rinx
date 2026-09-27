@@ -460,6 +460,30 @@ OctoSense's Settings → Accounts → AI providers.
 - **Session-plane trust.** The kernel enforces a bound session's workspace,
   memory and closure. Who may drive a profile's sessions is the profile's raw
   surface, as for every session. Apps never receive raw OUP.
+- **The system agent acts in Rinx through Rinx's agent.** When the system
+  agent's event-driven driver (later work) wants Rinx to act, it sends input
+  to Rinx's peer, for example "open the team room and draft a reply saying X".
+  Rinx's peer then calls Rinx's tools. The system agent never holds Rinx's
+  tools. The tools are defined once, independent of transport
+  (`src/assistant/mod.rs`, `TOOLS`). Today the shells' chat pane reaches them
+  through Rinx's `ServiceExecutor`. A later host route, where the app-peers
+  broker serves the same manifest to Rinx's peer, calls the same entry point.
+  The octos app-tool protocol is not part of this change.
+- **Room reads are granted per account and persisted.** The first `read_room`
+  of a room shows Rinx's read sheet with three answers: allow once, always
+  allow, or deny. If the person does not answer within 45 seconds, that
+  counts as a denial. "Always" is stored for the signed-in Matrix account
+  only (`<data>/assistant/room_grants.json`). Another account on the device
+  never inherits it. Settings → Privacy → Assistant access lists the granted
+  rooms and revokes them.
+- **Rinx owns the confirmation of risky actions.** `send_message` shows the
+  room and the exact text in Rinx's own sheet and sends only on the person's
+  yes. That sheet is the only confirmation. The tool is declared
+  `ToolDef::confirmed_by_app()` (OctoSense-org/makepad#36), so the chat pane
+  skips its own confirm card. A host honours that mark only for in-process
+  modules: it clears the mark from other processes' registrations, and a
+  destructive risk floor overrides it. `draft_message` fills the composer
+  and never sends.
 
 ### Acceptance evidence (2026-09-27)
 
@@ -494,9 +518,14 @@ Known limits and follow-ups:
   that completes a question/answer exchange, then executes another input on
   the same peer. Both exchanges pass against `552767dd`; no production kernel
   scheduling change was needed.
-- Rinx's `ServiceExecutor` (the system agent operating Rinx's UI or Matrix
-  actions) still returns unavailable. Peer messaging is available, but no
-  authorized app operations are defined yet.
+- Rinx's `ServiceExecutor` now serves the first action set: `status`,
+  `list_rooms`, `open_room`, `draft_message`, `read_room` (grant-gated),
+  `open_mini_app` (the reviewed app only; Run still grants it) and
+  `send_message` (confirmed in Rinx). Matrix reads and sends go through the
+  mini-app adapters under a `Lease` for the app `assistant`, the account and
+  the one room. If the account changes or signs out, waiting and running
+  calls end `Unavailable` and late results are dropped. Rinx's peer does not
+  call these tools yet; that needs the host route described above.
 - In-flight turns fail with a retry message when the shell restarts its kernel
   (provider change). The broker reconnects and resumes the peer on the next
   request.
@@ -505,8 +534,8 @@ Known limits and follow-ups:
 
 ### Deployment validation follow-up (2026-09-26)
 
-Standalone Rinx now pins System Apps `cc1cee3` and kernel `552767dd`, matching
-the merged shell contracts. [Runtime packaging](../../packaging/README-octos.md)
+The initial validation used System Apps `cc1cee3` and kernel `552767dd`,
+matching the shell contracts before the repository consolidation. [Runtime packaging](../../packaging/README-octos.md)
 builds the pinned executable for desktop and Android and includes its license.
 Hosted builds continue to use only the injected service.
 
@@ -565,3 +594,8 @@ bridge correctly rejects its test identity. Native Back testing exposed the
 shell's Activity fallback closing the host before its Rust navigation handles
 Back; a ROM callback fix and device retest are in progress. Signed-in native
 AI/approval flows and production ROM integration are not yet claimed complete.
+
+After the repository consolidation, Rinx follows main’s app-peers pin
+`OctoSense@f38aa250` and kernel `a6ea8505`. Packaging follows that same kernel
+pin. Device results above identify the pre-consolidation build; validation of
+the updated graph is recorded separately.

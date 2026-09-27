@@ -50,6 +50,41 @@ script_mod! {
         LineH { padding: 10, margin: Inset{left: 5, right: 5} }
     }
 
+    // One room the assistant may read, with its revoke button.
+    mod.widgets.AssistantRoomGrantEntry = #(AssistantRoomGrantEntry::register_widget(vm)) {
+        width: Fill, height: Fit
+        flow: Down
+
+        View {
+            width: Fill, height: Fit
+            flow: Right,
+            padding: 10,
+            spacing: 10,
+            align: Align{y: 0.5}
+
+            revoke_button := RobrixNegativeIconButton {
+                height: mod.widgets.SETTINGS_BUTTON_HEIGHT,
+                padding: Inset{left: 12, right: 15}
+                icon_walk: Walk{width: 0, height: 0}
+                spacing: 0
+                text: #(crate::i18n::tr("Revoke")) i18n_text: "Revoke"
+            }
+
+            room_name := Label {
+                width: Fill, height: Fit
+                flow: Flow.Right{wrap: true},
+                max_lines: 2,
+                text_overflow: Ellipsis,
+                draw_text +: {
+                    color: (MESSAGE_TEXT_COLOR),
+                    text_style: theme.font_bold { font_size: 12 },
+                }
+            }
+        }
+
+        LineH { padding: 10, margin: Inset{left: 5, right: 5} }
+    }
+
     mod.widgets.PrivacySettings = #(PrivacySettings::register_widget(vm)) {
         width: Fill, height: Fit
         flow: Down
@@ -76,6 +111,45 @@ script_mod! {
         }
         mod.widgets.SettingsSectionDescription {
             body: #(crate::i18n::tr("<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>")) i18n_body: "<ul><li>On by default. People you chat with 1-on-1 who also use Rinx see your Moments, and you see theirs. People on other apps are never invited.</li><li>Your Matrix profile shows that you share this way.</li></ul>"
+        }
+
+        SubsectionLabel {
+            text: #(crate::i18n::tr("Assistant access")) i18n_text: "Assistant access"
+        }
+        mod.widgets.SettingsSectionDescription {
+            body: #(crate::i18n::tr("<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>")) i18n_body: "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>"
+        }
+        no_assistant_rooms_label := View {
+            width: Fill, height: Fit
+            Label {
+                width: Fill, height: Fit
+                margin: Inset{top: 10, bottom: 8, left: 13, right: 10},
+                flow: Flow.Right{wrap: true},
+                draw_text +: {
+                    color: (COLOR_TEXT_WARNING_NOT_FOUND),
+                    text_style: MESSAGE_TEXT_STYLE { font_size: 11 },
+                }
+                text: #(crate::i18n::tr("The assistant may not read any chat.")) i18n_text: "The assistant may not read any chat."
+            }
+        }
+        RoundedView {
+            width: Fill, height: Fit
+            margin: 5,
+            show_bg: true,
+            draw_bg +: {
+                color: #F6F8F9
+                border_radius: 4.0
+            }
+            assistant_rooms_list := FlatList {
+                width: Fill,
+                height: Fit,
+                spacing: 0.0
+                flow: Down,
+                grab_key_focus: true,
+                drag_scrolling: true,
+                scroll_bars: ScrollBars { show_scroll_x: false, show_scroll_y: false },
+                assistant_room_entry := mod.widgets.AssistantRoomGrantEntry { }
+            }
         }
 
         SubsectionLabel {
@@ -168,6 +242,39 @@ impl Widget for BlockedUserEntry {
 }
 
 
+/// One room the assistant may read, shown with its name when Rinx knows it.
+#[derive(Script, ScriptHook, Widget)]
+pub struct AssistantRoomGrantEntry {
+    #[deref] view: View,
+    #[rust] room_id: Option<String>,
+}
+
+impl Widget for AssistantRoomGrantEntry {
+    fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        self.view.handle_event(cx, event, scope);
+        let Event::Actions(actions) = event else { return };
+        if let Some(room_id) = self.room_id.clone()
+            && self.view.button(cx, ids!(revoke_button)).clicked(actions)
+            && let Err(e) = crate::assistant::revoke_room(cx, &room_id)
+        {
+            error!("Could not revoke the assistant's access to {room_id}: {e}");
+        }
+    }
+
+    fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
+        let room_id = scope.props.get::<String>().unwrap().clone();
+        let name = matrix_sdk::ruma::OwnedRoomId::try_from(room_id.as_str())
+            .ok()
+            .filter(|_| cx.has_global::<crate::home::rooms_list::RoomsListRef>())
+            .and_then(|id| cx.get_global::<crate::home::rooms_list::RoomsListRef>().get_room_name(&id))
+            .map(|name| format!("{} ({room_id})", name.display()))
+            .unwrap_or_else(|| room_id.clone());
+        self.view.label(cx, ids!(room_name)).set_text(cx, &name);
+        self.room_id = Some(room_id);
+        self.view.draw_walk(cx, scope, walk)
+    }
+}
+
 /// The privacy settings section, which lists the users blocked by this account.
 #[derive(Script, ScriptHook, Widget)]
 pub struct PrivacySettings {
@@ -175,6 +282,8 @@ pub struct PrivacySettings {
 
     /// The blocked users known to this widget, or `None` if they haven't been loaded yet.
     #[rust] blocked_users: Option<Vec<OwnedUserId>>,
+    /// The rooms the signed-in account lets the assistant read.
+    #[rust] assistant_rooms: Option<Vec<String>>,
 }
 
 impl Widget for PrivacySettings {
@@ -183,6 +292,10 @@ impl Widget for PrivacySettings {
             for action in actions {
                 if let Some(BlockedUsersUpdated(blocked_users)) = action.downcast_ref() {
                     self.blocked_users = Some(blocked_users.clone());
+                    self.view.redraw(cx);
+                }
+                if matches!(action.downcast_ref(), Some(crate::assistant::AssistantAction::GrantsChanged)) {
+                    self.assistant_rooms = Some(crate::assistant::granted_rooms());
                     self.view.redraw(cx);
                 }
                 if action.downcast_ref::<SharingSettingChanged>().is_some() {
@@ -199,9 +312,23 @@ impl Widget for PrivacySettings {
     fn draw_walk(&mut self, cx: &mut Cx2d, scope: &mut Scope, walk: Walk) -> DrawStep {
         let blocked_users = &*self.blocked_users.get_or_insert_with(get_blocked_users);
         self.view.view(cx, ids!(no_blocked_users_label)).set_visible(cx, blocked_users.is_empty());
+        let assistant_rooms = &*self.assistant_rooms.get_or_insert_with(crate::assistant::granted_rooms);
+        self.view.view(cx, ids!(no_assistant_rooms_label)).set_visible(cx, assistant_rooms.is_empty());
+        let assistant_list = self.view.flat_list(cx, ids!(assistant_rooms_list)).widget_uid();
 
         while let Some(subview) = self.view.draw_walk(cx, scope, walk).step() {
-            // Here, we only need to handle drawing the blocked users list.
+            if subview.widget_uid() == assistant_list {
+                let list_ref = subview.as_flat_list();
+                let Some(mut list) = list_ref.borrow_mut() else { continue };
+                for room_id in assistant_rooms {
+                    if let Some(item) = list.item(cx, LiveId::from_str(room_id), id!(assistant_room_entry)) {
+                        item.draw_all(cx, &mut Scope::with_props(room_id));
+                    }
+                }
+                list.items.retain_visible();
+                continue;
+            }
+            // Otherwise, the blocked users list.
             let flat_list_ref = subview.as_flat_list();
             let Some(mut list) = flat_list_ref.borrow_mut() else {
                 error!("!!! PrivacySettings::draw_walk(): BUG: expected a FlatList widget, but got something else");
@@ -239,6 +366,7 @@ impl PrivacySettingsRef {
     pub fn populate(&self, cx: &mut Cx) {
         let Some(mut inner) = self.borrow_mut() else { return };
         inner.blocked_users = Some(get_blocked_users());
+        inner.assistant_rooms = Some(crate::assistant::granted_rooms());
         inner.sync_moments_sharing(cx);
         inner.redraw(cx);
     }

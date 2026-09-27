@@ -64,6 +64,8 @@ pub mod block_user_modal;
 pub mod shared;
 pub mod mini_app;
 pub mod octoscript_apps;
+/// The assistant's tools and the person's consent for them (ADR 0007).
+pub mod assistant;
 pub mod octos_service;
 pub mod article_app;
 pub mod forwarding;
