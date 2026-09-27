@@ -24,7 +24,7 @@ octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense-System
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "c3d53ba8bdbc219478b98b34fc73066228d9dfb3" }
 octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "c3d53ba8bdbc219478b98b34fc73066228d9dfb3" }
-octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub.git", rev = "46d67e51b62827a1224b1aacddc2a7b9e69185fc", features = ["splash"] }
+octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub", rev = "46d67e51b62827a1224b1aacddc2a7b9e69185fc", features = ["splash"] }
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
