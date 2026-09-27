@@ -506,7 +506,7 @@ fn set_logout_point_of_no_return(value: bool) {
 }
 
 fn set_logout_in_progress(value: bool) {
-    if value { crate::article_app::invalidate_sessions(); }
+    if value { crate::article_app::invalidate_sessions(); crate::assistant::invalidate(); }
     let prev = LOGOUT_IN_PROGRESS.swap(value, Ordering::Relaxed);
     if prev != value {
         // Emit the action here (only when the value has changed)

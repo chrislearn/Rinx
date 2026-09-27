@@ -1075,5 +1075,16 @@
   "Check registration details": "Check registration details",
   "Enter a username and password.": "Enter a username and password.",
   "Creating account": "Creating account",
-  "Contacting your server…": "Contacting your server…"
+  "Contacting your server…": "Contacting your server…",
+  "Always allow": "Always allow",
+  "Allow once": "Allow once",
+  "Let the assistant read this chat?": "Let the assistant read this chat?",
+  "The assistant asks to read the latest messages in {room}. \"Always allow\" lets it read this chat on this account until you revoke it in Settings > Privacy.": "The assistant asks to read the latest messages in {room}. \"Always allow\" lets it read this chat on this account until you revoke it in Settings > Privacy.",
+  "Send this message?": "Send this message?",
+  "The assistant wants to send this message to {room}:": "The assistant wants to send this message to {room}:",
+  "Revoke": "Revoke",
+  "Assistant access": "Assistant access",
+  "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>": "<ul><li>Chats this account lets the assistant read. You chose \"Always allow\" for each; revoke one and the assistant asks again.</li></ul>",
+  "The assistant may not read any chat.": "The assistant may not read any chat.",
+  "Chats this account lets the assistant read. Revoke one and the assistant asks again.": "Chats this account lets the assistant read. Revoke one and the assistant asks again."
 }

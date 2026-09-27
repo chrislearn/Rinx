@@ -133,6 +133,8 @@ mod embedded_content {
 
                 article_app_modal := Modal {can_dismiss: false content := ArticlePanel {}}
                 octoscript_apps_modal := Modal {can_dismiss: false content := MiniAppsPanel {}}
+                // The assistant's read and send requests: answered only here.
+                assistant_sheet_modal := Modal {can_dismiss: false content := AssistantSheet {}}
                 mini_app_modal := Modal {
                     can_dismiss: false
                     content := MiniAppPanel {}
@@ -325,10 +327,12 @@ impl MatchEvent for App {
         for action in actions {
             // Opening a hidden conversation is explicit on both mobile and desktop.
             // Mobile selection does not emit the desktop RoomFocused action.
-            if let RoomsListAction::Selected(room) = action.as_widget_action().cast()
-                && crate::home::chat_actions::restore(room.room_id())
-            {
-                cx.action(crate::home::chat_actions::ChatVisibilityChanged);
+            if let RoomsListAction::Selected(room) = action.as_widget_action().cast() {
+                // Mobile selection does not emit `RoomFocused`: this is the room shown now.
+                crate::assistant::set_current_room(Some(room.room_name()));
+                if crate::home::chat_actions::restore(room.room_id()) {
+                    cx.action(crate::home::chat_actions::ChatVisibilityChanged);
+                }
             }
             match action.downcast_ref() {
                 Some(LogoutConfirmModalAction::Open) => {
@@ -438,6 +442,24 @@ impl MatchEvent for App {
                     panel.as_article_panel().action(cx, ModalRef::default(), action);
                 } else {
                     self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, action);
+                }
+                continue;
+            }
+            if let Some(action) = action.downcast_ref::<crate::assistant::AssistantAction>() {
+                use crate::assistant::{AssistantAction, sheet::AssistantSheetWidgetRefExt};
+                let modal = self.ui.modal(cx, ids!(assistant_sheet_modal));
+                let sheet = self.ui.assistant_sheet(cx, ids!(assistant_sheet_modal.content));
+                match action {
+                    AssistantAction::ShowPrompt(prompt) => {
+                        sheet.show(cx, prompt);
+                        modal.open(cx);
+                    }
+                    AssistantAction::HidePrompt => {
+                        sheet.hide(cx);
+                        modal.close(cx);
+                    }
+                    AssistantAction::AccountChanged => crate::assistant::account_changed_on_ui(cx),
+                    AssistantAction::GrantsChanged => {}
                 }
                 continue;
             }
@@ -553,10 +575,12 @@ impl MatchEvent for App {
                         cx.action(crate::home::chat_actions::ChatVisibilityChanged);
                     }
                     self.app_state.selected_room = Some(selected_room.clone());
+                    crate::assistant::set_current_room(Some(selected_room.room_name()));
                     continue;
                 }
                 Some(AppStateAction::FocusNone) => {
                     self.app_state.selected_room = None;
+                    crate::assistant::set_current_room(None);
                     continue;
                 }
                 Some(AppStateAction::UpgradedInviteToJoinedRoom { room_id, is_space }) => {
@@ -815,6 +839,7 @@ impl MatchEvent for App {
 
 impl App {
     fn clear_session_ui(&mut self, cx: &mut Cx) {
+        crate::assistant::set_current_room(None);
         for window in [HostedWindow::Moments, HostedWindow::Article] {
             self.close_hosted_window(cx, window, true);
         }
@@ -914,6 +939,7 @@ pub fn register_widgets(vm: &mut ScriptVm) {
     #[cfg(not(feature = "agent_chat"))]
     crate::agent_chat_dummy::script_mod(vm);
 
+    crate::assistant::sheet::script_mod(vm);
     crate::settings::script_mod(vm);
     // RoomInputBar depends on these Home widgets; preload them before room::script_mod.
     crate::home::location_preview::script_mod(vm);
