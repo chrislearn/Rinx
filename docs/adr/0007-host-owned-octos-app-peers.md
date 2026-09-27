@@ -427,9 +427,9 @@ listed for the owners' confirmation.
 
 | Layer | Repository and change | What it provides |
 | --- | --- | --- |
-| Kernel | octos-org/octos#2555, UPCR-2026-034 | `peer/prepare` with `model` (parity with `peer_handoff`, effective model and fallback reported), `memory_namespace` (host-owned app peer bound to its workspace and an app/account memory namespace, system originator persisted), `resume` and a kernel-provisioned workspace for remote hosts. Adds `peer/model/set` (one peer's lane between turns, profile default untouched), `peer/context/open|close` (bound request contexts: kernel-minted sessions, child namespaces, refusal after close) and memory isolation for capture, retrieval, prompt injection, episodes and the refresh sweep |
+| Kernel | octos-org/octos#2555, UPCR-2026-034 | Control of a host-owned app peer is bound to a host token minted at creation. Allocation is exclusive (no shared namespace or workspace), and torn bindings fail closed. `peer/prepare` with `model` (parity with `peer_handoff`, effective model and fallback reported), `memory_namespace` (host-owned app peer bound to its workspace and an app/account memory namespace, system originator persisted), `resume` and a kernel-provisioned workspace for remote hosts. Adds `peer/model/set` (one peer's lane between turns, profile default untouched), `peer/context/open|close` (bound request contexts: kernel-minted sessions, child namespaces, refusal after close) and memory isolation for capture, retrieval, prompt injection, episodes and the refresh sweep |
 | Capability contract | OctoSense-App-Hub#14 (`9e986135`, on main from `46d67e51`) | The exact `octos.*` and `matrix.*` service names, admitted by exact name, with store wording; history does not grant turns |
-| Broker | OctoSense-System-Apps#14, #15 (`crates/app-peers`, `64aa865e`) | The contract Rinx consumes (`OctosAppService`, `OctosContext`), creation-time injection (`offer` / `claim` / `withdraw`) and the broker used for all three deployments. The broker makes one system-owned peer per app and account and one kernel request context per mini-app instance, checks the lease on every request and before every reply, and refuses a kernel without UPCR-2026-034. It runs over the shell kernel, an owned local kernel or a token-authenticated remote server |
+| Broker | OctoSense-System-Apps#14, #15, #16 (`crates/app-peers`, `4fa0f122`) | The contract Rinx consumes (`OctosAppService`, `OctosContext`), creation-time injection (`offer` / `claim` / `withdraw`) and the broker used for all three deployments. The broker makes one system-owned peer per app and account and one kernel request context per mini-app instance, checks the lease on every request and before every reply, and refuses a kernel without UPCR-2026-034. It keeps each peer's host token (shell: `<core_dir>/../app-peers`; Rinx: `octos/peers`, mode 0600). It runs over the shell kernel, an owned local kernel or a token-authenticated remote server |
 | Rinx | this change | `src/octos_service.rs` selects the deployment: hosted from module creation, standalone local or remote from Rinx's assistant settings. `src/module.rs` declares the four `octos.*` services and claims the injected service. Mini apps get request contexts (`src/octoscript_apps/octos.rs`); admission and dispatch use exact names. Account changes revoke; hosted close releases; standalone exit stops only an owned runtime. The `octos-local` / `octos-remote` features keep the runtime out of `octosense-module` builds |
 
 `KernelProvider::shared` and the AppCard connection discovery are gone. No mode
@@ -449,13 +449,19 @@ to OctoSense's Settings → Accounts → AI providers.
 - **Model selection.** Host policy may set a configured lane for an app's peer
   (`BrokerConfig::model_lane`, `peer/model/set`). No app-facing API selects a
   model or provider.
-- **Remote credentials.** The standalone remote token stays in memory and is asked
-  for again after a restart. Only the URL and profile are persisted. The
-  connector authenticates by token only.
+- **Remote credentials.** The standalone remote server token stays in memory and is
+  asked for again after a restart. Only the URL and profile are persisted. The
+  connector authenticates by token only. The kernel's per-peer host token is a
+  capability for Rinx's own peer, not a server login. It is kept in a 0600 file
+  so a restart resumes the peer.
+- **Runtime.** Rinx moves to makepad `db4691d0` (makepad#35, Splash
+  `reapply_text`) and OctoScript-Makepad `c3d53ba8` (OSM#46, stateful inputs),
+  the current runtime plus the two ADR 0005 additions. OctoSense shells can
+  therefore link it at their pins.
 
 ### Acceptance evidence (2026-09-27)
 
-Kernel builds are octos#2555 (`cf2b4000`) in release. Models are standard-library
+Kernel builds are octos#2555 (`5dad8f5f`) in release. Models are standard-library
 Python fixtures; no provider key or Matrix credential is used anywhere.
 
 | Criterion | Evidence | State |

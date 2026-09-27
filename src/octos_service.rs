@@ -184,6 +184,12 @@ fn install_standalone(service: Arc<dyn OctosAppService>, mode: StandaloneMode) {
     sync_account();
 }
 
+/// Where Rinx keeps its peers' host tokens (mode 0600 files).
+#[cfg_attr(not(any(feature = "octos-local", feature = "octos-remote")), allow(dead_code))]
+fn peer_state_dir() -> std::path::PathBuf {
+    crate::app_data_dir().join("octos").join("peers")
+}
+
 fn settings_path() -> std::path::PathBuf {
     crate::app_data_dir().join("octos").join("assistant.json")
 }
@@ -279,7 +285,7 @@ pub fn use_remote(url: &str, profile: &str, token: &str) -> Result<(), String> {
         return Err("Enter the server's access token".into());
     }
     let connector = WsConnector::new(url.clone(), token, profile)?;
-    let cfg = BrokerConfig::new(
+    let mut cfg = BrokerConfig::new(
         Deployment::StandaloneRemote,
         profile,
         standalone_root(profile),
@@ -287,6 +293,9 @@ pub fn use_remote(url: &str, profile: &str, token: &str) -> Result<(), String> {
         "Rinx",
         rinx_services(),
     );
+    // The peer's host token (the kernel's credential for controlling Rinx's
+    // peer) is kept per server, mode 0600, so a restart resumes the peer.
+    cfg.state_dir = Some(peer_state_dir().join(url.host_str().unwrap_or("server")));
     let service = Arc::new(Broker::new(cfg, Arc::new(connector)));
     let mode = StandaloneMode::Remote { url: url.to_string(), profile: profile.to_owned() };
     save_mode(&mode)?;
@@ -347,7 +356,7 @@ mod local {
         }
         let core = octosense_app_peers::octos_core::Core::new(options);
         core.launch().map_err(|e| e.to_string())?;
-        let cfg = BrokerConfig::new(
+        let mut cfg = BrokerConfig::new(
             Deployment::StandaloneLocal,
             "_main",
             standalone_root("_main"),
@@ -355,6 +364,7 @@ mod local {
             "Rinx",
             rinx_services(),
         );
+        cfg.state_dir = Some(peer_state_dir().join("local"));
         Ok(Arc::new(Broker::new(cfg, Arc::new(CoreConnector::owned(core)))))
     }
 
