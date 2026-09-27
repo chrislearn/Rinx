@@ -565,6 +565,18 @@ jobs:
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup pinned cargo-makepad
+        uses: ./.github/actions/setup-cargo-makepad
+
+      - name: Package the standalone assistant runtime
+        env:
+          AWS_LC_SYS_CMAKE_BUILDER: 1
+        run: |
+          cargo makepad android install-toolchain --full-ndk
+          rustup target add aarch64-linux-android
+          python3 tools/package-octos.py android
+          echo "MAKEPAD_ANDROID_EXTRA_LIBS=liboctos.so=$PWD/dist/octos-aarch64-linux-android" >> "$GITHUB_ENV"
+
       - name: Package (android)
         uses: project-robius/makepad-packaging-action@v1.8.0
         env:

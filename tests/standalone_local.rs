@@ -72,7 +72,13 @@ fn standalone_rinx_owns_one_local_runtime_and_stops_only_it() {
     // Rinx's own data root and the packaged kernel, set explicitly (never PATH).
     unsafe {
         std::env::set_var("RINX_DATA_DIR", &data);
-        std::env::set_var("RINX_OCTOS_BIN", &kernel);
+        // Release validation runs a copy of this executable beside the
+        // packaged kernel, exercising production discovery without overrides.
+        if std::env::var_os("RINX_TEST_PACKAGED_OCTOS").is_some() {
+            std::env::remove_var("RINX_OCTOS_BIN");
+        } else {
+            std::env::set_var("RINX_OCTOS_BIN", &kernel);
+        }
     }
     let model = model();
     rinx::octos_service::write_local_provider("local", "mock-model", &format!("http://127.0.0.1:{}/v1", model.1), "").unwrap();

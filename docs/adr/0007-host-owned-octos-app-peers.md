@@ -488,9 +488,12 @@ Deployment completion criteria:
 
 Known limits and follow-ups:
 
-- In one scripted run the kernel accepted a second `peer_send_input` to a peer
-  that had already answered once, but did not run it within two minutes. The
-  first exchange is covered. This is a kernel follow-up.
+- The earlier repeated-input failure was traced to the scripted model reusing
+  the same tool-call ID (`call_1`). The kernel correctly deduplicated that
+  occurrence. System Apps #18 gives each call a fresh ID and adds a regression
+  that completes a question/answer exchange, then executes another input on
+  the same peer. Both exchanges pass against `552767dd`; no production kernel
+  scheduling change was needed.
 - Rinx's `ServiceExecutor` (the system agent operating Rinx's UI or Matrix
   actions) still returns unavailable. Peer messaging is available, but no
   authorized app operations are defined yet.
@@ -499,3 +502,36 @@ Known limits and follow-ups:
   request.
 - Per-app token/tool budgets and fair scheduling beyond the kernel's existing
   limits are not part of this change.
+
+### Deployment validation follow-up (2026-09-26)
+
+Standalone Rinx now pins System Apps `cc1cee3` and kernel `552767dd`, matching
+the merged shell contracts. [Runtime packaging](../../packaging/README-octos.md)
+builds the pinned executable for desktop and Android and includes its license.
+Hosted builds continue to use only the injected service.
+
+Rechecked in isolated worktrees and disposable data directories:
+
+- All 20 app-peers tests pass, including five tests using the real pinned
+  kernel and a scripted model. The repeated-input regression is in
+  [System Apps #18](https://github.com/OctoSense-org/OctoSense-System-Apps/pull/18).
+- Standalone local and authenticated remote process tests pass with the
+  aligned dependency. The local test also passes from a private bundle with
+  `RINX_OCTOS_BIN` removed, finding the adjacent packaged executable.
+- Four packaging checks pass. cargo-packager 0.10.1 produces a macOS bundle
+  with `Contents/MacOS/octos` and its license. This inclusion check reuses the
+  existing fast-build Rinx binary; it is not a notarized distribution test.
+- Native Makepad instrumentation verifies the standalone development bundle's
+  login screen and hosted Rinx's launch, close and reopen in the rebuilt
+  Desktop #41 shell. Both native test processes exited after capture. The
+  hosted launch starts no child kernel before an authorized request.
+- The pinned Android kernel cross-builds as an aarch64 ELF PIE with 16 KB
+  load-segment alignment and only Android system-library dependencies.
+- Standalone Android builds as the separate `dev.makepad.rinx.validation`
+  package. APK v2/v3 signature verification passes and the bundled
+  `lib/arm64-v8a/liboctos.so` matches the staged kernel's SHA-256 exactly.
+  This is a development APK; no device installation is claimed.
+
+Signed-in native mini-app AI/approval flows still require a disposable Matrix
+login. The OnePlus 6 is absent from ADB; the four visible emulators are not
+substitutes for its device test and were left untouched.
