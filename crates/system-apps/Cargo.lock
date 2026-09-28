@@ -79,7 +79,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "octosense-app-policy"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=362d832ff66a2d067e1bbcef7d8c25fb9d69740e#362d832ff66a2d067e1bbcef7d8c25fb9d69740e"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=e8601b80ce104db2e48208094714bdcffdce6b5a#e8601b80ce104db2e48208094714bdcffdce6b5a"
 dependencies = [
  "blake3",
  "serde",
