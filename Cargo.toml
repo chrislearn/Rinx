@@ -16,8 +16,9 @@ metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 [dependencies]
 article-core = { path = "crates/article-core", features = ["l0"] }
 rinx-miniapp-core = { path = "crates/miniapp-core" }
+rinx-miniapp-catalog = { path = "crates/miniapp-catalog" }
 uuid = { version = "1", features = ["v4"] }
-octos-app-transport = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "1576bec6a585758e48c3252030cad2a9bf9c80db" }
+octos-app-transport = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "1576bec6a585758e48c3252030cad2a9bf9c80db", optional = true }
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
 octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
@@ -157,7 +158,7 @@ dispatch2 = "0.3"
 default = ["standalone"]
 ## The standalone app's entry point (window, menus, `app_main!`). A host that
 ## links Rinx as a module disables it.
-standalone = []
+standalone = ["dep:octos-app-transport"]
 ## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
 octosense-module = ["dep:makepad-app-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.

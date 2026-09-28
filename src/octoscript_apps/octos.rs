@@ -1,5 +1,5 @@
-//! Octos adapter over the SAME connection AppCard publishes on its UI thread.
-use octos_app_transport::shared::Connection;
+//! Scoped mini-app sessions over Rinx's explicitly owned standalone transport.
+use super::transport::Connection;
 use rinx_miniapp_core::{InstanceId, Lease, OctosProvider, ServiceEvent};
 use serde_json::{Value, json};
 use std::sync::{
@@ -13,20 +13,10 @@ pub struct KernelProvider {
     session: String,
     active_turn: Arc<AtomicU64>,
     turn_namespace: u64,
-    workspace: Option<String>,
+    workspace: String,
 }
 impl KernelProvider {
-    pub fn shared(workspace: &std::path::Path) -> Result<Option<Arc<Self>>, String> {
-        let Some(connection) = Connection::current() else {
-            return Ok(None);
-        };
-        let workspace = workspace.canonicalize().map_err(|e| e.to_string())?;
-        Ok(Some(Self::from_connection(
-            connection,
-            Some(workspace.to_string_lossy().into_owned()),
-        )))
-    }
-    fn from_connection(connection: Arc<Connection>, workspace: Option<String>) -> Arc<Self> {
+    pub(super) fn from_connection(connection: Arc<Connection>, workspace: String) -> Arc<Self> {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -41,13 +31,6 @@ impl KernelProvider {
             turn_namespace: (uuid::Uuid::new_v4().as_u128() >> 64) as u64,
             workspace,
         })
-    }
-    /// Explicit standalone configuration uses the identical WS/stdio protocol.
-    pub fn connect(config: octos_app_transport::TransportConfig) -> Result<Arc<Self>, String> {
-        let (connection, receiver) =
-            Connection::start(config, Arc::new(makepad_widgets::SignalToUI::set_ui_signal))?;
-        drop(receiver);
-        Ok(Self::from_connection(connection, None))
     }
 }
 fn turn_id(namespace: u64, number: u64) -> String {
@@ -66,10 +49,7 @@ impl OctosProvider for KernelProvider {
         reply: SyncSender<ServiceEvent>,
     ) -> Result<(), String> {
         valid(&lease)?;
-        let workspace = self
-            .workspace
-            .clone()
-            .ok_or("Open the mini app to bind its Octos workspace")?;
+        let workspace = self.workspace.clone();
         if !self.connection.is_active() {
             return Err("Octos connection changed; reopen this app".into());
         }
@@ -142,8 +122,8 @@ impl OctosProvider for KernelProvider {
                 let mut stream = TurnReply::default();
                 loop {
                     let event = events.recv().await.map_err(|_| "Octos event stream closed or fell behind; reload history")?;
-                    if event.session_id().0 != session { continue; }
-                    let data = serde_json::to_value(&*event).map_err(|e| e.to_string())?;
+                    if event.session != session { continue; }
+                    let data = event.data.clone();
                     valid(&lease)?;
                     if !stream.accept(&turn, &data)? {continue;}
                     if stream.completed {
@@ -180,7 +160,7 @@ impl OctosProvider for KernelProvider {
             if method=="turn/start" { let _=active_turn.compare_exchange(turn_number,0,Ordering::AcqRel,Ordering::Acquire); }
             let result = result.map_err(|error| {
                 if error.contains("401") && error.to_ascii_lowercase().contains("authentication") {
-                    "Octos provider authentication failed (HTTP 401). Update the provider credentials in AppCard.".into()
+                    "Octos provider authentication failed (HTTP 401). Check the configured kernel's provider credentials.".into()
                 } else {
                     error
                 }

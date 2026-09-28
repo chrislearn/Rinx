@@ -1,12 +1,13 @@
 //! One native mini-app screen shared by standalone and embedded Rinx.
 use super::{
-    InstanceId, KernelProvider, Lease, OctosProvider, ServiceEvent,
+    InstanceId, Lease, OctosProvider, ServiceEvent, deployment,
     package::{Call, Package},
 };
 use makepad_widgets::splash_host::{splash_host_respond, take_splash_host_requests_for};
 use makepad_widgets::*;
 use octoscript_ui_l0::InstanceStore;
 use octosense_app_policy::AssetServer;
+use super::library::{LibraryAction, MiniAppLibraryWidgetExt};
 use serde_json::{Value, json};
 use std::{
     collections::VecDeque,
@@ -25,29 +26,47 @@ pub enum MiniAppsAction {
 }
 script_mod! {
     use mod.prelude.widgets.*
+    use mod.widgets.*
     mod.widgets.MiniAppsPanel = #(MiniAppsPanel::register_widget(vm)) {
-        width: Fill height: Fill flow: Down padding: 18 spacing: 12
+        width: Fill height: Fill flow: Down padding: 0 spacing: 0
         show_bg: true
         draw_bg +: {color: instance(#xf5f5f5) pixel: fn() {return self.color}}
-        header := View {width: Fill height: Fit flow: Right spacing: 12
-            close := Button {text: "Back"}
-            Label {text: "Mini apps" draw_text.color: #222 draw_text.text_style.font_size: 18}
+        header := View {visible: false width: Fill height: 52 flow: Right spacing: 12 padding: Inset{left: 12 right: 12} align: Align{y: 0.5}
+            close := Button {width: 44 height: 44 text: "" icon_walk: Walk{width: 20 height: 20}
+                draw_icon +: {svg: crate_resource("self://resources/icons/arrow_back.svg") color: #222}}
+            title := Label {width: Fill text: "Mini apps" draw_text.color: #222 draw_text.text_style.font_size: 18}
         }
-        import_form := View {width: Fill height: Fit flow: Down spacing: 8
+        library := MiniAppLibrary {}
+        import_form := View {visible: false width: Fill height: Fit flow: Down spacing: 8 padding: 16
             path := TextInput {width: Fill empty_text: "OctoSense bundle folder"}
             room := TextInput {width: Fill empty_text: "Room ID to allow (optional)"}
             core := View {width: Fill height: Fit flow: Down spacing: 6
-                endpoint := TextInput {width: Fill empty_text: "Octos server URL"}
-                profile := TextInput {width: Fill empty_text: "Octos profile"}
-                token := TextInput {width: Fill is_password: true empty_text: "Octos access token"}
-                connect := Button {text: "Connect Octos"}
+                status := Label {width: Fill draw_text.wrap: Words text: "AI is not configured"}
+                modes := View {width: Fill height: Fit flow: Right spacing: 6
+                    local := Button {text: "Local kernel"}
+                    remote := Button {text: "Remote server"}
+                }
+                local := View {visible: false width: Fill height: Fit flow: Down spacing: 6
+                    executable := TextInput {width: Fill empty_text: "Absolute path to Octos executable"}
+                    config := TextInput {width: Fill empty_text: "Absolute path to Octos configuration"}
+                }
+                remote := View {width: Fill height: Fit flow: Down spacing: 6
+                    endpoint := TextInput {width: Fill empty_text: "Octos server URL"}
+                    workspace := TextInput {width: Fill empty_text: "Workspace root on the server"}
+                    token := TextInput {width: Fill is_password: true empty_text: "Octos access token"}
+                }
+                profile := TextInput {width: Fill text: "main" empty_text: "Octos profile"}
+                actions := View {width: Fill height: Fit flow: Right spacing: 6
+                    connect := Button {text: "Connect"}
+                    disconnect := Button {text: "Disconnect"}
+                }
             }
             buttons := View {width: Fill height: Fit spacing: 8
                 review := Button {text: "Review bundle"}
                 run := Button {text: "Run"}
             }
         }
-        notice := Label {width: Fill height: Fit draw_text.color: #333 text: "Import an OctoSense bundle to review its services."}
+        notice := Label {visible: false width: Fill height: Fit padding: 12 draw_text.color: #333}
         approval := View {visible: false width: Fill height: Fit flow: Down spacing: 8
             details := Label {width: Fill draw_text.color: #222}
             buttons := View {width: Fill height: Fit spacing: 8
@@ -55,7 +74,7 @@ script_mod! {
                 deny := Button {text: "Deny"}
             }
         }
-        card := Splash {width: Fill height: Fill}
+        card := Splash {visible: false width: Fill height: Fill}
     }
 }
 type Provider = Arc<dyn OctosProvider>;
@@ -77,13 +96,19 @@ pub struct MiniAppsPanel {
     #[rust]
     open: bool,
     #[rust]
+    developer_import: bool,
+    #[rust]
     reviewed_room: String,
     #[rust]
     package: Option<Package>,
     #[rust]
     lease: Option<Lease>,
     #[rust]
-    connection_owner: Option<Provider>,
+    local_kernel: bool,
+    #[rust]
+    provider_status: String,
+    #[rust]
+    provider_settings_loaded: bool,
     #[rust]
     provider: Option<Provider>,
     #[rust]
@@ -112,6 +137,9 @@ impl Drop for MiniAppsPanel {
 impl MiniAppsPanel {
     fn notice(&mut self, cx: &mut Cx, message: &str) {
         self.view.label(cx, ids!(notice)).set_text(cx, message);
+        self.view
+            .label(cx, ids!(notice))
+            .set_visible(cx, !message.is_empty());
     }
     fn stop(&mut self, cx: &mut Cx) {
         if let Some(lease) = self.lease.take() {
@@ -125,7 +153,60 @@ impl MiniAppsPanel {
         self.approvals.clear();
         self.view.view(cx, ids!(approval)).set_visible(cx, false);
         self.view.splash(cx, ids!(card)).set_text(cx, "");
+        self.view.view(cx, ids!(import_form)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, false);
+        self.view.widget(cx, ids!(card)).set_visible(cx, false);
+        self.view
+            .mini_app_library(cx, ids!(library))
+            .show_library(cx);
+        self.view.widget(cx, ids!(library)).set_visible(cx, true);
+        self.notice(cx, "");
+    }
+    fn developer(&mut self, cx: &mut Cx) {
+        self.stop(cx);
+        self.package = None;
+        self.developer_import = true;
+        self.view.widget(cx, ids!(library)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, true);
+        self.view
+            .label(cx, ids!(header.title))
+            .set_text(cx, "Developer import");
         self.view.view(cx, ids!(import_form)).set_visible(cx, true);
+        if !deployment::is_hosted() && !self.provider_settings_loaded {
+            self.provider_settings_loaded = true;
+            if let Ok(Some(settings)) = super::deployment_settings::Settings::load() {
+                use super::deployment_settings::Settings;
+                match settings {
+                    Settings::Local { executable, config_file, profile } => {
+                        self.local_kernel = true;
+                        self.view.text_input(cx, ids!(import_form.core.local.executable)).set_text(cx, &executable.to_string_lossy());
+                        self.view.text_input(cx, ids!(import_form.core.local.config)).set_text(cx, &config_file.to_string_lossy());
+                        self.view.text_input(cx, ids!(import_form.core.profile)).set_text(cx, &profile);
+                    }
+                    Settings::Remote { endpoint, workspace_root, profile } => {
+                        self.local_kernel = false;
+                        self.view.text_input(cx, ids!(import_form.core.remote.endpoint)).set_text(cx, &endpoint);
+                        self.view.text_input(cx, ids!(import_form.core.remote.workspace)).set_text(cx, &workspace_root);
+                        self.view.text_input(cx, ids!(import_form.core.profile)).set_text(cx, &profile);
+                    }
+                }
+                self.view.view(cx, ids!(import_form.core.local)).set_visible(cx, self.local_kernel);
+                self.view.view(cx, ids!(import_form.core.remote)).set_visible(cx, !self.local_kernel);
+            }
+        }
+        self.notice(
+            cx,
+            "Local unsigned bundle. Review its permissions before running.",
+        );
+    }
+    fn back(&mut self, cx: &mut Cx) {
+        if self.lease.is_some() || self.view.view(cx, ids!(import_form)).visible() {
+            self.stop(cx);
+            self.package = None;
+            self.developer_import = false;
+        } else {
+            cx.action(MiniAppsAction::Close);
+        }
     }
     fn show_approval(&mut self, cx: &mut Cx) {
         if let Some(approval) = self.approvals.front() {
@@ -138,54 +219,33 @@ impl MiniAppsPanel {
             .set_visible(cx, !self.approvals.is_empty());
     }
     fn connect(&mut self, cx: &mut Cx) -> Result<(), String> {
-        #[cfg(feature = "octosense-module")]
-        if crate::module::is_hosted() {
-            return Err("This app uses OctoSense's core connection".into());
+        let profile = self.view.text_input(cx, ids!(import_form.core.profile)).text();
+        let settings = if self.local_kernel {
+            let program = self.view.text_input(cx, ids!(import_form.core.local.executable)).text();
+            let config = self.view.text_input(cx, ids!(import_form.core.local.config)).text();
+            deployment::configure_local(std::path::Path::new(program.trim()), std::path::Path::new(config.trim()), &profile)?;
+            super::deployment_settings::Settings::Local {
+                executable: program.trim().into(), config_file: config.trim().into(), profile,
+            }
+        } else {
+            let endpoint = self.view.text_input(cx, ids!(import_form.core.remote.endpoint)).text();
+            let workspace = self.view.text_input(cx, ids!(import_form.core.remote.workspace)).text();
+            let token = self.view.text_input(cx, ids!(import_form.core.remote.token)).text();
+            let result = deployment::configure_remote(&endpoint, &profile, &token, &workspace);
+            self.view.text_input(cx, ids!(import_form.core.remote.token)).set_text(cx, "");
+            result?;
+            super::deployment_settings::Settings::Remote {
+                endpoint: endpoint.trim().into(), workspace_root: workspace.trim().into(), profile,
+            }
+        };
+        match settings.save() {
+            Ok(()) => self.notice(cx, "Connecting. Access tokens stay in memory; enter them again after restarting Rinx."),
+            Err(error) => self.notice(cx, &format!("Connecting, but could not save settings: {error}")),
         }
-        let endpoint = self
-            .view
-            .text_input(cx, ids!(import_form.core.endpoint))
-            .text();
-        let url =
-            url::Url::parse(endpoint.trim()).map_err(|_| "Enter a complete Octos server URL")?;
-        if !matches!(url.scheme(), "http" | "https")
-            || url.host_str().is_none()
-            || !url.username().is_empty()
-            || url.password().is_some()
-        {
-            return Err("Use an HTTP or HTTPS URL without embedded credentials".into());
-        }
-        let profile = self
-            .view
-            .text_input(cx, ids!(import_form.core.profile))
-            .text();
-        if profile.trim().is_empty() {
-            return Err("Enter the Octos profile name".into());
-        }
-        let token = self
-            .view
-            .text_input(cx, ids!(import_form.core.token))
-            .text();
-        let provider = KernelProvider::connect(octos_app_transport::TransportConfig {
-            base_url: url,
-            bearer: octos_app_transport::SecretString::new(token),
-            profile_id: octos_app_transport::ProfileId::new(profile.trim()),
-            cursor: None,
-            cursor_file: None,
-            requested_capabilities: octos_app_transport::Capabilities::requested(),
-            workspace_cwd: None,
-            stdio: None,
-        })?;
-        self.connection_owner = Some(provider);
-        self.view
-            .text_input(cx, ids!(import_form.core.token))
-            .set_text(cx, "");
-        self.notice(cx, "Octos connection configured. Review and run your app.");
         Ok(())
     }
     fn review(&mut self, cx: &mut Cx) -> Result<(), String> {
-        self.stop(cx);
-        self.package = None;
+        self.developer(cx);
         let path = self.view.text_input(cx, ids!(path)).text();
         let snapshots = crate::app_data_dir().to_owned().join("miniapps/imports");
         let package = Package::load_in(&PathBuf::from(path.trim()), &snapshots)?;
@@ -206,8 +266,12 @@ impl MiniAppsPanel {
         let account = crate::sliding_sync::current_user_id()
             .ok_or("Log in to Matrix before running a mini app")?
             .to_string();
-        let room = self.view.text_input(cx, ids!(room)).text();
-        if room.trim() != self.reviewed_room {
+        let room = if self.developer_import {
+            self.view.text_input(cx, ids!(room)).text()
+        } else {
+            self.reviewed_room.clone()
+        };
+        if self.developer_import && room.trim() != self.reviewed_room {
             return Err("Room access changed. Review the bundle again".into());
         }
         let room = if room.trim().is_empty() {
@@ -244,18 +308,10 @@ impl MiniAppsPanel {
         let server = octosense_app_policy::AssetServer::start(&package.root)?;
         octosense_app_policy::rewrite_assets(&mut self.data, server.origin());
         let account_dir: String = account.bytes().map(|b| format!("{b:02x}")).collect();
-        // The local core's default read boundary is its data root. Allocate
-        // an account/app child there and then narrow the session to that child.
-        // The location comes from the native host, never from bundle input.
-        let root = octos_app_transport::shared::Connection::current()
-            .and_then(|c| c.local_data_root.clone())
-            .unwrap_or_else(|| crate::app_data_dir().to_owned())
-            .join("miniapps")
-            .join(account_dir);
+        let root = deployment::data_root().join("miniapps").join(account_dir);
         let mut settings = package.policy.isolate_settings(&root);
         std::fs::create_dir_all(&settings.jail_root).map_err(|e| e.to_string())?;
-        self.provider =
-            KernelProvider::shared(&settings.jail_root)?.map(|p| p as Arc<dyn OctosProvider>);
+        self.provider = deployment::open(&lease, &settings.jail_root)?;
         settings.hosts.push(server.allowlist_entry());
         settings.allow_net = true;
         if !package.script {
@@ -275,10 +331,19 @@ impl MiniAppsPanel {
             self.binding(cx, call, "root", &Value::Null)?;
         }
         self.view.view(cx, ids!(import_form)).set_visible(cx, false);
-        self.notice(
-            cx,
-            "Running · Back closes this app and revokes its services.",
-        );
+        self.view.widget(cx, ids!(library)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, true);
+        self.view.widget(cx, ids!(card)).set_visible(cx, true);
+        let package = self.package.as_ref().unwrap();
+        self.view
+            .label(cx, ids!(header.title))
+            .set_text(cx, &package.manifest.name);
+        if !self.developer_import {
+            self.view
+                .mini_app_library(cx, ids!(library))
+                .record(cx, &package.manifest.id);
+        }
+        self.notice(cx, "");
         Ok(())
     }
     fn render(&mut self, cx: &mut Cx) -> Result<(), String> {
@@ -353,7 +418,7 @@ impl MiniAppsPanel {
                 SignalToUI::set_ui_signal();
             });
         } else if service.starts_with("octos.") {
-            self.provider.as_ref().ok_or("Octos unavailable. Open AppCard in OctoSense to connect the core, then reopen this mini app.")?.request(lease,service,args,tx)?;
+            self.provider.as_ref().ok_or_else(|| format!("{}. Configure AI in the hosting app, then reopen this mini app.", deployment::status()))?.request(lease,service,args,tx)?;
         } else {
             return Err(format!("No adapter for {service}"));
         }
@@ -550,7 +615,39 @@ impl Widget for MiniAppsPanel {
         self.view.handle_event(cx, event, scope);
         if let Event::Actions(actions) = event {
             if self.view.button(cx, ids!(close)).clicked(actions) {
-                cx.action(MiniAppsAction::Close);
+                self.back(cx);
+            }
+            for action in actions {
+                if let Some(action) = action.downcast_ref::<LibraryAction>() {
+                    match action {
+                        LibraryAction::Developer => self.developer(cx),
+                        LibraryAction::Article => {
+                            cx.action(MiniAppsAction::Close);
+                            cx.action(crate::article_app::ArticleAction::Open);
+                        }
+                        LibraryAction::Launch(bundle, room, account) => {
+                            if crate::sliding_sync::current_user_id()
+                                .is_none_or(|user| user.as_str() != account)
+                            {
+                                continue;
+                            }
+                            self.developer_import = false;
+                            self.reviewed_room = room.clone().unwrap_or_default();
+                            let result = Package::load_verified(
+                                bundle.clone(),
+                                &crate::app_data_dir().join("miniapps/imports"),
+                            )
+                            .and_then(|package| {
+                                self.package = Some(package);
+                                self.run(cx)
+                            });
+                            if let Err(error) = result {
+                                self.stop(cx);
+                                self.notice(cx, &error);
+                            }
+                        }
+                    }
+                }
             }
             let approve = self
                 .view
@@ -580,12 +677,20 @@ impl Widget for MiniAppsPanel {
                     self.show_approval(cx);
                 }
             }
+            if self.view.button(cx, ids!(import_form.core.modes.local)).clicked(actions)
+                || self.view.button(cx, ids!(import_form.core.modes.remote)).clicked(actions) {
+                self.local_kernel = self.view.button(cx, ids!(import_form.core.modes.local)).clicked(actions);
+                self.view.view(cx, ids!(import_form.core.local)).set_visible(cx, self.local_kernel);
+                self.view.view(cx, ids!(import_form.core.remote)).set_visible(cx, !self.local_kernel);
+            }
             let result = if self
                 .view
-                .button(cx, ids!(import_form.core.connect))
+                .button(cx, ids!(import_form.core.actions.connect))
                 .clicked(actions)
             {
                 self.connect(cx)
+            } else if self.view.button(cx, ids!(import_form.core.actions.disconnect)).clicked(actions) {
+                deployment::disconnect()
             } else if self.view.button(cx, ids!(review)).clicked(actions) {
                 self.review(cx)
             } else if self.view.button(cx, ids!(run)).clicked(actions) {
@@ -594,13 +699,22 @@ impl Widget for MiniAppsPanel {
                 Ok(())
             };
             if let Err(e) = result {
-                self.stop(cx);
+                if self.lease.is_some() {
+                    self.stop(cx);
+                }
                 self.notice(cx, &e);
             }
         }
         if let Event::BackPressed { handled } = event {
-            handled.set(true);
-            cx.action(MiniAppsAction::Close);
+            if !handled.get() {
+                handled.set(true);
+                self.back(cx);
+            }
+        }
+        let status = deployment::status();
+        if status != self.provider_status {
+            self.view.label(cx, ids!(import_form.core.status)).set_text(cx, &status);
+            self.provider_status = status;
         }
         self.pump(cx);
     }
@@ -609,12 +723,34 @@ impl Widget for MiniAppsPanel {
     }
 }
 impl MiniAppsPanelRef {
+    /// The outer app routes Android Back here before rooms or the shell.
+    /// Consume one navigation level synchronously, without exiting Rinx.
+    pub fn back(&self, cx: &mut Cx, modal: ModalRef) {
+        if let Some(mut inner) = self.borrow_mut() {
+            if inner.lease.is_some() || inner.view.view(cx, ids!(import_form)).visible() {
+                inner.stop(cx);
+                inner.package = None;
+                inner.developer_import = false;
+                return;
+            }
+            if inner
+                .view
+                .mini_app_library(cx, ids!(library))
+                .back_to_list(cx)
+            {
+                return;
+            }
+        }
+        self.action(cx, modal, &MiniAppsAction::Close);
+    }
     pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MiniAppsAction) {
         if let Some(mut inner) = self.borrow_mut() {
             match action {
                 MiniAppsAction::Open => {
                     inner.open = true;
-                    inner.notice(cx, "Import an OctoSense bundle to review its services.");
+                    inner.stop(cx);
+                    inner.developer_import = false;
+                    inner.view.mini_app_library(cx, ids!(library)).begin(cx);
                     #[cfg(feature = "octosense-module")]
                     inner
                         .view
@@ -623,11 +759,45 @@ impl MiniAppsPanelRef {
                     modal.open(cx);
                 }
                 MiniAppsAction::Close => {
+                    inner.view.mini_app_library(cx, ids!(library)).cancel_open();
                     inner.stop(cx);
+                    inner.package = None;
                     inner.open = false;
                     modal.close(cx);
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod navigation_tests {
+    use super::*;
+    #[test]
+    fn native_registration_defaults_to_library_and_developer_back_stays_in_rinx() {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let mut panel = cx.with_vm(|vm| {
+            makepad_widgets::script_mod(vm);
+            crate::i18n::install(vm);
+            makepad_code_editor::script_mod(vm);
+            crate::shared::script_mod(vm);
+            crate::octoscript_apps::library::script_mod(vm);
+            super::script_mod(vm);
+            let value =
+                vm.eval(script! {use mod.prelude.widgets.* use mod.widgets.* MiniAppsPanel{}});
+            MiniAppsPanel::script_from_value(vm, value)
+        });
+        assert!(panel.view.widget(&mut cx, ids!(library)).visible());
+        assert!(!panel.view.view(&mut cx, ids!(import_form)).visible());
+        panel.developer(&mut cx);
+        assert!(panel.view.view(&mut cx, ids!(import_form)).visible());
+        assert!(!panel.view.widget(&mut cx, ids!(library)).visible());
+        panel.back(&mut cx);
+        assert!(panel.view.widget(&mut cx, ids!(library)).visible());
+        assert!(!panel.view.view(&mut cx, ids!(import_form)).visible());
+        assert!(
+            cx.new_actions.is_empty(),
+            "Developer Back must stay inside Mini apps"
+        );
     }
 }

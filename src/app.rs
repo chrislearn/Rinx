@@ -947,13 +947,12 @@ impl AppMain for App {
     }
 
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
-        // A running mini app owns Back before the room/navigation widgets
-        // behind its modal. Close synchronously so a hosting shell sees that
-        // the navigation event was consumed by Rinx.
+        // Mini apps consume Back before the room or hosting shell: running
+        // app/details → library → Discover, one level per gesture.
         let mini_modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
         if mini_modal.is_open() && event.back_pressed() {
             self.ui.mini_apps_panel(cx, ids!(octoscript_apps_modal.content))
-                .action(cx, mini_modal, &MiniAppsAction::Close);
+                .back(cx, mini_modal);
             return;
         }
         if let Event::LiveEdit = event {
@@ -1309,6 +1308,7 @@ impl App {
     }
 
     fn handle_shutdown(&mut self, cx: &mut Cx) {
+        crate::octoscript_apps::deployment::shutdown();
         if self.lifecycle.shutdown_started {
             // log!("Ignoring duplicate shutdown lifecycle event.");
             return;

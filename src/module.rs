@@ -8,7 +8,8 @@ use makepad_app_module::{
     makepad_ai_services::wire::{ServiceCall, ServiceManifest, ToolResult},
 };
 use makepad_widgets::*;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use crate::octoscript_apps::{OctosHost, deployment};
 
 static INSTANCE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -60,6 +61,7 @@ impl RinxModuleView {
     fn close(&mut self, cx: &mut Cx) {
         if let Some(mut app) = self.app.take() {
             app.close_embedded(cx);
+            deployment::shutdown();
             WINDOWS.with(|w| w.borrow_mut().take());
             self.view.children.clear();
             INSTANCE_ACTIVE.store(false, Ordering::Release);
@@ -91,7 +93,10 @@ pub static RINX_MODULE: RinxModule = RinxModule;
 impl AppModule for RinxModule {
     fn id(&self) -> &'static str { "rinx" }
     fn label(&self) -> &'static str { "Rinx" }
-    fn capabilities(&self) -> &'static [&'static str] { &["net", "storage", "audio.output", "clipboard"] }
+    fn capabilities(&self) -> &'static [&'static str] {
+        &["net", "storage", "audio.output", "clipboard", "octos.session.open",
+          "octos.session.history", "octos.turn.start", "octos.turn.interrupt"]
+    }
     fn open_schema(&self) -> OpenSchema { OpenSchema::new(1) }
 
     fn register(&self, vm: &mut ScriptVm) {
@@ -100,34 +105,57 @@ impl AppModule for RinxModule {
     }
 
     fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
-        let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
-        let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
-        let root = WidgetRef::script_from_value(vm, value);
-        if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {
-            if owns_runtime {
-                WINDOWS.with(|w| *w.borrow_mut() = Some(handles.windows.clone()));
-                let app = crate::app::App::create_embedded(vm);
-                let content = app.content();
-                view.view.children.push((live_id!(content), content.clone()));
-                vm.cx_mut().widget_tree_insert_child_deep(view.widget_uid(), live_id!(content), content);
-                vm.cx_mut().widget_tree_mark_dirty(view.widget_uid());
-                view.app = Some(app);
-            } else {
-                let message = script_eval!(vm, {
-                    use mod.prelude.widgets.*
-                    Label { width: Fill draw_text.wrap: Words text: "Rinx is already open." }
-                });
-                view.view.children.push((live_id!(already_open), WidgetRef::script_from_value(vm, message)));
-            }
+        create_instance(vm, handles, None)
+    }
+}
+
+/// A shell registers this module when it has a scoped Octos service to inject.
+/// The service owns peer bindings; Rinx never obtains the shared kernel handle.
+pub struct HostedRinxModule {
+    octos: Arc<dyn OctosHost>,
+}
+impl HostedRinxModule {
+    pub fn new(octos: Arc<dyn OctosHost>) -> Self { Self { octos } }
+}
+impl AppModule for HostedRinxModule {
+    fn id(&self) -> &'static str { RINX_MODULE.id() }
+    fn label(&self) -> &'static str { RINX_MODULE.label() }
+    fn capabilities(&self) -> &'static [&'static str] { RINX_MODULE.capabilities() }
+    fn open_schema(&self) -> OpenSchema { RINX_MODULE.open_schema() }
+    fn register(&self, vm: &mut ScriptVm) { RINX_MODULE.register(vm); }
+    fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
+        create_instance(vm, handles, Some(self.octos.clone()))
+    }
+}
+fn create_instance(vm: &mut ScriptVm, handles: InstanceHandles, octos: Option<Arc<dyn OctosHost>>) -> InstanceParts {
+    let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
+    let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
+    let root = WidgetRef::script_from_value(vm, value);
+    if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {
+        if owns_runtime {
+            deployment::enter_hosted(octos);
+            WINDOWS.with(|w| *w.borrow_mut() = Some(handles.windows.clone()));
+            let app = crate::app::App::create_embedded(vm);
+            let content = app.content();
+            view.view.children.push((live_id!(content), content.clone()));
+            vm.cx_mut().widget_tree_insert_child_deep(view.widget_uid(), live_id!(content), content);
+            vm.cx_mut().widget_tree_mark_dirty(view.widget_uid());
+            view.app = Some(app);
+        } else {
+            let message = script_eval!(vm, {
+                use mod.prelude.widgets.*
+                Label { width: Fill draw_text.wrap: Words text: "Rinx is already open." }
+            });
+            view.view.children.push((live_id!(already_open), WidgetRef::script_from_value(vm, message)));
         }
-        let cleanup = root.clone();
-        InstanceParts {
-            root,
-            executor: Box::new(RinxExecutor),
-            shutdown: Box::new(move |vm| {
-                if let Some(mut view) = cleanup.borrow_mut::<RinxModuleView>() { view.close(vm.cx_mut()); }
-            }),
-        }
+    }
+    let cleanup = root.clone();
+    InstanceParts {
+        root,
+        executor: Box::new(RinxExecutor),
+        shutdown: Box::new(move |vm| {
+            if let Some(mut view) = cleanup.borrow_mut::<RinxModuleView>() { view.close(vm.cx_mut()); }
+        }),
     }
 }
 

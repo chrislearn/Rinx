@@ -7942,6 +7942,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "octosense-app-hub"
+version = "0.1.0"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub.git?rev=b0591e2caa0dc5c62927f7b85dbf826a50618a03#b0591e2caa0dc5c62927f7b85dbf826a50618a03"
+dependencies = [
+ "base64 0.22.1",
+ "blake3",
+ "ed25519-dalek 3.0.0",
+ "hex",
+ "octosense-app-policy",
+ "rand_core 0.9.3",
+ "serde",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "octosense-app-policy"
 version = "0.1.0"
 source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub.git?rev=b0591e2caa0dc5c62927f7b85dbf826a50618a03#b0591e2caa0dc5c62927f7b85dbf826a50618a03"
@@ -9319,6 +9335,7 @@ dependencies = [
  "rangemap",
  "reqwest 0.12.28",
  "rfd",
+ "rinx-miniapp-catalog",
  "rinx-miniapp-core",
  "robius-directories",
  "robius-file-picker",
@@ -9343,6 +9360,17 @@ dependencies = [
  "uuid",
  "webpki-root-certs",
  "winresource",
+]
+
+[[package]]
+name = "rinx-miniapp-catalog"
+version = "0.1.0"
+dependencies = [
+ "octosense-app-hub",
+ "octosense-app-policy",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -12399,6 +12427,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "ureq"
+version = "3.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a7ac20be9b7726e0bbdbf974c059676d9acb1cd414961f570a4e8231cacd7fc"
+dependencies = [
+ "base64 0.23.1",
+ "flate2",
+ "log",
+ "percent-encoding",
+ "rustls",
+ "rustls-pki-types",
+ "ureq-proto",
+ "utf8-zero",
+ "webpki-roots",
+]
+
+[[package]]
+name = "ureq-proto"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f86fd172ccca569e458f61b6bdd6220965a9ef36e672a6852953b51a0e1583be"
+dependencies = [
+ "base64 0.23.1",
+ "http",
+ "httparse",
+ "log",
+]
+
+[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12449,6 +12506,12 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "utf8-zero"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "utf8_iter"

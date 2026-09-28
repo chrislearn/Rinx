@@ -1064,5 +1064,21 @@
   "Enter your password.": "请输入密码。",
   "Sign in with {provider}": "使用 {provider} 登录",
   "Edit": "修改",
-  "Selected server": "当前服务器"
+  "Selected server": "当前服务器",
+  "Bold": "粗体",
+  "Bulleted list": "无序列表",
+  "Code": "代码",
+  "Heading": "标题",
+  "Horizontal rule": "分隔线",
+  "Italic": "斜体",
+  "Numbered list": "有序列表",
+  "Quote": "引用",
+  "Undo": "撤销",
+  "Redo": "重做",
+  "Move up": "上移",
+  "Move down": "下移",
+  "Remove block": "删除内容块",
+  "Full width": "全宽",
+  "Medium width": "中等宽度",
+  "Small width": "小宽度"
 }

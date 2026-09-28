@@ -1,6 +1,6 @@
 //! Octoscript mini-app hosting with account-bound Matrix and Octos service access.
 mod matrix;
-pub use rinx_miniapp_core::{InstanceId, Lease, OctosProvider, ServiceEvent};
+pub use rinx_miniapp_core::{InstanceId, Lease, OctosHost, OctosProvider, ServiceEvent};
 use std::sync::LazyLock;
 static AUTHORITY: LazyLock<rinx_miniapp_core::SessionAuthority> = LazyLock::new(Default::default);
 
@@ -17,9 +17,17 @@ pub async fn matrix_request(
     matrix::execute(client, lease, service, args).await
 }
 
+#[cfg(feature = "standalone")]
 mod octos;
+pub mod deployment;
+mod deployment_settings;
+#[cfg(feature = "standalone")]
+mod transport;
+mod catalog_worker;
+mod library;
 mod package;
 pub mod ui;
+#[cfg(feature = "standalone")]
 pub use octos::KernelProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
@@ -39,5 +47,6 @@ pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
             makepad_widgets::splash::register_agent_module,
         );
     });
+    library::script_mod(vm);
     ui::script_mod(vm);
 }
