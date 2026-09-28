@@ -573,16 +573,6 @@ impl Widget for MiniAppLibrary {
     }
 }
 impl MiniAppLibraryRef {
-    pub fn show_library(&self, cx: &mut Cx) {
-        if let Some(mut inner) = self.borrow_mut() {
-            inner.selected = None;
-            inner.room_grant = None;
-            inner.job += 1;
-            inner.busy = false;
-            inner.status(cx, "");
-            inner.view.redraw(cx);
-        }
-    }
     pub fn begin(&self, cx: &mut Cx) {
         if let Some(mut inner) = self.borrow_mut() {
             inner.begin(cx);

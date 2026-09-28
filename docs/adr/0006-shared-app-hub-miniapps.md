@@ -27,8 +27,9 @@ opens a native library with Recent, My apps and Browse.
 The built-in article editor is also reachable there. An app's details show its
 publisher, version, source and manifest-derived permissions. Add/Update installs
 the reviewed version; Open grants a new runtime session to the current Matrix
-account and the room selected by name. Developer folder import and standalone
-Octos configuration move behind Developer. Running an app hides the library and
+account and the room selected by name. Developer opens the existing folder import
+and standalone Octos configuration; Import an app also remains in the built-in
+catalog. Running an app hides the library and
 uses the modal's available screen; Back returns to the library and revokes the
 instance, following ADR 0005.
 
@@ -123,10 +124,8 @@ this change; Matrix/Octos live-service integration is retained from ADR 0005.
 
 ## Integration with current main
 
-The article icon controls and host-owned Octos service had already landed when
-this work was integrated. Their current implementations remain authoritative:
 `src/host/service.rs` owns deployment selection, and `src/host/octos.rs` scopes
-requests. The proposed replacement transport was not introduced. The library
+requests through the host-owned Octos service. The library
 lives under `src/miniapps`, alongside the existing built-in app catalog. Signed
 Hub launch and built-in launch both preserve frozen package verification; Hub
 packages cannot impersonate a reserved system-app identity. Back unwinds app,
