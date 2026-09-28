@@ -493,6 +493,7 @@ impl Widget for RoomInputBar {
         }
 
         self.handle_speech_event(cx, event);
+        self.take_assistant_draft(cx);
 
         match event.hits(cx, self.view.widget(cx, ids!(replying_preview.reply_preview_content)).area()) {
             // If the hit occurred on the replying message preview, jump to it.
@@ -1182,6 +1183,23 @@ impl RoomInputBar {
         if let Some(replied_to) = replied_to {
             self.show_replying_to(cx, replied_to, timeline_kind, false);
         }
+        self.redraw(cx);
+    }
+
+    /// Puts a draft the assistant left for this room into the composer. It
+    /// only fills the text (after any unsent text of the person's own); the
+    /// person decides whether to send it.
+    fn take_assistant_draft(&mut self, cx: &mut Cx) {
+        let Some(TimelineKind::MainRoom { room_id }) = self.timeline_kind.as_ref() else { return };
+        let Some(draft) = crate::assistant::take_draft(room_id.as_str()) else { return };
+        self.cancel_dictation(cx);
+        // A leading slash would run as a command when the person sends it.
+        let draft = if draft.starts_with('/') { format!("/{draft}") } else { draft };
+        let input = self.mentionable_text_input(cx, ids!(mentionable_text_input));
+        let existing = input.text();
+        let text = if existing.trim().is_empty() { draft } else { format!("{existing}\n{draft}") };
+        input.set_text(cx, &text);
+        self.enable_send_message_button(cx, true);
         self.redraw(cx);
     }
 

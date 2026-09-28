@@ -63,7 +63,16 @@ pub mod block_user_modal;
 /// Shared UI components.
 pub mod shared;
 pub mod mini_app;
+#[path = "miniapps/mod.rs"]
 pub mod octoscript_apps;
+pub use octoscript_apps as miniapps;
+pub mod system_apps;
+pub mod host;
+/// The assistant's tools and the person's consent for them (ADR 0007).
+pub mod assistant;
+#[path = "host/service.rs"]
+pub mod octos_service;
+#[path = "../apps/article-editor/native/mod.rs"]
 pub mod article_app;
 pub mod forwarding;
 pub mod moments;
@@ -99,6 +108,7 @@ pub mod media_cache;
 pub mod verification;
 
 pub mod utils;
+mod http;
 pub mod temp_storage;
 pub mod location;
 pub mod image_utils;

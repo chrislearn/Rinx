@@ -59,6 +59,7 @@ impl Fixture {
         let entry = Entry {
             manifest,
             listing: None,
+            tools: Default::default(),
             artifact: artifact.clone(),
             publisher: "test-publisher".into(),
             publisher_key: self.publisher.public_hex(),

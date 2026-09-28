@@ -14,19 +14,23 @@ version = "1.0.0-beta.1"
 metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 
 [dependencies]
+rinx-system-apps = { path = "crates/system-apps" }
 article-core = { path = "crates/article-core", features = ["l0"] }
 rinx-miniapp-core = { path = "crates/miniapp-core" }
 rinx-miniapp-catalog = { path = "crates/miniapp-catalog" }
 uuid = { version = "1", features = ["v4"] }
-octos-app-transport = { git = "https://github.com/OctoSense-org/OctoSense-System-Apps.git", rev = "1576bec6a585758e48c3252030cad2a9bf9c80db", optional = true }
+## The assistant (ADR 0007): the scoped service contract a host injects. The
+## local-runtime and remote connectors are optional (`octos-local`,
+## `octos-remote`), so a hosted build links no runtime of its own.
+octosense-app-peers = { git = "https://github.com/OctoSense-org/OctoSense.git", rev = "35d9d1218e1b8b165977a4f019fdea9f2675dc90" }
 octoscript-ui-l0 = { git = "https://github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
-octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
-octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
-octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub.git", rev = "b0591e2caa0dc5c62927f7b85dbf826a50618a03", features = ["splash"] }
+octoscript-makepad = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
+octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
+octosense-app-policy = { git = "https://github.com/OctoSense-org/OctoSense-App-Hub", rev = "362d832ff66a2d067e1bbcef7d8c25fb9d69740e", features = ["splash"] }
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own copy (OctoSense-org/makepad rinx/octosense-module-windows).
-makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d", optional = true }
+makepad-app-module = { git = "https://github.com/OctoSense-org/makepad", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8", optional = true }
 makepad-html-renderer = { package = "makepad-html", git = "https://github.com/OctoSense-org/makepad-html", rev = "b16565ae1e56dd7c3a87f00455ae327df599ca3b", optional = true, features = ["makepad"] }
 # makepad-widgets = { git = "https://github.com/makepad/makepad", branch = "dev", features = ["serde"] }
 # makepad-code-editor = { git = "https://github.com/makepad/makepad", branch = "dev" }
@@ -158,7 +162,13 @@ dispatch2 = "0.3"
 default = ["standalone"]
 ## The standalone app's entry point (window, menus, `app_main!`). A host that
 ## links Rinx as a module disables it.
-standalone = ["dep:octos-app-transport"]
+standalone = ["octos-local", "octos-remote"]
+## Standalone Octos modes (ADR 0007). `octos-local`: Rinx owns one local
+## kernel (the packaged `octos` next to the executable, never one on PATH),
+## started on the first authorized AI request and stopped on exit.
+## `octos-remote`: an explicitly configured remote octos server.
+octos-local = ["octosense-app-peers/octos-core"]
+octos-remote = ["octosense-app-peers/ws"]
 ## Rinx as an OctoSense app module (`rinx::module::RINX_MODULE`).
 octosense-module = ["dep:makepad-app-module"]
 ## Experimental CPU HTML/CSS article preview; the native editor stays available.
@@ -231,6 +241,8 @@ askar-storage = { git = "https://github.com/openwallet-foundation/askar.git" }
 ruma = { git = "https://github.com/project-robius/ruma.git", branch = "tsp" }
 
 [build-dependencies]
+rinx-system-apps = { path = "crates/system-apps" }
+serde_json = "1"
 toml = "1"
 
 ## On Windows, use the `winresource` crate to embed the app's icon and metadata into the executable.
@@ -320,6 +332,8 @@ icons = [
     "./resources/icon.ico",
 ]
 out_dir = "./dist"
+# One pinned local assistant runtime; installed beside Rinx by the packager.
+external-binaries = ["./dist/runtime/octos"]
 
 ## Here, we define the list of resource directories for both Makepad and Rinx.
 ## The `src` directory is based on `./dist/` as the `out_dir` (above), which is where the
@@ -337,6 +351,7 @@ resources = [
     { src = "./LICENSE", target = "licenses/LICENSE" },
     { src = "./LICENSE-MIT", target = "licenses/LICENSE-MIT" },
     { src = "./NOTICE", target = "licenses/NOTICE" },
+    { src = "./dist/runtime/licenses/octos-LICENSE", target = "licenses/octos-LICENSE" },
     { src = "./dist/resources/rinx", target = "rinx" },
 ]
 
@@ -350,7 +365,8 @@ robius-packaging-commands before-each-package \
     --force-makepad \
     --binary-name rinx \
     --path-to-binary ./target/release/rinx \
-    --add-deb-dep geoclue-2.0
+    --add-deb-dep geoclue-2.0 &&
+python3 tools/package-octos.py desktop
 """
 
 ## This is not yet implemented, so remove it.
@@ -441,47 +457,47 @@ used_underscore_binding = "allow"
 # repository. OctoSense shells replace these with their prepared runtime source.
 
 [patch."https://github.com/OctoSense-org/makepad.git"]
-makepad-script = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-app-module = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-ai = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-studio-protocol = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-network = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-wm-api = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-ai-services = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-strict-json = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-wm-theme = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-sheets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-photos = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-aichat = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-markdown = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-markdown-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
+makepad-script = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-app-module = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-ai = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-studio-protocol = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-network = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-wm-api = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-ai-services = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-strict-json = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-wm-theme = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-sheets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-photos = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-aichat = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-markdown = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-markdown-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
 
 [patch."https://github.com/OctoSense-org/makepad"]
-makepad-script = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-app-module = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-ai = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-studio-protocol = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-network = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-wm-api = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-ai-services = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-strict-json = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-wm-theme = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-sheets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-photos = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-aichat = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-markdown = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-markdown-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
+makepad-script = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-app-module = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-ai = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-studio-protocol = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-network = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-wm-api = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-ai-services = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-strict-json = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-wm-theme = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-sheets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-photos = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-aichat = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-markdown = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-markdown-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
 
 [patch."https://github.com/kevinaboos/makepad"]
-makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
-makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
+makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
+makepad-code-editor = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
 
 [patch."https://github.com/ZhangHanDong/makepad.git"]
-makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "3fda5b6f9b48f390bd5396938a95d30ad035cd6d" }
+makepad-widgets = { git = "https://www.github.com/OctoSense-org/makepad.git", rev = "6cf03859630761f5cb99ce7fcdfd8c30475d9ab8" }
 
 [patch."https://github.com/OctoSense-org/Octoscript.git"]
 octoscript-ui-l0 = { git = "https://www.github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
@@ -490,6 +506,6 @@ octoscript-ui-l0 = { git = "https://www.github.com/OctoSense-org/Octoscript.git"
 octoscript-ui-l0 = { git = "https://www.github.com/OctoSense-org/Octoscript.git", rev = "68f6a9df55692b5d8ef8873a12721e279a3f40d6" }
 
 [patch."https://github.com/OctoSense-org/Octoscript-Makepad.git"]
-octoscript-makepad = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
-octoscript-widgets = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
-octoscript-node = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "b9034566b0607c5bb8c04134d17139f99989e1d0" }
+octoscript-makepad = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
+octoscript-widgets = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }
+octoscript-node = { git = "https://www.github.com/OctoSense-org/Octoscript-Makepad.git", rev = "6881fb6c3c3220e407633b0ba5211c3d42c7e625" }

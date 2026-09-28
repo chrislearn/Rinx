@@ -673,7 +673,7 @@ impl Widget for NavigationTabBar {
             }
             if self.view.navigation_bar_button(cx,ids!(octoscript_apps_button)).clicked(actions) {cx.action(crate::octoscript_apps::MiniAppsAction::Open);}
             if self.view.navigation_bar_button(cx, ids!(article_editor_button)).clicked(actions) {
-                cx.action(crate::article_app::ArticleAction::Open);
+                crate::system_apps::open_article(cx);
             }
             if self.view.navigation_bar_button(cx, ids!(toggle_spaces_bar_button)).clicked(actions) {
                 self.is_spaces_bar_shown = !self.is_spaces_bar_shown;

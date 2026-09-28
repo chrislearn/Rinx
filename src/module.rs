@@ -4,12 +4,12 @@
 //! window, safe area and theme; Rinx supplies its window-less `RinxContent`.
 //! Matrix state is process-wide, so one instance runs at a time.
 use makepad_app_module::{
-    AppModule, ExecOutcome, InstanceHandles, InstanceParts, ModuleWindows, OpenSchema, ServiceExecutor, ValidatedOpen,
-    makepad_ai_services::wire::{ServiceCall, ServiceManifest, ToolResult},
+    AppModule, ExecOutcome, InstanceHandles, InstanceParts, ModuleWindows, OpenSchema, ReplySink, ServiceExecutor,
+    ValidatedOpen,
+    makepad_ai_services::wire::{Risk, ServiceCall, ServiceManifest, ToolDef, ToolResult},
 };
 use makepad_widgets::*;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use crate::octoscript_apps::{OctosHost, deployment};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 static INSTANCE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -60,8 +60,8 @@ pub struct RinxModuleView {
 impl RinxModuleView {
     fn close(&mut self, cx: &mut Cx) {
         if let Some(mut app) = self.app.take() {
+            crate::assistant::uninstall(cx);
             app.close_embedded(cx);
-            deployment::shutdown();
             WINDOWS.with(|w| w.borrow_mut().take());
             self.view.children.clear();
             INSTANCE_ACTIVE.store(false, Ordering::Release);
@@ -93,9 +93,14 @@ pub static RINX_MODULE: RinxModule = RinxModule;
 impl AppModule for RinxModule {
     fn id(&self) -> &'static str { "rinx" }
     fn label(&self) -> &'static str { "Rinx" }
+    /// The host reads Rinx's assistant needs from here (ADR 0007): the exact
+    /// App Hub `octos.*` service names its mini-app host serves. Declaring
+    /// them grants nothing; the host intersects them with its policy.
     fn capabilities(&self) -> &'static [&'static str] {
-        &["net", "storage", "audio.output", "clipboard", "octos.session.open",
-          "octos.session.history", "octos.turn.start", "octos.turn.interrupt"]
+        &[
+            "net", "storage", "audio.output", "clipboard",
+            "octos.session.open", "octos.session.history", "octos.turn.start", "octos.turn.interrupt",
+        ]
     }
     fn open_schema(&self) -> OpenSchema { OpenSchema::new(1) }
 
@@ -105,66 +110,128 @@ impl AppModule for RinxModule {
     }
 
     fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
-        create_instance(vm, handles, None)
-    }
-}
-
-/// A shell registers this module when it has a scoped Octos service to inject.
-/// The service owns peer bindings; Rinx never obtains the shared kernel handle.
-pub struct HostedRinxModule {
-    octos: Arc<dyn OctosHost>,
-}
-impl HostedRinxModule {
-    pub fn new(octos: Arc<dyn OctosHost>) -> Self { Self { octos } }
-}
-impl AppModule for HostedRinxModule {
-    fn id(&self) -> &'static str { RINX_MODULE.id() }
-    fn label(&self) -> &'static str { RINX_MODULE.label() }
-    fn capabilities(&self) -> &'static [&'static str] { RINX_MODULE.capabilities() }
-    fn open_schema(&self) -> OpenSchema { RINX_MODULE.open_schema() }
-    fn register(&self, vm: &mut ScriptVm) { RINX_MODULE.register(vm); }
-    fn create(&self, vm: &mut ScriptVm, _open: ValidatedOpen, handles: InstanceHandles) -> InstanceParts {
-        create_instance(vm, handles, Some(self.octos.clone()))
-    }
-}
-fn create_instance(vm: &mut ScriptVm, handles: InstanceHandles, octos: Option<Arc<dyn OctosHost>>) -> InstanceParts {
-    let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
-    let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
-    let root = WidgetRef::script_from_value(vm, value);
-    if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {
+        let owns_runtime = INSTANCE_ACTIVE.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_ok();
+        // Hosted mode comes from the shell creating this module: take the
+        // scoped assistant service it offered to THIS instance, if any. No
+        // fallback kernel, no credentials, no AppCard.
+        let assistant = octosense_app_peers::injection::claim(self.id(), &handles.scope.to_string());
         if owns_runtime {
-            deployment::enter_hosted(octos);
-            WINDOWS.with(|w| *w.borrow_mut() = Some(handles.windows.clone()));
-            let app = crate::app::App::create_embedded(vm);
-            let content = app.content();
-            view.view.children.push((live_id!(content), content.clone()));
-            vm.cx_mut().widget_tree_insert_child_deep(view.widget_uid(), live_id!(content), content);
-            vm.cx_mut().widget_tree_mark_dirty(view.widget_uid());
-            view.app = Some(app);
-        } else {
-            let message = script_eval!(vm, {
-                use mod.prelude.widgets.*
-                Label { width: Fill draw_text.wrap: Words text: "Rinx is already open." }
-            });
-            view.view.children.push((live_id!(already_open), WidgetRef::script_from_value(vm, message)));
+            crate::octos_service::install_hosted(assistant);
+        } else if let Some(service) = assistant {
+            service.release();
+        }
+        let value = script_eval!(vm, { mod.widgets.RinxModuleView {} });
+        let root = WidgetRef::script_from_value(vm, value);
+        if owns_runtime {
+            // Later answers (a sheet the person answers, a Matrix read) go up
+            // this instance's reply sink.
+            crate::assistant::install(reply_sink(handles.replies.clone()));
+        }
+        if let Some(mut view) = root.borrow_mut::<RinxModuleView>() {
+            if owns_runtime {
+                WINDOWS.with(|w| *w.borrow_mut() = Some(handles.windows.clone()));
+                let app = crate::app::App::create_embedded(vm);
+                let content = app.content();
+                view.view.children.push((live_id!(content), content.clone()));
+                vm.cx_mut().widget_tree_insert_child_deep(view.widget_uid(), live_id!(content), content);
+                vm.cx_mut().widget_tree_mark_dirty(view.widget_uid());
+                view.app = Some(app);
+            } else {
+                let message = script_eval!(vm, {
+                    use mod.prelude.widgets.*
+                    Label { width: Fill draw_text.wrap: Words text: "Rinx is already open." }
+                });
+                view.view.children.push((live_id!(already_open), WidgetRef::script_from_value(vm, message)));
+            }
+        }
+        let cleanup = root.clone();
+        InstanceParts {
+            root,
+            executor: Box::new(RinxExecutor { live: owns_runtime }),
+            shutdown: Box::new(move |vm| {
+                if let Some(mut view) = cleanup.borrow_mut::<RinxModuleView>() { view.close(vm.cx_mut()); }
+            }),
         }
     }
-    let cleanup = root.clone();
-    InstanceParts {
-        root,
-        executor: Box::new(RinxExecutor),
-        shutdown: Box::new(move |vm| {
-            if let Some(mut view) = cleanup.borrow_mut::<RinxModuleView>() { view.close(vm.cx_mut()); }
-        }),
+}
+
+/// The assistant's tools (`crate::assistant`) on the host's AI bus. Only the
+/// instance that owns the Matrix runtime serves them; a second instance
+/// ("Rinx is already open") answers `Unavailable`.
+struct RinxExecutor {
+    live: bool,
+}
+
+impl ServiceExecutor for RinxExecutor {
+    fn manifest(&self) -> ServiceManifest {
+        manifest()
+    }
+    fn execute(&mut self, cx: &mut Cx, call: &ServiceCall) -> ExecOutcome {
+        if !self.live {
+            return ExecOutcome::Done(ToolResult::unavailable(&call.call_id, "Rinx is already open in another window."));
+        }
+        match crate::assistant::execute(cx, &call.call_id, &call.tool, &call.args) {
+            crate::assistant::Exec::Done(reply) => ExecOutcome::Done(tool_result(reply)),
+            crate::assistant::Exec::Pending => ExecOutcome::Pending,
+        }
+    }
+    fn cancel(&mut self, cx: &mut Cx, call_id: &str) {
+        if self.live {
+            crate::assistant::cancel(cx, call_id);
+        }
     }
 }
 
-struct RinxExecutor;
-impl ServiceExecutor for RinxExecutor {
-    fn manifest(&self) -> ServiceManifest {
-        ServiceManifest::new("rinx", "Rinx", "Matrix chats, Moments and articles.")
+/// The manifest the host registers: `crate::assistant::TOOLS`, with the send
+/// tool confirmed by Rinx's own sheet so the chat pane does not ask again.
+pub fn manifest() -> ServiceManifest {
+    let mut manifest = ServiceManifest::new("rinx", "Rinx", crate::assistant::BRIEF);
+    for tool in crate::assistant::TOOLS {
+        let risk = match tool.risk {
+            crate::assistant::Risk::Read => Risk::Read,
+            crate::assistant::Risk::Act => Risk::Act,
+            crate::assistant::Risk::Destructive => Risk::Destructive,
+        };
+        let mut def = ToolDef::new(tool.name, tool.description, tool.parameters, risk);
+        if tool.confirms_itself {
+            def = def.confirmed_by_app();
+        }
+        manifest = manifest.with_tool(def);
     }
-    fn execute(&mut self, _cx: &mut Cx, call: &ServiceCall) -> ExecOutcome {
-        ExecOutcome::Done(ToolResult::unavailable(&call.call_id, "Use the Rinx interface"))
+    manifest
+}
+
+fn tool_result(reply: crate::assistant::Reply) -> ToolResult {
+    use crate::assistant::Outcome;
+    let note: String = reply.text.chars().take(120).collect();
+    let mut result = match reply.outcome {
+        Outcome::Ok => ToolResult::ok(&reply.call_id, reply.text, note),
+        Outcome::Failed => ToolResult::failed(&reply.call_id, reply.text),
+        Outcome::Refused => ToolResult::refused(&reply.call_id, reply.text),
+        Outcome::Denied => ToolResult::denied(&reply.call_id, reply.text),
+        Outcome::Unavailable => ToolResult::unavailable(&reply.call_id, reply.text),
+    };
+    if !reply.data.is_empty() {
+        result = result.with_data(reply.data);
+    }
+    result.bound();
+    result
+}
+
+fn reply_sink(replies: ReplySink) -> crate::assistant::Sink {
+    let replies = std::sync::Mutex::new(replies);
+    std::sync::Arc::new(move |reply| replies.lock().unwrap().reply(tool_result(reply)))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_manifest_validates_and_only_send_confirms_itself() {
+        let manifest = super::manifest();
+        manifest.validate().expect("a valid manifest");
+        assert_eq!(manifest.tools.len(), crate::assistant::TOOLS.len());
+        for tool in &manifest.tools {
+            assert_eq!(tool.confirms_itself(), tool.name == "send_message", "{}", tool.name);
+        }
     }
 }

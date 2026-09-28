@@ -2,7 +2,7 @@
 
 - Date: 2026-09-20
 - Status: Accepted for the built-in L0 article editor; broader runtime/catalog design remains proposed
-- Implementation: `src/article_app` provides an admitted built-in Octoscript L0
+- Implementation: `apps/article-editor/native` provides an admitted built-in Octoscript L0
   Markdown editor, native Makepad Html preview, recipient account consent, local
   per-account drafts and host-confirmed Matrix publication. See
   [implementation and validation](../../lab/article-editor/README.md).

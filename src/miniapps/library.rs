@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum LibraryAction {
+    Back,
     Developer,
     Launch(VerifiedBundle, Option<String>, String),
     Article,
@@ -172,7 +173,7 @@ impl MiniAppLibrary {
             self.status(cx, "");
             self.view.redraw(cx);
         } else {
-            cx.action(super::MiniAppsAction::Close);
+            cx.action(LibraryAction::Back);
         }
     }
     fn select(&mut self, cx: &mut Cx, id: &str) {
@@ -420,12 +421,6 @@ impl Widget for MiniAppLibrary {
                         .view(cx, ids!(details.remove_confirm))
                         .set_visible(cx, false);
                 }
-            }
-        }
-        if let Event::BackPressed { handled } = event {
-            if !handled.get() {
-                handled.set(true);
-                self.back(cx);
             }
         }
     }

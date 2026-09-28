@@ -365,7 +365,7 @@ mod tests {
     }
     #[test]
     fn editor_md_math_preview_grants_only_generated_images_and_preserves_source() {
-        let source = include_str!("../../lab/article-editor/render-comparison/evidence/09-math/source.md");
+        let source = include_str!("../../../lab/article-editor/render-comparison/evidence/09-math/source.md");
         let doc = Document::from_markdown("Math fixture", source).unwrap();
         let before = serde_json::to_string(&doc).unwrap();
         let (html, resources) = bundle(&doc, &Default::default(), |_| panic!("No imported assets expected")).unwrap();

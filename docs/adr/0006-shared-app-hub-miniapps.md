@@ -22,7 +22,8 @@ store presentation; the entry is `main.splash` or `page.card` with its kit. Asse
 travel in the existing `.pack.json` artifact. Source repository and commit are
 provenance, never executable download instructions.
 
-Discover → Mini apps becomes a native library with Recent, My apps and Browse.
+Discover → Mini apps preserves the built-in app catalog. Its App Hub entry
+opens a native library with Recent, My apps and Browse.
 The built-in article editor is also reachable there. An app's details show its
 publisher, version, source and manifest-derived permissions. Add/Update installs
 the reviewed version; Open grants a new runtime session to the current Matrix
@@ -63,14 +64,11 @@ and a submission issue; a maintainer publishes admitted artifacts and the signed
 catalog. Do not document a nonexistent release Action. Published versions are
 immutable; updates use a new version and withdrawals arrive in a later catalog.
 
-Rinx pins Hub and policy to the same existing revision, `b0591e2c`, which includes
-the Matrix and Octos capability contract. Hub main at `59004274` does not yet
-include those capabilities, and adds `llm`, which this runtime does not supply.
-The shared policy's Matrix/Octos additions must reach the production Hub gate
-before apps requesting those services can be published there. This consumer
-change cannot waive the gate or claim that every system app runs inside Rinx.
-No private signing key, catalog publication or upstream merge is part of this
-change. Keep both dependencies on the same revision when coordinating upstream.
+Rinx pins Hub and policy to the same published revision as its built-in catalog,
+`362d832f`. Capability admission remains with the shared policy, and Rinx lists
+unsupported host services as unavailable. This change neither publishes packages
+nor grants access to system app services. Keep both dependencies on the same
+revision when coordinating upstream.
 
 Reference publication contract:
 https://github.com/OctoSense-org/OctoSense-App-Hub/blob/59004274ef0334b4fc25cd1ebac0caf80547c64a/docs/PUBLISHING.md
@@ -93,7 +91,7 @@ separate work; a local install does not share grants or install an app for peers
   binds consent to the complete entry, stages and verifies downloads, and
   recovers interrupted bundle replacements. Installed apps removed from a later
   catalog remain visible and removable, but cannot run.
-- `src/octoscript_apps/library.rs` implements the native library, details,
+- `src/miniapps/library.rs` implements the native library, details,
   permissions and conversation picker. `catalog_worker.rs` owns account-specific
   background work. Source paths and Octos configuration are under Developer.
 - `package.rs` admits signed Hub packages through a separate verified path and
@@ -104,7 +102,7 @@ separate work; a local install does not share grants or install an app for peers
   distribution mechanism is the existing App Hub submission and publication
   process. This change does not publish a sample or alter the production catalog.
 
-Validation on the MacBook, 2026-09-26:
+Initial implementation validation on the MacBook, 2026-09-26 (before the current-main integration):
 
 | Check | Result |
 | --- | --- |
@@ -122,3 +120,14 @@ the standard filler template. Tests exercise both details and the empty public
 catalog state. These are headless Makepad drawing checks, not a claim of new
 OnePlus touch/keyboard or GPU screenshot verification. No APK was installed by
 this change; Matrix/Octos live-service integration is retained from ADR 0005.
+
+## Integration with current main
+
+The article icon controls and host-owned Octos service had already landed when
+this work was integrated. Their current implementations remain authoritative:
+`src/host/service.rs` owns deployment selection, and `src/host/octos.rs` scopes
+requests. The proposed replacement transport was not introduced. The library
+lives under `src/miniapps`, alongside the existing built-in app catalog. Signed
+Hub launch and built-in launch both preserve frozen package verification; Hub
+packages cannot impersonate a reserved system-app identity. Back unwinds app,
+library details, Hub library, and the built-in catalog before closing the modal.

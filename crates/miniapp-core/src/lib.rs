@@ -162,25 +162,6 @@ pub trait OctosProvider: Send + Sync {
     fn close(&self, identity: &InstanceId);
 }
 
-/// Host-owned Octos service injection. Creating a context must not start a
-/// second kernel. The host binds its peer/request scope, workspace and effective
-/// tools to this lease; the local path is not a remote server filesystem path.
-/// Dropping this factory or closing a context must not stop the shared kernel.
-pub trait OctosHost: Send + Sync {
-    fn open(
-        &self,
-        lease: &Lease,
-        local_workspace: &std::path::Path,
-    ) -> Result<Arc<dyn OctosProvider>, String>;
-}
-
-pub const OCTOS_SERVICES: &[&str] = &[
-    "octos.session.open",
-    "octos.session.history",
-    "octos.turn.start",
-    "octos.turn.interrupt",
-];
-
 #[cfg(test)]
 mod tests {
     use super::*;

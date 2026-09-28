@@ -38,6 +38,7 @@ pub struct Package {
     original: PathBuf,
     verified: Option<rinx_miniapp_catalog::VerifiedBundle>,
     _snapshot: Snapshot,
+    builtin: Option<&'static crate::system_apps::PackedApp>,
 }
 struct Snapshot(PathBuf);
 impl Drop for Snapshot {
@@ -51,19 +52,21 @@ impl Package {
         Self::load_in(root, &std::env::temp_dir())
     }
     pub fn load_in(root: &Path, snapshots: &Path) -> Result<Self, String> {
-        Self::freeze(root, snapshots, None)
+        Self::load_inner(root, snapshots, None, None)
     }
-    pub fn load_verified(
-        bundle: rinx_miniapp_catalog::VerifiedBundle,
-        snapshots: &Path,
-    ) -> Result<Self, String> {
-        Self::freeze(&bundle.root.clone(), snapshots, Some(bundle))
+    pub fn load_verified(bundle: rinx_miniapp_catalog::VerifiedBundle, snapshots: &Path) -> Result<Self, String> {
+        Self::load_inner(&bundle.root.clone(), snapshots, None, Some(bundle))
     }
-    fn freeze(
-        root: &Path,
-        snapshots: &Path,
-        verified: Option<rinx_miniapp_catalog::VerifiedBundle>,
-    ) -> Result<Self, String> {
+    pub fn load_builtin(id: &str, snapshots: &Path) -> Result<Self, String> {
+        let app = crate::system_apps::get(id).ok_or("Unknown built-in app")?;
+        if app.native.is_some() { return Err("Native apps use the host registry".into()); }
+        std::fs::create_dir_all(snapshots).map_err(|e| e.to_string())?;
+        let source = snapshots.join(format!("builtin-{}", uuid::Uuid::new_v4()));
+        app.materialize(&source)?;
+        let _cleanup = Snapshot(source.clone());
+        Self::load_inner(&source, snapshots, Some(app), None)
+    }
+    fn load_inner(root: &Path, snapshots: &Path, builtin: Option<&'static crate::system_apps::PackedApp>, verified: Option<rinx_miniapp_catalog::VerifiedBundle>) -> Result<Self, String> {
         std::fs::create_dir_all(snapshots).map_err(|e| e.to_string())?;
         // Freeze the admitted bytes. Source edits cannot change a running app's
         // kit, images or bindings after the user reviews its grants.
@@ -78,6 +81,11 @@ impl Package {
         let manifest = AppManifest::parse(
             &std::fs::read_to_string(root.join("manifest.json")).map_err(|e| e.to_string())?,
         )?;
+        if let Some(app) = builtin {
+            app.verify(root)?;
+        } else if crate::system_apps::is_reserved(&manifest.id) {
+            return Err("This app id belongs to Rinx's built-in catalog".into());
+        }
         if manifest.agent.is_some() {
             return Err("Bundle agent profiles are not supported here; declare explicit octos.* services instead".into());
         }
@@ -147,18 +155,24 @@ impl Package {
             original,
             verified,
             _snapshot: snapshot,
+            builtin,
         })
     }
     pub fn unchanged(&self) -> Result<(), String> {
-        let current = Self::freeze(
+        if let Some(app) = self.builtin { return app.verify(&self.root); }
+        let current = Self::load_inner(
             &self.original,
             self.root.parent().ok_or("Missing bundle cache")?,
+            None,
             self.verified.clone(),
         )?;
         if current.manifest.signing_bytes()? != self.manifest.signing_bytes()? {
             return Err("Package changed; review it again".into());
         }
         Ok(())
+    }
+    pub fn builtin_id(&self) -> Option<&'static str> {
+        self.builtin.map(|app| app.manifest.id.as_str())
     }
 }
 fn read_json(root: &Path, name: &str) -> Result<Option<Value>, String> {
@@ -307,6 +321,52 @@ mod tests {
                 .unwrap()
                 .contains("Signed app")
         );
+    }
+
+    #[test]
+    fn built_in_script_owns_its_snapshot_and_rechecks_content_and_manifest() {
+        let root = std::env::temp_dir().join(format!("rinx-builtin-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&root).unwrap();
+        let _cleanup = Snapshot(root.clone());
+        let bundle = root.join("apps/demo/bundle");
+        std::fs::create_dir_all(&bundle).unwrap();
+        std::fs::write(root.join("system-apps.json"), serde_json::json!({
+            "schema": 1, "source": "apps", "repository": "https://github.com/hagency-org/Rinx",
+            "apps": [{"directory": "demo"}]
+        }).to_string()).unwrap();
+        std::fs::write(bundle.join("manifest.json"), serde_json::json!({
+            "schema": 1, "id": "test.embedded", "name": "Embedded", "version": "1.0.0",
+            "integrity": {"bundle_blake3": ""}, "capabilities": ["matrix.profile"]
+        }).to_string()).unwrap();
+        let script = "Label {text: \"Embedded\"}";
+        std::fs::write(bundle.join("main.splash"), script).unwrap();
+        let app = Box::leak(Box::new(rinx_system_apps::pack(&root).unwrap().apps.remove(0)));
+        let extracted = root.join("extracted");
+        app.materialize(&extracted).unwrap();
+        let package = Package::load_inner(&extracted, &root.join("snapshots"), Some(app), None).unwrap();
+        // The extraction is disposable; review/run owns the frozen snapshot.
+        std::fs::remove_dir_all(&extracted).unwrap();
+        assert_eq!(package.builtin_id(), Some("test.embedded"));
+        assert!(package.script);
+        package.unchanged().unwrap();
+        std::fs::write(package.root.join("main.splash"), "modified").unwrap();
+        assert!(package.unchanged().is_err());
+        std::fs::write(package.root.join("main.splash"), script).unwrap();
+        package.unchanged().unwrap();
+        let manifest = std::fs::read(package.root.join("manifest.json")).unwrap();
+        let mut changed: Value = serde_json::from_slice(&manifest).unwrap();
+        changed["capabilities"] = serde_json::json!(["matrix.send_message"]);
+        std::fs::write(package.root.join("manifest.json"), changed.to_string()).unwrap();
+        assert!(package.unchanged().is_err());
+    }
+
+    #[test]
+    fn local_import_cannot_impersonate_the_built_in_native_editor() {
+        let root = std::env::temp_dir().join(format!("rinx-reserved-id-{}", uuid::Uuid::new_v4()));
+        crate::system_apps::get(crate::system_apps::ARTICLE_ID).unwrap().materialize(&root).unwrap();
+        let result = Package::load(&root);
+        assert!(matches!(result, Err(e) if e.contains("built-in catalog")));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

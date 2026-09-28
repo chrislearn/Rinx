@@ -1,11 +1,34 @@
 //! Octoscript mini-app hosting with account-bound Matrix and Octos service access.
-mod matrix;
-pub use rinx_miniapp_core::{InstanceId, Lease, OctosHost, OctosProvider, ServiceEvent};
+
+pub use rinx_miniapp_core::{InstanceId, Lease, OctosProvider, ServiceEvent};
 use std::sync::LazyLock;
 static AUTHORITY: LazyLock<rinx_miniapp_core::SessionAuthority> = LazyLock::new(Default::default);
 
 pub fn invalidate_sessions() {
     AUTHORITY.invalidate();
+    // Account change or logout: the assistant's contexts of the previous
+    // account are revoked too (ADR 0007).
+    crate::octos_service::revoke_account();
+    // And the assistant's waiting and running calls.
+    crate::assistant::invalidate();
+}
+
+/// A lease for one assistant request: the app `assistant`, this account,
+/// this one room and this one service. The Matrix adapters check it like a
+/// mini app's, so an account switch or logout revokes it mid-flight.
+pub(crate) fn assistant_lease(account: &str, room: &str, service: &str) -> Lease {
+    static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    AUTHORITY.issue(
+        InstanceId {
+            app: "assistant".into(),
+            account: account.into(),
+            room: None,
+            generation: GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        },
+        [service.to_owned()].into(),
+        [room.to_owned()].into(),
+        std::time::Instant::now() + std::time::Duration::from_secs(120),
+    )
 }
 
 pub async fn matrix_request(
@@ -14,21 +37,15 @@ pub async fn matrix_request(
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let client = crate::sliding_sync::get_client().ok_or("Not logged in")?;
-    matrix::execute(client, lease, service, args).await
+    crate::host::matrix::execute(client, lease, service, args).await
 }
 
-#[cfg(feature = "standalone")]
-mod octos;
-pub mod deployment;
-mod deployment_settings;
-#[cfg(feature = "standalone")]
-mod transport;
+
 mod catalog_worker;
 mod library;
 mod package;
 pub mod ui;
-#[cfg(feature = "standalone")]
-pub use octos::KernelProvider;
+pub use crate::host::octos::ContextProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
 pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {

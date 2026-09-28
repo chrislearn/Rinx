@@ -43,7 +43,7 @@ AI generation is optional. Importing and running an existing app must not requir
 
 ## Implementation
 
-- `crates/miniapp-core` owns the A2App Matrix request parser, response bounds, instance leases, room grants and account-generation revocation. Matrix SDK adapters live in `src/octoscript_apps/matrix`.
+- `crates/miniapp-core` owns the A2App Matrix request parser, response bounds, instance leases, room grants and account-generation revocation. Matrix SDK adapters live in `src/host/matrix`.
 - The native **Mini apps** page imports a digest-verified, bounded snapshot of a local bundle, reviews its services and optional room, and creates one account-scoped Splash instance. Closing it revokes requests and discards late responses.
 - Current `main.splash` bundles use App Hub's shared script entry and asset-origin resolver. They call the same host services directly and keep their own script state.
 - Octoscript-Makepad prepares the same L0 source, kit and state used by OctoSense cards. Input events update state; declarative bindings populate data fields from host replies. Rinx does not translate the example into a custom native screen.
