@@ -5600,7 +5600,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "windows-targets 0.53.4",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -7923,7 +7923,7 @@ dependencies = [
 [[package]]
 name = "octosense-app-policy"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=46d67e51b62827a1224b1aacddc2a7b9e69185fc#46d67e51b62827a1224b1aacddc2a7b9e69185fc"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=362d832ff66a2d067e1bbcef7d8c25fb9d69740e#362d832ff66a2d067e1bbcef7d8c25fb9d69740e"
 dependencies = [
  "blake3",
  "makepad-widgets",
