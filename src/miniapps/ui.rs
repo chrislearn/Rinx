@@ -1,4 +1,5 @@
 //! One native mini-app screen shared by standalone and embedded Rinx.
+use super::library::{LibraryAction, MiniAppLibraryWidgetExt};
 use super::{
     ContextProvider, InstanceId, Lease, OctosProvider, ServiceEvent,
     package::{Call, Package},
@@ -27,6 +28,7 @@ pub enum MiniAppsAction {
 }
 script_mod! {
     use mod.prelude.widgets.*
+    use mod.widgets.*
     mod.widgets.MiniAppsPanel = #(MiniAppsPanel::register_widget(vm)) {
         width: Fill height: Fill flow: Down padding: 18 spacing: 12
         show_bg: true
@@ -35,6 +37,7 @@ script_mod! {
             close := Button {text: "Back"}
             Label {text: "Mini apps" draw_text.color: #222 draw_text.text_style.font_size: 18}
         }
+        library := MiniAppLibrary {visible: false}
         catalog := View {width: Fill height: Fill flow: Down spacing: 12
             Label {text: #(crate::i18n::tr("Built-in apps")) i18n_text: "Built-in apps" draw_text.color: #222}
             catalog_list := PortalList {width: Fill height: Fill
@@ -42,6 +45,7 @@ script_mod! {
                     launch := Button {width: Fill height: 60 text: ""}
                 }
             }
+            browse_hub := Button {width: Fill text: "App Hub"}
             import_app := Button {width: Fill text: #(crate::i18n::tr("Import an app")) i18n_text: "Import an app"}
         }
         import_form := View {visible: false width: Fill height: Fit flow: Down spacing: 8
@@ -103,6 +107,10 @@ pub struct MiniAppsPanel {
     #[rust]
     showing_catalog: bool,
     #[rust]
+    showing_hub: bool,
+    #[rust]
+    return_to_hub: bool,
+    #[rust]
     reviewed_room: String,
     #[rust]
     review_notice: String,
@@ -145,12 +153,52 @@ impl MiniAppsPanel {
         self.reviewed_room.clear();
         self.publish_to_assistant();
         self.showing_catalog = true;
+        self.showing_hub = false;
+        self.return_to_hub = false;
+        self.view.mini_app_library(cx, ids!(library)).cancel_open();
+        self.view.view(cx, ids!(library)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, true);
         self.view.view(cx, ids!(catalog)).set_visible(cx, true);
         self.view.view(cx, ids!(import_form)).set_visible(cx, false);
         self.view.view(cx, ids!(app_content)).set_visible(cx, false);
         self.notice(cx, "");
     }
+    fn show_hub(&mut self, cx: &mut Cx) {
+        self.stop(cx);
+        self.package = None;
+        self.review_notice.clear();
+        self.reviewed_room.clear();
+        self.publish_to_assistant();
+        self.showing_catalog = false;
+        self.showing_hub = true;
+        self.return_to_hub = false;
+        self.view.view(cx, ids!(catalog)).set_visible(cx, false);
+        self.view.view(cx, ids!(import_form)).set_visible(cx, false);
+        self.view.view(cx, ids!(app_content)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, false);
+        self.view.view(cx, ids!(library)).set_visible(cx, true);
+        self.view.mini_app_library(cx, ids!(library)).begin(cx);
+        self.notice(cx, "");
+    }
+    // Returns true only at the outer catalog, where Back closes the modal.
+    fn navigate_back(&mut self, cx: &mut Cx) -> bool {
+        if self.showing_hub {
+            if !self.view.mini_app_library(cx, ids!(library)).back_to_list(cx) {
+                self.show_catalog(cx);
+            }
+        } else if self.return_to_hub {
+            self.show_hub(cx);
+        } else if self.showing_catalog {
+            return true;
+        } else {
+            self.show_catalog(cx);
+        }
+        false
+    }
     fn show_import(&mut self, cx: &mut Cx) {
+        self.showing_hub = false;
+        self.view.view(cx, ids!(library)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, true);
         self.showing_catalog = false;
         self.view.view(cx, ids!(catalog)).set_visible(cx, false);
         self.view.view(cx, ids!(import_form)).set_visible(cx, true);
@@ -379,6 +427,11 @@ impl MiniAppsPanel {
         for call in calls {
             self.binding(cx, call, "root", &Value::Null)?;
         }
+        self.showing_hub = false;
+        self.showing_catalog = false;
+        self.view.view(cx, ids!(library)).set_visible(cx, false);
+        self.view.view(cx, ids!(header)).set_visible(cx, true);
+        self.view.view(cx, ids!(app_content)).set_visible(cx, true);
         self.view.view(cx, ids!(import_form)).set_visible(cx, false);
         self.notice(
             cx,
@@ -662,9 +715,42 @@ impl Widget for MiniAppsPanel {
         self.view.handle_event(cx, event, scope);
         if let Event::Actions(actions) = event {
             if self.view.button(cx, ids!(close)).clicked(actions) {
-                if self.showing_catalog { cx.action(MiniAppsAction::Close); }
-                else { self.show_catalog(cx); }
+                if self.navigate_back(cx) { cx.action(MiniAppsAction::Close); }
                 return;
+            }
+            if self.view.button(cx, ids!(browse_hub)).clicked(actions) {
+                self.show_hub(cx);
+                return;
+            }
+            for action in actions {
+                if !self.showing_hub { break; }
+                if let Some(action) = action.downcast_ref::<LibraryAction>() {
+                    match action {
+                        LibraryAction::Back => { self.navigate_back(cx); }
+                        LibraryAction::Developer => {
+                            self.return_to_hub = true;
+                            self.show_import(cx);
+                        }
+                        LibraryAction::Article => {
+                            cx.action(MiniAppsAction::Close);
+                            crate::system_apps::open_article(cx);
+                        }
+                        LibraryAction::Launch(bundle, room, account) => {
+                            if crate::sliding_sync::current_user_id().is_none_or(|user| user.as_str() != account) { continue; }
+                            self.return_to_hub = true;
+                            self.reviewed_room = room.clone().unwrap_or_default();
+                            self.view.text_input(cx, ids!(room)).set_text(cx, &self.reviewed_room);
+                            let result = Package::load_verified(bundle.clone(), &crate::app_data_dir().join("miniapps/imports"))
+                                .and_then(|package| { self.package = Some(package); self.run(cx) });
+                            if let Err(error) = result {
+                                self.show_hub(cx);
+                                self.notice(cx, &error);
+                            } else {
+                                self.view.mini_app_library(cx, ids!(library)).record(cx, &bundle.manifest.id);
+                            }
+                        }
+                    }
+                }
             }
             if self.view.button(cx, ids!(import_app)).clicked(actions) {
                 self.show_import(cx);
@@ -731,8 +817,7 @@ impl Widget for MiniAppsPanel {
         }
         if let Event::BackPressed { handled } = event {
             handled.set(true);
-            if self.showing_catalog { cx.action(MiniAppsAction::Close); }
-            else { self.show_catalog(cx); }
+            if self.navigate_back(cx) { cx.action(MiniAppsAction::Close); }
         }
         self.pump(cx);
     }
@@ -758,8 +843,7 @@ impl MiniAppsPanelRef {
     pub fn back(&self, cx: &mut Cx, modal: ModalRef) {
         let mut close = false;
         if let Some(mut inner) = self.borrow_mut() {
-            if inner.showing_catalog { close = true; }
-            else { inner.show_catalog(cx); }
+            close = inner.navigate_back(cx);
         }
         if close { self.action(cx, modal, &MiniAppsAction::Close); }
     }
@@ -773,6 +857,8 @@ impl MiniAppsPanelRef {
                     modal.open(cx);
                 }
                 MiniAppsAction::OpenReviewed => {
+                    inner.return_to_hub = false;
+                    inner.view.mini_app_library(cx, ids!(library)).cancel_open();
                     inner.open = true;
                     inner.show_import(cx);
                     let notice = inner.review_notice.clone();
@@ -785,11 +871,51 @@ impl MiniAppsPanelRef {
                     modal.open(cx);
                 }
                 MiniAppsAction::Close => {
+                    inner.view.mini_app_library(cx, ids!(library)).cancel_open();
                     inner.stop(cx);
                     inner.open = false;
                     modal.close(cx);
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_panel_keeps_catalog_hub_and_import_back_navigation_separate() {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let mut panel = cx.with_vm(|vm| {
+            makepad_widgets::script_mod(vm);
+            crate::i18n::install(vm);
+            makepad_code_editor::script_mod(vm);
+            crate::shared::script_mod(vm);
+            vm.bx.captured_errors = Some(Vec::new());
+            crate::miniapps::script_mod(vm);
+            let value = vm.eval(script! {use mod.prelude.widgets.* use mod.widgets.* MiniAppsPanel{}});
+            let panel = MiniAppsPanel::script_from_value(vm, value);
+            let errors = vm.take_errors();
+            assert!(errors.is_empty(), "Mini-app panel script errors: {errors:?}");
+            panel
+        });
+        panel.show_catalog(&mut cx);
+        assert!(panel.navigate_back(&mut cx), "Only the outer catalog closes");
+        panel.show_hub(&mut cx);
+        assert!(panel.showing_hub);
+        assert!(!panel.navigate_back(&mut cx));
+        assert!(panel.showing_catalog);
+        panel.show_hub(&mut cx);
+        panel.return_to_hub = true;
+        panel.show_import(&mut cx);
+        assert!(!panel.navigate_back(&mut cx));
+        assert!(panel.showing_hub, "Developer import returns to its Hub entry point");
+        assert!(!panel.navigate_back(&mut cx));
+        assert!(panel.showing_catalog);
+        panel.show_import(&mut cx);
+        assert!(!panel.navigate_back(&mut cx));
+        assert!(panel.showing_catalog, "Catalog import returns to the catalog");
     }
 }

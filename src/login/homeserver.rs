@@ -147,18 +147,32 @@ async fn browser_registration_supported(client: &Client) -> bool {
 
 /// Memory-only discovery: checking a server does not create a session/database.
 pub async fn discover(user: &str, server: &str) -> Result<LoginMethods> {
+    discover_with_timeout(user, server, std::time::Duration::from_secs(20)).await
+}
+
+async fn discover_with_timeout(
+    user: &str,
+    server: &str,
+    timeout: std::time::Duration,
+) -> Result<LoginMethods> {
     let destination = login_server(user, Some(server))?;
-    let builder = Client::builder()
-        .server_name_or_homeserver_url(destination)
-        .request_config(
-            RequestConfig::new()
-                .timeout(std::time::Duration::from_secs(15))
-                .retry_limit(0),
-        );
-    let client = crate::sliding_sync::use_android_tls_roots(builder)
-        .build()
-        .await?;
-    login_methods(&client).await
+    // The SDK uses its own retry policy for well-known discovery and version
+    // checks. Bound the entire operation, including DNS and those retries.
+    tokio::time::timeout(timeout, async move {
+        let builder = Client::builder()
+            .server_name_or_homeserver_url(destination)
+            .request_config(
+                RequestConfig::new()
+                    .timeout(std::time::Duration::from_secs(15))
+                    .retry_limit(0),
+            );
+        let client = crate::sliding_sync::use_android_tls_roots(builder)
+            .build()
+            .await?;
+        login_methods(&client).await
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("The server check timed out. Check your connection and try again."))?
 }
 
 /// Complete a legacy registration when the homeserver offers a simple UIAA
@@ -391,6 +405,36 @@ mod tests {
         assert!(methods.oauth_aware_preferred && methods.browser_registration);
         assert_eq!(methods.providers[0].id, "company-custom-id");
         assert_eq!(methods.providers[0].name, "Company SSO");
+    }
+
+    #[tokio::test]
+    async fn stalled_discovery_times_out_and_a_new_check_can_succeed() {
+        use std::time::Duration;
+
+        // Accept TCP but never send an HTTP response, as with a broken tunnel.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let (accepted, connection) = tokio::sync::oneshot::channel();
+        let stalled_server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let _ = accepted.send(socket);
+        });
+        let error = tokio::time::timeout(
+            Duration::from_secs(3),
+            discover_with_timeout("", &url, Duration::from_millis(200)),
+        )
+        .await
+        .expect("discovery must have a total deadline")
+        .unwrap_err();
+        assert!(error.to_string().contains("timed out"), "{error}");
+        let _socket = connection.await.expect("discovery contacted the stalled server");
+        stalled_server.await.unwrap();
+
+        let server = Server::new();
+        let methods = discover("", &server.url).await.unwrap();
+        assert!(methods.password && methods.sso);
+        assert_eq!(methods.providers[0].id, "company-custom-id");
+        assert!(!server.requests.lock().unwrap().iter().any(|(route, _)| route.starts_with("POST ")));
     }
 
     #[tokio::test]

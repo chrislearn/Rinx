@@ -1,5 +1,5 @@
-//! Canonical OctoSense bundles; local import is visibly unsigned, never a
-//! claim that a package came from a verified catalog.
+//! Frozen canonical OctoSense bundles. Catalog and unsigned developer imports
+//! have separate admission paths; both verify the bytes actually executed.
 use octosense_app_policy::{AppManifest, AppPolicy};
 use serde::Deserialize;
 use serde_json::Value;
@@ -36,6 +36,7 @@ pub struct Package {
     pub data: Value,
     pub bindings: Bindings,
     original: PathBuf,
+    verified: Option<rinx_miniapp_catalog::VerifiedBundle>,
     _snapshot: Snapshot,
     builtin: Option<&'static crate::system_apps::PackedApp>,
 }
@@ -51,7 +52,10 @@ impl Package {
         Self::load_in(root, &std::env::temp_dir())
     }
     pub fn load_in(root: &Path, snapshots: &Path) -> Result<Self, String> {
-        Self::load_inner(root, snapshots, None)
+        Self::load_inner(root, snapshots, None, None)
+    }
+    pub fn load_verified(bundle: rinx_miniapp_catalog::VerifiedBundle, snapshots: &Path) -> Result<Self, String> {
+        Self::load_inner(&bundle.root.clone(), snapshots, None, Some(bundle))
     }
     pub fn load_builtin(id: &str, snapshots: &Path) -> Result<Self, String> {
         let app = crate::system_apps::get(id).ok_or("Unknown built-in app")?;
@@ -60,9 +64,9 @@ impl Package {
         let source = snapshots.join(format!("builtin-{}", uuid::Uuid::new_v4()));
         app.materialize(&source)?;
         let _cleanup = Snapshot(source.clone());
-        Self::load_inner(&source, snapshots, Some(app))
+        Self::load_inner(&source, snapshots, Some(app), None)
     }
-    fn load_inner(root: &Path, snapshots: &Path, builtin: Option<&'static crate::system_apps::PackedApp>) -> Result<Self, String> {
+    fn load_inner(root: &Path, snapshots: &Path, builtin: Option<&'static crate::system_apps::PackedApp>, verified: Option<rinx_miniapp_catalog::VerifiedBundle>) -> Result<Self, String> {
         std::fs::create_dir_all(snapshots).map_err(|e| e.to_string())?;
         // Freeze the admitted bytes. Source edits cannot change a running app's
         // kit, images or bindings after the user reviews its grants.
@@ -85,11 +89,15 @@ impl Package {
         if manifest.agent.is_some() {
             return Err("Bundle agent profiles are not supported here; declare explicit octos.* services instead".into());
         }
-        octosense_app_policy::admit_digest(
-            &manifest,
-            &octosense_app_policy::digest_dir(root)?,
-            &octosense_app_policy::RefuseAllSignatures,
-        )?;
+        if let Some(bundle) = &verified {
+            bundle.verify(root)?;
+        } else {
+            octosense_app_policy::admit_digest(
+                &manifest,
+                &octosense_app_policy::digest_dir(root)?,
+                &octosense_app_policy::RefuseAllSignatures,
+            )?;
+        }
         let policy = octosense_app_policy::policy::resolve(
             &manifest,
             &octosense_app_policy::HostLimits {
@@ -145,15 +153,18 @@ impl Package {
             data,
             bindings,
             original,
+            verified,
             _snapshot: snapshot,
             builtin,
         })
     }
     pub fn unchanged(&self) -> Result<(), String> {
         if let Some(app) = self.builtin { return app.verify(&self.root); }
-        let current = Self::load_in(
+        let current = Self::load_inner(
             &self.original,
             self.root.parent().ok_or("Missing bundle cache")?,
+            None,
+            self.verified.clone(),
         )?;
         if current.manifest.signing_bytes()? != self.manifest.signing_bytes()? {
             return Err("Package changed; review it again".into());
@@ -268,6 +279,51 @@ mod tests {
     use super::*;
 
     #[test]
+    fn signed_hub_bundle_launches_from_a_verified_snapshot_only() {
+        use rinx_miniapp_catalog::{VerifiedBundle, hub};
+        let original =
+            std::env::temp_dir().join(format!("rinx-signed-runtime-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&original).unwrap();
+        let _cleanup = Snapshot(original.clone());
+        std::fs::write(original.join("main.splash"), "Label{text: \"Signed app\"}").unwrap();
+        let mut manifest = AppManifest::parse(r#"{"schema":1,"id":"signed-demo","name":"Signed demo","version":"1","integrity":{"bundle_blake3":""}}"#).unwrap();
+        std::fs::write(
+            original.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        manifest.integrity.bundle_blake3 = octosense_app_policy::digest_dir(&original).unwrap();
+        let publisher = hub::HubKey::generate();
+        hub::sign_manifest(&publisher, &mut manifest, "demo-publisher").unwrap();
+        std::fs::write(
+            original.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            Package::load(&original).is_err(),
+            "Developer import must not confer catalog trust"
+        );
+        let verified = VerifiedBundle {
+            root: original.clone(),
+            manifest,
+            publisher: "demo-publisher".into(),
+            publisher_key: publisher.public_hex(),
+        };
+        let package = Package::load_verified(verified, &std::env::temp_dir()).unwrap();
+        assert!(package.script);
+        assert_ne!(package.root, original);
+        package.unchanged().unwrap();
+        std::fs::write(original.join("main.splash"), "modified after admission").unwrap();
+        assert!(package.unchanged().is_err());
+        assert!(
+            std::fs::read_to_string(package.root.join("main.splash"))
+                .unwrap()
+                .contains("Signed app")
+        );
+    }
+
+    #[test]
     fn built_in_script_owns_its_snapshot_and_rechecks_content_and_manifest() {
         let root = std::env::temp_dir().join(format!("rinx-builtin-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();
@@ -287,7 +343,7 @@ mod tests {
         let app = Box::leak(Box::new(rinx_system_apps::pack(&root).unwrap().apps.remove(0)));
         let extracted = root.join("extracted");
         app.materialize(&extracted).unwrap();
-        let package = Package::load_inner(&extracted, &root.join("snapshots"), Some(app)).unwrap();
+        let package = Package::load_inner(&extracted, &root.join("snapshots"), Some(app), None).unwrap();
         // The extraction is disposable; review/run owns the frozen snapshot.
         std::fs::remove_dir_all(&extracted).unwrap();
         assert_eq!(package.builtin_id(), Some("test.embedded"));

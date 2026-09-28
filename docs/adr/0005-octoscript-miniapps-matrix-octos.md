@@ -31,7 +31,7 @@ A host drains only requests belonging to its mini-app instances. Nested Rinx and
 | Octos connection and kernel lifetime | Hosting application / configured standalone provider |
 | App presentation, room attachment, sharing and navigation | Rinx |
 
-AI generation is optional. Importing and running an existing app must not require an agent. This implementation imports local Octoscript folders with explicit review. Signed App Hub catalog installation, A2App `.splashapp` import, and A2App watch/share lifecycle compatibility remain separate work; adopting the Matrix contract does not imply those import or lifecycle features exist.
+AI generation is optional. Importing and running an existing app must not require an agent. The original implementation imports local Octoscript folders with explicit review. [ADR 0006](0006-shared-app-hub-miniapps.md) adds signed App Hub catalog installation and a native library. A2App `.splashapp` import and A2App watch/share lifecycle compatibility remain separate work; adopting the Matrix contract does not imply those lifecycle features exist.
 
 ## Verification
 

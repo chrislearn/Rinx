@@ -41,6 +41,8 @@ pub async fn matrix_request(
 }
 
 
+mod catalog_worker;
+mod library;
 mod package;
 pub mod ui;
 pub use crate::host::octos::ContextProvider;
@@ -62,5 +64,6 @@ pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
             makepad_widgets::splash::register_agent_module,
         );
     });
+    library::script_mod(vm);
     ui::script_mod(vm);
 }
