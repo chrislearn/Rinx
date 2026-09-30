@@ -360,7 +360,7 @@ dependencies = [
 [[package]]
 name = "octosense-app-hub"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=e8601b80ce104db2e48208094714bdcffdce6b5a#e8601b80ce104db2e48208094714bdcffdce6b5a"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=0f332112f0b5a379c5bb33790df74b21597190cf#0f332112f0b5a379c5bb33790df74b21597190cf"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -376,7 +376,7 @@ dependencies = [
 [[package]]
 name = "octosense-app-policy"
 version = "0.1.0"
-source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=e8601b80ce104db2e48208094714bdcffdce6b5a#e8601b80ce104db2e48208094714bdcffdce6b5a"
+source = "git+https://github.com/OctoSense-org/OctoSense-App-Hub?rev=0f332112f0b5a379c5bb33790df74b21597190cf#0f332112f0b5a379c5bb33790df74b21597190cf"
 dependencies = [
  "blake3",
  "serde",
