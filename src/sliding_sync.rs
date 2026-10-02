@@ -21,6 +21,7 @@ use matrix_sdk::{
 };
 #[cfg(not(target_os = "ios"))]
 use matrix_sdk::Error;
+use matrix_sdk::event_cache::RedecryptorReport;
 use matrix_sdk_ui::{
     RoomListService, Timeline, encryption_sync_service, room_list_service::{RoomListItem, RoomListLoadingState, SyncIndicator, filters}, sync_service::{self, SyncService}, timeline::{AttachmentSource, EventSendState, LatestEventValue, RedactError, RoomExt, TimelineEventItemId, TimelineFocus, TimelineItem, TimelineReadReceiptTracking, TimelineDetails, default_event_filter}
 };
@@ -5283,6 +5284,13 @@ pub struct BackwardsPaginateUntilEventRequest {
 const LOG_TIMELINE_DIFFS: bool = cfg!(feature = "log_timeline_diffs");
 /// Whether to enable verbose logging of all room list service diff updates.
 const LOG_ROOM_LIST_DIFFS: bool = cfg!(feature = "log_room_list_diffs");
+/// How long to wait after the event cache reports late-decrypted events in a room
+/// before sending that room's timeline a full refresh.
+///
+/// The redecryptor sends its report right after it updates the event cache,
+/// but the timeline applies that update in its own task, so we give it a moment
+/// to deliver the resulting diffs before taking the snapshot.
+const LATE_DECRYPTION_REFRESH_DELAY: Duration = Duration::from_millis(250);
 
 /// A per-timeline async task that listens for timeline updates and sends them to the UI thread.
 ///
@@ -5348,6 +5356,16 @@ async fn timeline_subscriber_handler(
     let mut has_unsent_changes = false;
     // The latest upload progress that was sent to the UI: `(item index, percent)`.
     let mut latest_progress_update: Option<(usize, usize)> = None;
+    // Safety net for events whose room key arrived after the event itself:
+    // when the event cache reports that it decrypted events in this room,
+    // we send the UI a full refresh of this timeline (after a short delay),
+    // so that the UI cannot keep showing a stale UTD placeholder or a pre-edit body.
+    let client = timeline.room().client();
+    let event_cache = client.event_cache();
+    let decryption_reports = event_cache.subscribe_to_decryption_reports();
+    pin_mut!(decryption_reports);
+    // When to send the pending late-decryption refresh, if one is pending.
+    let mut late_decryption_refresh_at: Option<Instant> = None;
 
     loop { tokio::select! {
         // we should check for new requests before handling new timeline updates,
@@ -5655,6 +5673,42 @@ async fn timeline_subscriber_handler(
                     // Closed: our local items are updated above; remember to catch the UI up on reopen.
                     has_unsent_changes = true;
                 }
+            }
+        }
+
+        // The event cache decrypted events whose room key arrived late.
+        // Only reports for this timeline's room schedule a refresh; a refresh that is
+        // already pending is not pushed back, so a burst of reports yields one refresh.
+        Some(report) = decryption_reports.next() => {
+            if let Ok(RedecryptorReport::ResolvedUtds { room_id: report_room_id, events }) = report
+                && report_room_id == room_id
+                && late_decryption_refresh_at.is_none()
+            {
+                if LOG_TIMELINE_DIFFS { log!("timeline_subscriber: room {room_id}, thread {thread_root_event_id:?} late-decrypted {} events; scheduling a full refresh.", events.len()); }
+                late_decryption_refresh_at = Some(Instant::now() + LATE_DECRYPTION_REFRESH_DELAY);
+            }
+        }
+
+        // Send the full refresh scheduled by a late-decryption report.
+        _ = tokio::time::sleep_until(late_decryption_refresh_at.unwrap_or_else(Instant::now)),
+            if late_decryption_refresh_at.is_some() =>
+        {
+            late_decryption_refresh_at = None;
+            if is_timeline_open {
+                let len = timeline_items.len();
+                if timeline_update_sender.send(TimelineUpdate::NewItems {
+                    new_items: timeline_items.clone(),
+                    changed_indices: 0..len,
+                    clear_cache: true,
+                    is_append: false,
+                }).is_err() {
+                    log!("Timeline for room {room_id}, thread {thread_root_event_id:?} was closed \
+                        or recreated; ending this subscriber task.");
+                    return;
+                }
+                SignalToUI::set_ui_signal();
+            } else {
+                has_unsent_changes = true;
             }
         }
 
