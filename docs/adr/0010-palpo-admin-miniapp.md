@@ -11,6 +11,11 @@
   The first delivery replaces Palpo's web frontend with an OctoScript frontend
   and reuses the signed-in Rinx identity. Additional agent workflows are a
   subsequent backend feature track, not prerequisites for frontend replacement.
+- The [three-stage workflow design](../design/palpo-miniapp-workflows.md)
+  specifies the requested product: contribution approval and JSON handoff,
+  project approval, then agent approval/management with a persistent Inbox.
+  Frontend parity is a foundation milestone; all three stages are the product
+  completion target.
 
 ## Product decision
 
@@ -25,9 +30,9 @@ login reuse and remembered grants do not require a new prompt on every launch.
 The same flow targets desktop, Android and OpenHarmony, with platform validation
 required before release.
 
-Use the existing signed App Hub format and Splash runtime. Expose two role-aware
-areas; they can live in one Palpo package or separate packages without changing
-authentication. The longer-term pages and workflows are:
+Use the existing signed App Hub format and Splash runtime. Start with one Palpo
+package, a common Inbox and two role-aware areas. Separate packages remain a
+distribution option without changing authentication. The pages and workflows are:
 
 | Area | Audience and pages |
 | --- | --- |
@@ -82,7 +87,7 @@ a list of prerequisites for the first frontend replacement.
 | User action inside Rinx | Existing implementation to reuse | Remaining work |
 | --- | --- | --- |
 | Register a Hagency and assign its owner | Palpo `POST /api/fleets` persists registration, owner, namespace, credentials and operation ID | Expose a scoped host call and in-app form; keep machine credentials out of script |
-| Pair and verify the fleet | Owner-bound `/api/my/fleets/{id}/pair` and `/connect`; outbound relay/probe proof | Replace configuration download/import with an in-app one-time claim flow completed by the Hagency service; do not declare connected before the real probe succeeds |
+| Pair and verify the fleet | Owner-bound `/api/my/fleets/{id}/pair` and `/connect`; outbound relay/probe proof | Notify the human fleet owner and export the existing JSON through Rinx's trusted file UI; keep the runtime import step and verify the real probe. Automatic pairing is optional later work |
 | Inspect projects and agents | Palpo `/api/projects`, `/api/requests`, `/api/fleets/{id}/agents`; Hagency engagement/agent views | Role-filtered, paginated projections; current Palpo project listing is membership/owner based, not a global admin project directory |
 | Approve an agent request and assign its allocation to its project | Hagency `POST /console/api/engagements/{id}/approve` with `commandId` and optional `allocatedTokens` | Matrix-user-to-fleet-operator authority, remote control delivery and receipts; use the admitted project's/resource's binding |
 | Reject a pending request | Hagency `POST /console/api/agents/{id}/refuse`, whose ID is the engagement ID | Expose a clearly named request-decision service, preserving pending-only and command replay checks |
@@ -257,7 +262,7 @@ whose underlying Palpo operations already exist.
 | Ordinary user's top-up workflow | Hagency has operator allocation increases, but no reviewed Palpo user top-up request/decision API | Add durable request, approve/reject, pending/expired/conflict states and exactly-once increase through existing command-ID handling |
 | Complete user-visible status | Hagency's Palpo projection and Palpo's allowlist omit observed spend and quota hold; terminal states/cleanup lose detail in the public projection | Add versioned usage, pause, cleanup and observation fields end to end; do not infer them from an allocation number or heartbeat |
 | Self-service management and administrator assignment | Existing lifecycle routes use broad console authority; project reads follow Matrix membership; resource choice is fixed at admission | Define resource/project-specific roles and owner-editable actions; add scoped admin directory/assignment APIs where needed |
-| Seamless pairing | Current owner retrieves registration data and imports it in Hagency | Add an authenticated one-time runtime claim completed from Rinx; no script-visible machine secrets or browser handoff |
+| Optional automatic pairing | Current owner retrieves registration data and imports it in Hagency | The requested flow retains this JSON handoff inside Rinx. An authenticated one-time runtime claim can later replace the file step; keep machine secrets out of scripts |
 | Mobile lifecycle and notifications | Script/runtime and Matrix integration foundations exist, but these workflows have no device evidence | Persist server operation IDs, resume after background/kill, route notifications to the correct account/app/request, and validate Android/OpenHarmony |
 | Encryption/trust readiness | Project work currently requires a plaintext invite-only room, while private execution approval uses Megolm; fleet enrollment pins owner cross-signing keys | Explain and enforce current room policy; guide missing verification in Rinx, preserve owner-specific approval devices and key-change handling |
 
@@ -290,7 +295,10 @@ partial/unknown results and retry the failed cleanup, not the allocation decisio
 ## Extended agent workflow after frontend parity
 
 This is the complete product target once Palpo exposes the additional Hagency
-operations. It is separate from the passwordless frontend migration milestone.
+operations for an already approved contribution and project. The preceding
+contribution/project approval stages and the notification process are specified
+in the [three-stage design](../design/palpo-miniapp-workflows.md). These are
+separate from the passwordless frontend migration milestone.
 
 ```mermaid
 sequenceDiagram
@@ -370,8 +378,10 @@ Add the backend extensions and corresponding pages without changing the login
 model. The acceptance target is two signed-in Rinx identities completing:
 
 1. Authorize the mini apps with no password/token entry in either package.
-2. Register/select a fleet and complete any required owner pairing inside Rinx.
-3. Create a project, request a named agent and an initial allocation.
+2. Submit a contribution request, approve/reject it as administrator, notify its
+   owner, export the JSON in Rinx, import it on Hagency and prove the connection.
+3. Request a project on permitted resources, approve/reject as administrator,
+   activate it under its owner's identity, then request a named agent/allocation.
 4. Approve or reject from Operations; verify that approval provisions the actual
    agent into the selected project before reporting it ready.
 5. Request additional tokens from My Agents; approve from Operations; preserve
@@ -390,7 +400,7 @@ Repository responsibilities by delivery:
 | First delivery: admin/member pages, existing flow parity, shared themes and platform evidence | Mini-app frontend and Rinx host |
 | Extension: top-up requests, additional scoped reads and resource-operator delegation | Palpo/workflow service |
 | Extension: outbound control commands, actor validation and richer runtime status | Palpo and Hagency together |
-| Extension: one-time pairing claim, new workflow pages and notification routes | Palpo, Hagency and mini-app frontend |
+| Extension: contribution/project approval records, resource grants, Inbox/outbox and notification routes; automatic pairing optional | Palpo, Hagency and mini-app frontend |
 
 First-delivery validation covers real Palpo session/role behavior and actual
 Makepad draw/input instrumentation, including cookie-auth browser regression,
