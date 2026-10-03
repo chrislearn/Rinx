@@ -10,24 +10,12 @@ use std::path::Path;
 /// Override recognized roles in memory, leaving content, assets, geometry,
 /// bindings, unknown tokens and package authority untouched.
 fn resolve_tokens(pack: &mut Value, theme: &Snapshot) {
-    for (role, value) in [
-        ("color.surface.page", theme.page),
-        ("color.surface.panel", theme.surface),
-        ("color.surface.field", theme.field),
-        ("color.content.primary", theme.ink),
-        ("color.content.secondary", theme.muted),
-        ("color.action.primary", theme.accent),
-        ("color.action.on_primary", theme.on_accent),
-        ("color.border.default", theme.border),
-        ("color.state.hover", theme.hover),
-        ("color.state.pressed", theme.pressed),
-        ("color.state.selected", theme.selected),
-    ] {
+    for role in octosense_theme_contract::COLORS {
         if let Some(token) = pack["tokens"]
-            .get_mut(role)
+            .get_mut(*role)
             .and_then(|t| t.get_mut("value"))
         {
-            *token = argb(value).into();
+            *token = argb(theme.role(role)).into();
         }
     }
     if let Some(token) = pack["tokens"]
@@ -35,6 +23,39 @@ fn resolve_tokens(pack: &mut Value, theme: &Snapshot) {
         .and_then(|t| t.get_mut("value"))
     {
         *token = theme.radius.into();
+    }
+    for (role, value) in [
+        ("typography.body.size", 11. * 4. / 3. * theme.text_scale),
+        ("typography.heading.size", 17. * 4. / 3. * theme.text_scale),
+        ("typography.caption.size", 9.5 * 4. / 3. * theme.text_scale),
+        (
+            "metrics.control.height",
+            theme.control_height.max(24. * theme.text_scale + 20.),
+        ),
+        ("metrics.page.gutter", theme.page_gutter),
+        ("metrics.spacing", theme.spacing_scale),
+    ] {
+        if let Some(token) = pack["tokens"]
+            .get_mut(role)
+            .and_then(|t| t.get_mut("value"))
+        {
+            *token = value.into();
+        }
+    }
+    if let Some(token) = pack["tokens"]
+        .get_mut("typography.family.resource")
+        .and_then(|t| t.get_mut("value"))
+    {
+        *token = if theme
+            .tokens
+            .get("typography.family")
+            .is_some_and(|t| t.value == "mono")
+        {
+            "makepad_widgets:resources/LiberationMono-Regular.ttf"
+        } else {
+            "makepad_widgets:resources/IBMPlexSans-Text.ttf"
+        }
+        .into();
     }
 }
 

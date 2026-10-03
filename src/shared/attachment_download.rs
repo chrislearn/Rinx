@@ -96,6 +96,7 @@ pub struct DownloadableAttachment {
 pub enum DownloadKind {
     File,
     Markdown,
+    Theme,
     Audio,
     Video,
     Image,
@@ -109,8 +110,56 @@ impl DownloadKind {
             Self::Video => Some("video/*"),
             Self::File => None,
             Self::Markdown => Some("text/markdown"),
+            Self::Theme => Some(octosense_theme_contract::MIME),
         }
     }
+}
+
+pub fn is_theme_attachment(filename: &str, mimetype: Option<&str>) -> bool {
+    filename.to_ascii_lowercase().ends_with(".octotheme")
+        || mimetype.is_some_and(|m| {
+            m.split(';')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .eq_ignore_ascii_case(octosense_theme_contract::MIME)
+        })
+}
+pub fn start_theme_preview(
+    info: DownloadableAttachment,
+    update_sender: TimelineUpdateSenderOption,
+) {
+    let owner = crate::sliding_sync::current_user_id();
+    if info
+        .size
+        .is_some_and(|s| s > octosense_theme_contract::MAX_BYTES as u64)
+    {
+        enqueue_popup_notification("Theme exceeds 256 KB", PopupKind::Error, None);
+        finish_download_indicator(
+            &update_sender,
+            Some(media_source_mxc(&info.media_source)),
+            DownloadOutcome::Failed,
+        );
+        return;
+    }
+    download_media(info, update_sender, move |_title, mxc, bytes, sender| {
+        if owner != crate::sliding_sync::current_user_id()
+            || crate::logout::logout_state_machine::is_logout_in_progress()
+        {
+            finish_download_indicator(&sender, Some(&mxc), DownloadOutcome::Cancelled);
+            return;
+        }
+        let result = octosense_theme_contract::ThemePackage::parse(&bytes);
+        let outcome = if result.is_ok() {
+            DownloadOutcome::Succeeded
+        } else {
+            DownloadOutcome::Failed
+        };
+        makepad_widgets::Cx::post_action(
+            crate::settings::theme_studio::ThemeStudioAction::Imported { owner, result },
+        );
+        finish_download_indicator(&sender, Some(&mxc), outcome);
+    });
 }
 
 pub fn is_markdown_attachment(filename: &str, mimetype: Option<&str>) -> bool {

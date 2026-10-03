@@ -29,7 +29,7 @@ script_mod! {
         header := View {width: Fill height: 44 flow: Right spacing: 8 align: Align{y: 0.5}
             back := RinxButton {width: 44 height: 44 text: "" icon_walk: Walk{width: 20 height: 20}
                 draw_icon +: {svg: crate_resource("self://resources/icons/arrow_back.svg") color: mod.widgets.RINX_INK}}
-            title := Label {width: Fill max_lines: 1 text_overflow: Ellipsis text: "Mini apps" draw_text +: {color: mod.widgets.RINX_INK text_style.font_size: 18}}
+            title := Label {width: Fill max_lines: 1 text_overflow: Ellipsis text: "Mini apps" draw_text +: {color: mod.widgets.RINX_INK text_style.font_size: (18 * mod.widgets.RINX_TEXT_SCALE)}}
             refresh := RinxButton {text: "Refresh"}
             developer := RinxButton {text: "Developer"}
         }
@@ -49,10 +49,10 @@ script_mod! {
                         width: Fill height: 76 flow: Right spacing: 12 padding: 10 align: Align{y: 0.5}
                         icon := Image {width: 48 height: 48}
                         copy := View {width: Fill height: Fit flow: Down spacing: 5
-                            name := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: mod.widgets.RINX_INK text_style.font_size: 15}}
-                            subtitle := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: mod.widgets.RINX_MUTED text_style.font_size: 11}}
+                            name := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: mod.widgets.RINX_INK text_style.font_size: (15 * mod.widgets.RINX_TEXT_SCALE)}}
+                            subtitle := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text +: {color: mod.widgets.RINX_MUTED text_style.font_size: (11 * mod.widgets.RINX_TEXT_SCALE)}}
                         }
-                        state := Label {draw_text +: {color: mod.widgets.RINX_MUTED text_style.font_size: 10}}
+                        state := Label {draw_text +: {color: mod.widgets.RINX_MUTED text_style.font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}
                     }
                 }
             }

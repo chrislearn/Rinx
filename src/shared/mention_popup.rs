@@ -44,11 +44,11 @@ script_mod! {
             width: Fill, height: Fit, flow: Down, spacing: 1
             title := Label {
                 width: Fill, height: Fit, max_lines: 1, text_overflow: Ellipsis, padding: 0
-                draw_text +: { color: (COLOR_TEXT), text_style: theme.font_bold {font_size: 11, line_spacing: 1.0} }
+                draw_text +: { color: (COLOR_TEXT), text_style: theme.font_bold {font_size: (11 * mod.widgets.RINX_TEXT_SCALE), line_spacing: 1.0} }
             }
             subtitle := Label {
                 width: Fill, height: Fit, max_lines: 1, text_overflow: Ellipsis, padding: 0
-                draw_text +: { color: #555, text_style: theme.font_regular {font_size: 9.5, line_spacing: 1.0} }
+                draw_text +: { color: mod.widgets.RINX_MUTED, text_style: theme.font_regular {font_size: (9.5 * mod.widgets.RINX_TEXT_SCALE), line_spacing: 1.0} }
             }
         }
     }
@@ -62,7 +62,7 @@ script_mod! {
         }
         loading_label := Label {
             height: Fit
-            draw_text +: { color: #555, text_style: theme.font_regular {font_size: 10.5} }
+            draw_text +: { color: mod.widgets.RINX_MUTED, text_style: theme.font_regular {font_size: (10.5 * mod.widgets.RINX_TEXT_SCALE)} }
         }
     }
 
@@ -73,7 +73,7 @@ script_mod! {
         empty_label := Label {
             width: Fill, height: Fit, max_lines: 2, text_overflow: Ellipsis
             align: Align{x: 0.5}
-            draw_text +: { color: #555, text_style: theme.font_regular {font_size: 10.5} }
+            draw_text +: { color: mod.widgets.RINX_MUTED, text_style: theme.font_regular {font_size: (10.5 * mod.widgets.RINX_TEXT_SCALE)} }
         }
     }
 
@@ -83,8 +83,8 @@ script_mod! {
         flow: Overlay
         align: Align{x: 0.0, y: 0.0}
 
-        color_focus: #xB6D3F2
-        color_hover: #xEAEFF5
+        color_focus: mod.widgets.RINX_SELECTED
+        color_hover: mod.widgets.RINX_HOVER
 
         // So the way this works is that we move the popup_frame wrapper view,
         // which allows the `main_content` to just behave like a regular Fill/Fill view.
@@ -120,7 +120,7 @@ script_mod! {
                         width: Fill, height: Fit, max_lines: 1, text_overflow: Ellipsis, padding: 0
                         draw_text +: {
                             color: (COLOR_PRIMARY)
-                            text_style: theme.font_bold {font_size: 13.0, line_spacing: 1.0}
+                            text_style: theme.font_bold {font_size: (13.0 * mod.widgets.RINX_TEXT_SCALE), line_spacing: 1.0}
                         }
                     }
                 }

@@ -139,17 +139,17 @@ script_mod! {
         visible: false width: Fill height: Fit
         open_mini_app := NavigationBarButton {
             width: Fill height: Fit flow: Down spacing: 10 padding: 4
-            draw_bg +: {color_hover: #xf2f2f2 color_active: #xf2f2f2 border_radius: 4}
+            draw_bg +: {color_hover: mod.widgets.RINX_HOVER color_active: mod.widgets.RINX_HOVER border_radius: 4}
             card_title := Label {
                 width: Fill flow: Flow.Right{wrap: true} max_lines: 3
-                draw_text +: {color: #x191919 text_style: theme.font_bold{font_size: 14}}
+                draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold{font_size: (14 * mod.widgets.RINX_TEXT_SCALE)}}
             }
             card_origin := Label {
                 width: Fill max_lines: 1 text_overflow: Ellipsis
-                draw_text +: {color: #x777777 text_style: theme.font_regular{font_size: 10}}
+                draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular{font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}
             }
-            View {width: Fill height: 1 show_bg: true draw_bg.color: #xe8e8e8}
-            Label {text: #(crate::i18n::tr("◉  Mini app")) i18n_text: "◉  Mini app" draw_text +: {color: #x576b95 text_style: theme.font_regular{font_size: 10}}}
+            View {width: Fill height: 1 show_bg: true draw_bg.color: mod.widgets.RINX_BORDER}
+            Label {text: #(crate::i18n::tr("◉  Mini app")) i18n_text: "◉  Mini app" draw_text +: {color: mod.widgets.RINX_ACCENT text_style: theme.font_regular{font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}}
         }
     }
 
@@ -157,28 +157,28 @@ script_mod! {
         ..mod.widgets.SolidView
         width: Fill height: Fill flow: Down
         padding: Inset{top: mod.widgets.SAFE_INSET_PAD_TOP + #(CAPTION_PADDING) bottom: mod.widgets.SAFE_INSET_PAD_BOTTOM}
-        draw_bg.color: #xf7f7f7
+        draw_bg.color: mod.widgets.RINX_PAGE
         header := View {
             width: Fill height: 54 flow: Right spacing: 8 padding: 8 align: Align{y: 0.5}
             mini_close := RobrixNeutralIconButton {text: #(crate::i18n::tr("Close")) i18n_text: "Close" height: 40}
             heading := Label {
                 text: #(crate::i18n::tr("Share mini app")) i18n_text: "Share mini app" width: Fill max_lines: 1 text_overflow: Ellipsis
-                draw_text +: {color: #x191919 text_style: theme.font_bold{font_size: 14}}
+                draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold{font_size: (14 * mod.widgets.RINX_TEXT_SCALE)}}
             }
             mini_share := RobrixNeutralIconButton {text: #(crate::i18n::tr("Share")) i18n_text: "Share" height: 40 visible: false}
         }
         form := View {
             width: Fill height: Fit flow: Down spacing: 12 padding: 20
-            Label {text: #(crate::i18n::tr("Web address")) i18n_text: "Web address" draw_text +: {color: #x191919}}
+            Label {text: #(crate::i18n::tr("Web address")) i18n_text: "Web address" draw_text +: {color: mod.widgets.RINX_INK}}
             mini_url := TextInput {width: Fill height: 46 empty_text: #(crate::i18n::tr("https://example.com")) i18n_empty_text: "https://example.com"}
-            Label {text: #(crate::i18n::tr("Card title")) i18n_text: "Card title" draw_text +: {color: #x191919}}
+            Label {text: #(crate::i18n::tr("Card title")) i18n_text: "Card title" draw_text +: {color: mod.widgets.RINX_INK}}
             mini_title := TextInput {width: Fill height: 46 empty_text: #(crate::i18n::tr("Name your mini app")) i18n_empty_text: "Name your mini app"}
-            mini_recipient := Label {width: Fill flow: Flow.Right{wrap: true} draw_text.color: #x576b95}
+            mini_recipient := Label {width: Fill flow: Flow.Right{wrap: true} draw_text.color: mod.widgets.RINX_ACCENT}
             mini_choose_chat := RobrixNeutralIconButton {text: #(crate::i18n::tr("Choose chat")) i18n_text: "Choose chat" height: 44}
             View {
                 width: Fill height: Fit flow: Right spacing: 12
                 mini_preview := RobrixNeutralIconButton {text: #(crate::i18n::tr("Preview")) i18n_text: "Preview" height: 44}
-                mini_send := RobrixNeutralIconButton {text: #(crate::i18n::tr("Send")) i18n_text: "Send" height: 44 draw_text.color: #x07a858}
+                mini_send := RobrixNeutralIconButton {text: #(crate::i18n::tr("Send")) i18n_text: "Send" height: 44 draw_text.color: mod.widgets.RINX_ACCENT}
             }
         }
         chat_picker := View {
@@ -188,8 +188,8 @@ script_mod! {
                 width: Fill height: Fill
                 Chat := NavigationBarButton {
                     width: Fill height: 54 padding: 10 align: Align{y: 0.5}
-                    draw_bg +: {color_hover: #xe8e8e8 color_active: #xe8e8e8}
-                    name := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text.color: #x191919}
+                    draw_bg +: {color_hover: mod.widgets.RINX_BORDER color_active: mod.widgets.RINX_BORDER}
+                    name := Label {width: Fill max_lines: 1 text_overflow: Ellipsis draw_text.color: mod.widgets.RINX_INK}
                 }
             }
             mini_picker_cancel := RobrixNeutralIconButton {text: #(crate::i18n::tr("Cancel")) i18n_text: "Cancel" height: 44}
@@ -198,7 +198,7 @@ script_mod! {
             visible: false width: Fill height: Fill flow: Down
             mini_origin := Label {
                 width: Fill height: Fit padding: 10 max_lines: 1 text_overflow: Ellipsis
-                draw_text +: {color: #x576b95 text_style: theme.font_regular{font_size: 10}}
+                draw_text +: {color: mod.widgets.RINX_ACCENT text_style: theme.font_regular{font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}
             }
             View {
                 width: Fill height: 44 flow: Right spacing: 8 padding: Inset{left: 8 right: 8}
@@ -206,11 +206,11 @@ script_mod! {
                 mini_reload := RobrixNeutralIconButton {text: #(crate::i18n::tr("Reload")) i18n_text: "Reload" height: 40}
                 mini_external := RobrixNeutralIconButton {text: #(crate::i18n::tr("Open in browser")) i18n_text: "Open in browser" height: 40}
             }
-            web_surface := SolidView {width: Fill height: Fill draw_bg.color: #xffffff}
+            web_surface := SolidView {width: Fill height: Fill draw_bg.color: mod.widgets.RINX_SURFACE}
         }
         mini_status := Label {
             width: Fill height: Fit padding: 16 flow: Flow.Right{wrap: true}
-            draw_text +: {color: #x777777 text_style: theme.font_regular{font_size: 11}}
+            draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular{font_size: (11 * mod.widgets.RINX_TEXT_SCALE)}}
         }
     }
 }

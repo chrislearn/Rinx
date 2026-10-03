@@ -14,6 +14,7 @@ version = "1.1.0"
 metadata.makepad-auto-version = "zqpv-Yj-K7WNVK2I8h5Okhho46Q="
 
 [dependencies]
+octosense-theme-contract = { path = "crates/theme-contract", version = "0.1.0" }
 rinx-system-apps = { path = "crates/system-apps" }
 article-core = { path = "crates/article-core", features = ["l0"] }
 rinx-miniapp-core = { path = "crates/miniapp-core" }
@@ -161,6 +162,9 @@ rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] 
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dispatch2 = "0.3"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows", all(target_os = "linux", not(target_env = "ohos"))))'.dependencies]
+dark-light = "2"
 
 
 [features]

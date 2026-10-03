@@ -3,6 +3,8 @@
 pub use makepad_widgets;
 use makepad_widgets::*;
 use makepad_widgets::splash_host::{take_splash_host_requests_for, splash_host_respond};
+use rinx::home::link_preview::{LinkPreviewCache, LinkPreviewData, LinkPreviewWidgetRefExt};
+use rinx::settings::theme_studio::{ThemeStudioAction, ThemeStudioWidgetRefExt};
 use rinx::theme::{self, Accent, Appearance, Selection};
 use rinx::miniapps::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 use rinx::article_app::{ArticleAction, ArticlePanelWidgetRefExt};
@@ -41,11 +43,17 @@ script_mod! {
                             }
                             script_app := Splash {width: 300 height: 300}
                             l0_app := Splash {width: 300 height: 300}
+                            web_card := View {width: 300 height: Fit flow: Down
+                                body_reference := RinxLabel {text: "Shared UI body 中文"}
+                                card := LinkPreview {}
+                            }
                             RinxHint {text: "End of reference surfaces"}
                         }
                     }
+                    theme_studio_modal := Modal {can_dismiss: false content := ThemeStudio {}}
                     miniapps := Modal {can_dismiss: false content := MiniAppsPanel {}}
                     article := Modal {can_dismiss: false content := ArticlePanel {}}
+                    notifications := PopupList {}
                 }
             }
         }
@@ -128,10 +136,25 @@ impl App {
             .label(cx, ids!(l0_app.beauty_0_0))
             .borrow()
             .map(|label| theme::argb(label.draw_text.color));
+        let font_sizes: Vec<_> = [
+            ids!(web_card.body_reference),
+            ids!(card.title_label),
+            ids!(card.description_label),
+        ]
+        .into_iter()
+        .map(|path| {
+            self.ui
+                .label(cx, path)
+                .borrow()
+                .map(|label| label.draw_text.text_style.font_size)
+        })
+        .collect();
         let report = json!({"revision":theme::snapshot(cx).revision, "script_heap":script, "l0_heap":l0,
             "requests":self.requests, "timers":timers, "fields":fields, "selection":theme::selection(cx),
             "l0_draft":self.state.get(octoscript_ui_l0::CARD_STATE_KEY, "draft"),
-            "ink":theme::argb(palette.ink), "l0_ink":l0_ink});
+            "ink":theme::argb(palette.ink), "l0_ink":l0_ink,
+            "accent":theme::argb(palette.accent), "scale":palette.text_scale, "radius":palette.radius,
+            "font_sizes":font_sizes, "preview":theme::packages::is_preview(cx), "preferences":theme::packages::current(cx).ok()});
         std::fs::write(
             rinx::app_data_dir().join("theme-inspection.json"),
             serde_json::to_vec_pretty(&report).unwrap(),
@@ -142,6 +165,24 @@ impl App {
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
         self.selection = theme::selection(cx).unwrap_or_default();
+        let url = "https://example.org/theme-fixture".parse().unwrap();
+        let mut cache = LinkPreviewCache::new(None);
+        cache.insert(
+            &url,
+            LinkPreviewData {
+                title: Some("Shared card title 中文".into()),
+                description: Some("A website summary uses the same body text size as Rinx.".into()),
+                site_name: Some("Example site".into()),
+                ..Default::default()
+            },
+        );
+        self.ui.link_preview(cx, ids!(card)).populate_below_message(
+            cx,
+            &[url],
+            &mut rinx::media_cache::MediaCache::new(None),
+            &mut cache,
+            &|_, _, _, _, _, _| true,
+        );
         let script = self.ui.splash(cx, ids!(script_app));
         script.set_host_tag(cx, Some("theme-validation".into()));
         script.set_text(cx, include_str!("miniapps/theme-reference/main.splash"));
@@ -185,6 +226,12 @@ impl MatchEvent for App {
             );
         }
         for action in actions {
+            if let Some(action) = action.downcast_ref::<ThemeStudioAction>() {
+                let modal = self.ui.modal(cx, ids!(theme_studio_modal));
+                self.ui
+                    .theme_studio(cx, ids!(theme_studio_modal.content))
+                    .action(cx, modal, action);
+            }
             if let Some(action) = action.downcast_ref::<MiniAppsAction>() {
                 self.ui.mini_apps_panel(cx, ids!(miniapps.content)).action(
                     cx,
@@ -224,6 +271,7 @@ impl AppMain for App {
         self::script_mod(vm)
     }
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        rinx::theme::system::handle_event(cx, event);
         if let Event::Custom(command) = event {
             match command.as_str() {
                 "theme:light" => {
@@ -242,12 +290,42 @@ impl AppMain for App {
                     self.selection.accent = Accent::Violet;
                     self.switch(cx);
                 }
+                "theme:import" => {
+                    let result = octosense_theme_contract::ThemePackage::parse(include_bytes!(
+                        "themes/ocean-violet.octotheme"
+                    ));
+                    cx.action(ThemeStudioAction::Imported {
+                        owner: None,
+                        result,
+                    });
+                }
+                "theme:host-package" => {
+                    let p = octosense_theme_contract::ThemePackage::parse(include_bytes!(
+                        "themes/ocean-violet.octotheme"
+                    ))
+                    .unwrap();
+                    let tokens = theme::packages::resolve(
+                        &p,
+                        Selection::default(),
+                        desktop_style::DesktopStyle::Macos,
+                    )
+                    .unwrap();
+                    let snapshot =
+                        octosense_theme_contract::ResolvedTheme::new(p.id, false, tokens);
+                    theme::host::receive(cx, &snapshot.bytes().unwrap()).unwrap();
+                }
                 "theme:inspect" => self.inspect(cx),
+                "theme:popup" => rinx::shared::popup_list::enqueue_popup_notification(
+                    "Retained theme notification",
+                    rinx::shared::popup_list::PopupKind::Info,
+                    Some(180.),
+                ),
                 _ => {}
             }
         }
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
+        rinx::theme::packages::after_event(cx, event);
         let revision = theme::snapshot(cx).revision;
         if self.revision != 0 && self.revision != revision {
             self.render_l0(cx);

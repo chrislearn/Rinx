@@ -21,8 +21,8 @@ script_mod! {
         registered_agents := DropDown {width: Fill labels: ["People you know"]}
         user_id_input := RobrixTextInput {
             draw_text +: {
-                text_style: REGULAR_TEXT {font_size: 11},
-                color: #000
+                text_style: REGULAR_TEXT {font_size: (11 * mod.widgets.RINX_TEXT_SCALE)},
+                color: mod.widgets.RINX_INK
             }
             empty_text: #(crate::i18n::tr("Name or @user:example.org")) i18n_empty_text: "Name or @user:example.org",
             autocapitalize: None,
@@ -72,8 +72,8 @@ script_mod! {
                 align: Align{x: 0.5, y: 0.0}
                 margin: Inset{top: 10}
                 draw_text +: {
-                    text_style: REGULAR_TEXT {font_size: 11},
-                    color: #000
+                    text_style: REGULAR_TEXT {font_size: (11 * mod.widgets.RINX_TEXT_SCALE)},
+                    color: mod.widgets.RINX_INK
                 }
                 text: ""
             }

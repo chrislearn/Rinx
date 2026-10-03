@@ -6,6 +6,9 @@ use makepad_widgets::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+pub mod packages;
+pub mod system;
+pub mod host;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -45,6 +48,13 @@ pub struct Snapshot {
     pub pressed: Vec4f,
     pub selected: Vec4f,
     pub radius: f64,
+    pub tokens: octosense_theme_contract::Tokens,
+    pub text_scale: f64,
+    pub spacing_scale: f64,
+    pub control_height: f64,
+    pub reading_width: f64,
+    pub page_gutter: f64,
+    pub motion_ms: f64,
 }
 
 #[derive(Default)]
@@ -55,6 +65,14 @@ struct Runtime {
 struct State {
     hosted: bool,
     selection: Selection,
+    preferences: packages::Preferences,
+    previous: Option<packages::Preferences>,
+    preview: Option<packages::Preferences>,
+    pending_apply: Option<u64>,
+    pending_ack: bool,
+    transaction: u64,
+    known_good: packages::Preferences,
+    host_revision: Option<String>,
 }
 
 fn rgb(value: u32) -> Vec4f {
@@ -123,19 +141,28 @@ pub fn init_standalone(vm: &mut ScriptVm) {
     if vm.cx_mut().global::<Runtime>().heaps.contains_key(&key) {
         return;
     }
-    let selection = std::fs::read(crate::app_data_dir().join("appearance.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default();
+    let family = platform_family(vm);
+    system::start();
+    let stored = packages::load(&crate::app_data_dir(), family);
+    let selection = stored.current.selection;
     if desktop_style::current(vm).is_none() {
-        let family = platform_family(vm);
-        desktop_style::install(vm, Selection::stylesheet(selection, family));
+        let sheet = packages::stylesheet(&stored.current, family)
+            .unwrap_or_else(|_| selection.stylesheet(family));
+        desktop_style::install(vm, sheet);
     }
     vm.cx_mut().global::<Runtime>().heaps.insert(
         key,
         State {
             hosted: false,
             selection,
+            preferences: stored.current.clone(),
+            known_good: stored.current,
+            previous: stored.previous,
+            preview: None,
+            pending_apply: None,
+            pending_ack: false,
+            transaction: 0,
+            host_revision: None,
         },
     );
 }
@@ -163,34 +190,10 @@ pub(crate) fn selection_for_vm(vm: &mut ScriptVm) -> Option<Selection> {
 /// Use the framework event so the normal app re-registration and ScriptReapply
 /// path runs. The caller handles an error without changing its active selection.
 pub fn select(cx: &mut Cx, selection: Selection) -> Result<(), String> {
-    if self::selection(cx).is_none() {
-        return Err("Appearance is managed by OctoSense".into());
-    }
-    let path = crate::app_data_dir().join("appearance.json");
-    std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
-    let pending = path.with_extension("json.pending");
-    std::fs::write(
-        &pending,
-        serde_json::to_vec(&selection).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
-    std::fs::rename(&pending, &path).map_err(|e| e.to_string())?;
-    cx.with_vm(|vm| {
-        let family = desktop_style::current(vm)
-            .and_then(|s| DesktopStyle::parse(&s.name))
-            .filter(|f| f.supports_dark())
-            .unwrap_or_else(|| platform_family(vm));
-        desktop_style::install(vm, selection.stylesheet(family));
-        let key = vm.bx.heap.heap_key();
-        vm.cx_mut()
-            .global::<Runtime>()
-            .heaps
-            .entry(key)
-            .or_default()
-            .selection = selection;
-    });
-    cx.request_style_reload();
-    Ok(())
+    let mut preferences = packages::current(cx)?;
+    preferences.selection = selection;
+    preferences.follow_system = false;
+    packages::apply(cx, preferences)
 }
 
 pub fn snapshot(cx: &mut Cx) -> Snapshot {
@@ -227,7 +230,7 @@ pub fn snapshot_for_vm(vm: &mut ScriptVm) -> Snapshot {
         .bx
         .heap
         .value(theme, id!(corner_radius).into(), NoTrap)
-        .as_f64()
+        .as_number()
         .unwrap_or(6.);
     // Installation precedes widget reapply. Include resolved values so a read
     // between those steps cannot make consumers cache the old palette as new.
@@ -239,7 +242,7 @@ pub fn snapshot_for_vm(vm: &mut ScriptVm) -> Snapshot {
     );
     let hash = blake3::hash(material.as_bytes());
     let revision = u64::from_le_bytes(hash.as_bytes()[..8].try_into().unwrap());
-    Snapshot {
+    let mut result = Snapshot {
         revision,
         page,
         surface,
@@ -253,6 +256,78 @@ pub fn snapshot_for_vm(vm: &mut ScriptVm) -> Snapshot {
         pressed: mix(surface, ink, 0.12),
         selected: mix(surface, accent, 0.10),
         radius,
+        tokens: Default::default(),
+        text_scale: 1.,
+        spacing_scale: 1.,
+        control_height: 44.,
+        reading_width: 760.,
+        page_gutter: 16.,
+        motion_ms: 150.,
+    };
+    let mut tokens = packages::base_tokens(&result);
+    for role in octosense_theme_contract::COLORS {
+        let name = format!("octo_{}", role.replace('.', "_"));
+        let fallback = octosense_theme_contract::hex(&tokens[*role]).unwrap();
+        let value = color(vm, &name, u32::from_str_radix(&fallback, 16).unwrap());
+        tokens.insert(
+            (*role).into(),
+            octosense_theme_contract::color(&format!("{:06x}", argb(value) & 0xffffff)).unwrap(),
+        );
+    }
+    let number = |vm: &mut ScriptVm, name: &str, fallback: f64| {
+        vm.bx
+            .heap
+            .value(theme, LiveId::from_str(name).into(), NoTrap)
+            .as_number()
+            .unwrap_or(fallback)
+    };
+    result.text_scale = number(vm, "octo_typography_scale", 1.);
+    result.spacing_scale = number(vm, "octo_metrics_spacing", 1.);
+    result.control_height = number(vm, "octo_control_height", 44.);
+    result.reading_width = number(vm, "octo_reading_width", 760.);
+    result.page_gutter = number(vm, "octo_page_gutter", 16.);
+    result.motion_ms = number(vm, "octo_motion_ms", 150.);
+    for (key, n) in [
+        ("shape.surface.radius", result.radius),
+        ("metrics.control.height", result.control_height),
+        ("metrics.reading.width", result.reading_width),
+        ("metrics.page.gutter", result.page_gutter),
+    ] {
+        tokens.insert(key.into(), octosense_theme_contract::dimension(n));
+    }
+    tokens.insert(
+        "typography.scale".into(),
+        octosense_theme_contract::number(result.text_scale),
+    );
+    tokens.insert(
+        "metrics.spacing".into(),
+        octosense_theme_contract::number(result.spacing_scale),
+    );
+    tokens.get_mut("motion.duration").unwrap().value["value"] = serde_json::json!(result.motion_ms);
+    let font_value = vm
+        .bx
+        .heap
+        .value(theme, id!(octo_typography_family).into(), NoTrap);
+    let mut font_family = String::new();
+    vm.bx.heap.cast_to_string(font_value, &mut font_family);
+    if matches!(font_family.as_str(), "system" | "mono") {
+        tokens.get_mut("typography.family").unwrap().value = serde_json::json!(font_family);
+    }
+    result.tokens = tokens;
+    result.muted = result.role("color.content.secondary");
+    result.hover = result.role("color.state.hover");
+    result.pressed = result.role("color.state.pressed");
+    result.selected = result.role("color.state.selected");
+    result
+}
+
+impl Snapshot {
+    pub fn role(&self, name: &str) -> Vec4f {
+        self.tokens
+            .get(name)
+            .and_then(|t| octosense_theme_contract::rgb(t).ok())
+            .map(|[r, g, b]| vec4(r as f32, g as f32, b as f32, 1.))
+            .unwrap_or(self.ink)
     }
 }
 
@@ -292,6 +367,39 @@ pub fn script_mod(vm: &mut ScriptVm) {
         mod.widgets.RINX_ACCENT_HOVER = #(accent_hover)
         mod.widgets.RINX_ACCENT_DOWN = #(accent_down)
     });
+    for (name, role) in [
+        ("RINX_DISABLED", "color.content.disabled"),
+        ("RINX_SUCCESS_FG", "color.status.success.foreground"),
+        ("RINX_SUCCESS_BG", "color.status.success.background"),
+        ("RINX_WARNING_FG", "color.status.warning.foreground"),
+        ("RINX_WARNING_BG", "color.status.warning.background"),
+        ("RINX_DANGER_FG", "color.status.danger.foreground"),
+        ("RINX_DANGER_BG", "color.status.danger.background"),
+        ("RINX_INFO_FG", "color.status.info.foreground"),
+        ("RINX_INFO_BG", "color.status.info.background"),
+        ("RINX_INCOMING", "color.chat.incoming"),
+        ("RINX_OUTGOING", "color.chat.outgoing"),
+        ("RINX_MENTION", "color.chat.mention"),
+        ("RINX_CODE_BG", "color.code.background"),
+        ("RINX_CODE_FG", "color.code.foreground"),
+    ] {
+        let widgets = vm.module(id!(widgets));
+        let value = script_eval!(vm, { #(s.role(role)) });
+        vm.bx
+            .heap
+            .set_value(widgets, LiveId::from_str(name).into(), value, NoTrap);
+    }
+    script_eval!(vm, {
+        mod.widgets.RINX_TEXT_SCALE = #(s.text_scale)
+        mod.widgets.RINX_BODY_SIZE = #(11. * s.text_scale)
+        mod.widgets.RINX_META_SIZE = #(9.5 * s.text_scale)
+        mod.widgets.RINX_TITLE_SIZE = #(17. * s.text_scale)
+        mod.widgets.RINX_SPACING = #(s.spacing_scale)
+        mod.widgets.RINX_CONTROL_HEIGHT = #(s.control_height.max(24. * s.text_scale + 20.))
+        mod.widgets.RINX_READING_WIDTH = #(s.reading_width)
+        mod.widgets.RINX_GUTTER = #(s.page_gutter)
+        mod.widgets.RINX_MOTION = #(s.motion_ms / 1000.)
+    });
     controls::script_mod(vm);
 }
 
@@ -311,19 +419,21 @@ mod controls {
     script_mod! {
         use mod.prelude.widgets.*
         use mod.widgets.*
-        mod.widgets.RinxLabel = Label {draw_text +: {color: RINX_INK text_style: theme.font_regular{font_size: 12}}}
-        mod.widgets.RinxPageTitle = mod.widgets.RinxLabel {draw_text.text_style: theme.font_bold{font_size: 17}}
-        mod.widgets.RinxHint = mod.widgets.RinxLabel {draw_text +: {color: RINX_MUTED text_style.font_size: 10.5}}
+        mod.widgets.RinxLabel = Label {draw_text +: {color: RINX_INK text_style: theme.font_regular{font_size: RINX_BODY_SIZE}}}
+        mod.widgets.RinxPageTitle = mod.widgets.RinxLabel {draw_text.text_style: theme.font_bold{font_size: RINX_TITLE_SIZE}}
+        mod.widgets.RinxHint = mod.widgets.RinxLabel {draw_text +: {color: RINX_MUTED text_style.font_size: RINX_META_SIZE}}
         mod.widgets.RinxButton = Button {
-            height: 44 padding: Inset{left: 14 right: 14 top: 8 bottom: 8}
+            height: RINX_CONTROL_HEIGHT padding: Inset{left: 14 * RINX_SPACING right: 14 * RINX_SPACING top: 8 bottom: 8}
             grab_key_focus: false
+            animator.hover.off.from.all.duration: RINX_MOTION
+            animator.hover.on.from.all.duration: RINX_MOTION
             draw_bg +: {
                 color: RINX_SURFACE color_focus: RINX_SURFACE color_hover: RINX_HOVER color_down: RINX_PRESSED
                 color_2: vec4(-1., -1., -1., -1.)
                 border_color: RINX_BORDER border_color_hover: RINX_BORDER border_color_down: RINX_BORDER
                 border_color_focus: RINX_ACCENT border_size: 1 border_radius: theme.corner_radius
             }
-            draw_text +: {color: RINX_INK color_hover: RINX_INK color_down: RINX_INK color_focus: RINX_INK text_style: theme.font_regular{font_size: 12}}
+            draw_text +: {color: RINX_INK color_hover: RINX_INK color_down: RINX_INK color_focus: RINX_INK text_style: theme.font_regular{font_size: RINX_BODY_SIZE}}
             draw_icon +: {color: RINX_INK}
         }
         mod.widgets.RinxPrimaryButton = mod.widgets.RinxButton {
@@ -333,10 +443,10 @@ mod controls {
             draw_icon +: {color: RINX_ON_ACCENT}
         }
         mod.widgets.RinxInput = TextInput {
-            height: 44 padding: Inset{left: 12 right: 12 top: 10 bottom: 10}
+            height: RINX_CONTROL_HEIGHT padding: Inset{left: 12 * RINX_SPACING right: 12 * RINX_SPACING top: 10 bottom: 10}
             draw_bg +: {color: RINX_FIELD color_hover: RINX_FIELD color_focus: RINX_FIELD color_empty: RINX_FIELD
                 border_color: RINX_BORDER border_color_focus: RINX_ACCENT border_radius: theme.corner_radius}
-            draw_text +: {color: RINX_INK color_hover: RINX_INK color_focus: RINX_INK text_style: theme.font_regular{font_size: 12}}
+            draw_text +: {color: RINX_INK color_hover: RINX_INK color_focus: RINX_INK text_style: theme.font_regular{font_size: RINX_BODY_SIZE}}
             draw_cursor.color: RINX_ACCENT
         }
     }

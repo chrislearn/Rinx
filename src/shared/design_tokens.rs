@@ -45,7 +45,7 @@ script_mod! {
     // Text/icon on top of an accent or dark fill.
     mod.widgets.RBX_FG_ON_ACCENT  = mod.widgets.RINX_ON_ACCENT
     // Disabled text.
-    mod.widgets.RBX_FG_DISABLED   = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_FG_DISABLED   = mod.widgets.RINX_DISABLED
 
     // =========================================================================
     // 3. ACCENT — host selection (primary CTA, selection, focus)
@@ -68,14 +68,14 @@ script_mod! {
     // 4. BRAND — logo colors. Use sparingly (brand entry points, app icon, the
     //    room-identity avatar). Do NOT flood functional UI with purple.
     // =========================================================================
-    mod.widgets.RBX_BRAND_PURPLE  = #x572DCC
-    mod.widgets.RBX_BRAND_CYAN    = #x05CDC7
-    mod.widgets.RBX_BRAND_BLUE    = #x2D7CFF
+    mod.widgets.RBX_BRAND_PURPLE  = #x572DCC // theme-content: stable brand or avatar identity.
+    mod.widgets.RBX_BRAND_CYAN    = #x05CDC7 // theme-content: stable brand or avatar identity.
+    mod.widgets.RBX_BRAND_BLUE    = #x2D7CFF // theme-content: stable brand or avatar identity.
     // Default room / space identity avatar fill (the teal "#" square).
-    mod.widgets.RBX_IDENTITY_TEAL = #x14B8A6
+    mod.widgets.RBX_IDENTITY_TEAL = #x14B8A6 // theme-content: stable brand or avatar identity.
     // DEPRECATED legacy bright-blue primary (styles.rs COLOR_ACTIVE_PRIMARY).
     // Named only for migration; new UI uses RBX_ACCENT.
-    mod.widgets.RBX_LEGACY_BLUE   = #x0F88FE
+    mod.widgets.RBX_LEGACY_BLUE   = mod.widgets.RINX_ACCENT
 
     // =========================================================================
     // 5. STROKES & DIVIDERS
@@ -100,25 +100,25 @@ script_mod! {
     //    neutral = Idle / secondary / disabled-ish
     //    (accent badges use RBX_ACCENT_SOFT bg + RBX_ACCENT fg — not a state pair.)
     // =========================================================================
-    mod.widgets.RBX_SUCCESS_FG = #x197F45
-    mod.widgets.RBX_SUCCESS_BG = #xE8F6EE
-    mod.widgets.RBX_WARNING_FG = #x9C6009
-    mod.widgets.RBX_WARNING_BG = #xFBF1DD
-    mod.widgets.RBX_DANGER_FG  = #xB93429
-    mod.widgets.RBX_DANGER_BG  = #xFBE9E7
-    mod.widgets.RBX_INFO_FG    = #x1C67B0
-    mod.widgets.RBX_INFO_BG    = #xE7F0FB
-    mod.widgets.RBX_NEUTRAL_FG = #x5A6B86
-    mod.widgets.RBX_NEUTRAL_BG = #xEEF1F6
+    mod.widgets.RBX_SUCCESS_FG = mod.widgets.RINX_SUCCESS_FG
+    mod.widgets.RBX_SUCCESS_BG = mod.widgets.RINX_SUCCESS_BG
+    mod.widgets.RBX_WARNING_FG = mod.widgets.RINX_WARNING_FG
+    mod.widgets.RBX_WARNING_BG = mod.widgets.RINX_WARNING_BG
+    mod.widgets.RBX_DANGER_FG  = mod.widgets.RINX_DANGER_FG
+    mod.widgets.RBX_DANGER_BG  = mod.widgets.RINX_DANGER_BG
+    mod.widgets.RBX_INFO_FG    = mod.widgets.RINX_INFO_FG
+    mod.widgets.RBX_INFO_BG    = mod.widgets.RINX_INFO_BG
+    mod.widgets.RBX_NEUTRAL_FG = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_NEUTRAL_BG = mod.widgets.RINX_FIELD
 
     // Agent framework badge colors (fg = label text, bg = pill fill). One pair
     // per supported framework, used by the Agent Registry tag pills.
-    mod.widgets.RBX_FW_OCTOS_FG    = #x1488B5
-    mod.widgets.RBX_FW_OCTOS_BG    = #xE6F2F9
-    mod.widgets.RBX_FW_HERMES_FG   = #xC47D1E
-    mod.widgets.RBX_FW_HERMES_BG   = #xFBF1E3
-    mod.widgets.RBX_FW_OPENCLAW_FG = #x6A52C4
-    mod.widgets.RBX_FW_OPENCLAW_BG = #xEEE9FB
+    mod.widgets.RBX_FW_OCTOS_FG    = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_FW_OCTOS_BG    = mod.widgets.RINX_FIELD
+    mod.widgets.RBX_FW_HERMES_FG   = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_FW_HERMES_BG   = mod.widgets.RINX_FIELD
+    mod.widgets.RBX_FW_OPENCLAW_FG = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_FW_OPENCLAW_BG = mod.widgets.RINX_FIELD
 
     // =========================================================================
     // 7. DARK SURFACES — desktop nav rail + mobile login (the only dark zones
@@ -144,11 +144,11 @@ script_mod! {
     // =========================================================================
     // 8. CODE PANEL (dark) — timeline code / SQL output (CodeOutputCard, §4.7).
     // =========================================================================
-    mod.widgets.RBX_CODE_BG      = #x1B2433   // dark navy panel
-    mod.widgets.RBX_CODE_FG      = #xD7DEE8   // default code text
-    mod.widgets.RBX_CODE_KEYWORD = #x7CC4FF   // keyword / function
-    mod.widgets.RBX_CODE_STRING  = #x8FD19A   // string / value
-    mod.widgets.RBX_CODE_COMMENT = #x7F8B9B   // comment / muted
+    mod.widgets.RBX_CODE_BG      = mod.widgets.RINX_CODE_BG
+    mod.widgets.RBX_CODE_FG      = mod.widgets.RINX_CODE_FG
+    mod.widgets.RBX_CODE_KEYWORD = mod.widgets.RINX_ACCENT
+    mod.widgets.RBX_CODE_STRING  = mod.widgets.RINX_INK
+    mod.widgets.RBX_CODE_COMMENT = mod.widgets.RINX_MUTED
 
     // =========================================================================
     // 8b. SYNTAX PALETTE (light) — the twin of the dark RBX_CODE_* panel above,
@@ -156,15 +156,15 @@ script_mod! {
     //     the timeline and the raw-event viewer. One palette, so a keyword is
     //     the same color everywhere code appears.
     // =========================================================================
-    mod.widgets.RBX_SYNTAX_TEXT     = #x24292e   // identifiers, punctuation, default ink
-    mod.widgets.RBX_SYNTAX_MUTED    = #x6a737d   // comments, whitespace marks
-    mod.widgets.RBX_SYNTAX_LITERAL  = #x005cc5   // numbers, constants, highlighted delimiters
-    mod.widgets.RBX_SYNTAX_KEYWORD  = #xd73a49   // control-flow and declaration keywords
-    mod.widgets.RBX_SYNTAX_STRING   = #x22863a   // string literals
-    mod.widgets.RBX_SYNTAX_FUNCTION = #x6f42c1   // function names
-    mod.widgets.RBX_SYNTAX_TYPE     = #xe36209   // type names
-    mod.widgets.RBX_SYNTAX_ERROR    = #xcb2431   // error decoration
-    mod.widgets.RBX_SYNTAX_WARNING  = #xb08800   // warning decoration
+    mod.widgets.RBX_SYNTAX_TEXT     = mod.widgets.RINX_CODE_FG
+    mod.widgets.RBX_SYNTAX_MUTED    = mod.widgets.RINX_MUTED
+    mod.widgets.RBX_SYNTAX_LITERAL  = mod.widgets.RINX_ACCENT
+    mod.widgets.RBX_SYNTAX_KEYWORD  = mod.widgets.RINX_ACCENT
+    mod.widgets.RBX_SYNTAX_STRING   = mod.widgets.RINX_INK
+    mod.widgets.RBX_SYNTAX_FUNCTION = mod.widgets.RINX_ACCENT
+    mod.widgets.RBX_SYNTAX_TYPE     = mod.widgets.RINX_ACCENT
+    mod.widgets.RBX_SYNTAX_ERROR    = mod.widgets.RINX_DANGER_FG
+    mod.widgets.RBX_SYNTAX_WARNING  = mod.widgets.RINX_WARNING_FG
 
     // =========================================================================
     // 8c. COMPOSER — the room input bar's own neutral ramp (spec §4.8). Kept
@@ -187,8 +187,8 @@ script_mod! {
     // Accent washes: the accent at low alpha, for hover/active tints over dark
     // or image backgrounds (spaces rail). Derived from RBX_ACCENT — keep in
     // step with it.
-    mod.widgets.RBX_ACCENT_WASH_HOVER  = #x0D798824
-    mod.widgets.RBX_ACCENT_WASH_ACTIVE = #x0D79883D
+    mod.widgets.RBX_ACCENT_WASH_HOVER  = (mod.widgets.RINX_ACCENT * vec4(1., 1., 1., 0.14)) // theme-content: alpha multiplier preserves the theme accent.
+    mod.widgets.RBX_ACCENT_WASH_ACTIVE = (mod.widgets.RINX_ACCENT * vec4(1., 1., 1., 0.24)) // theme-content: alpha multiplier preserves the theme accent.
 
     // Pressed overlay wash, one step darker than RBX_HIT_DOWN.
     mod.widgets.RBX_HIT_PRESSED = #x0000001E
@@ -204,8 +204,8 @@ script_mod! {
 
     // Controls that sit on top of media (video player chrome), where the page
     // palette would disappear against the frame behind them.
-    mod.widgets.RBX_MEDIA_CONTROL_BG       = #x111827
-    mod.widgets.RBX_MEDIA_CONTROL_BG_HOVER = #x374151
+    mod.widgets.RBX_MEDIA_CONTROL_BG       = #x111827 // theme-content: fixed overlay over arbitrary media.
+    mod.widgets.RBX_MEDIA_CONTROL_BG_HOVER = #x374151 // theme-content: fixed overlay over arbitrary media.
 
     // Neutral icon grey for indicator glyphs drawn in a shader.
     mod.widgets.RBX_ICON_NEUTRAL = mod.widgets.RINX_MUTED
@@ -220,11 +220,11 @@ script_mod! {
     //    / composer). Blur & offset live in the recipe; the token is the color.
     // =========================================================================
     // Page scrim behind a modal / bottom sheet (navy @ ~50%).
-    mod.widgets.RBX_SCRIM         = #x16233B80
+    mod.widgets.RBX_SCRIM         = #x16233B80 // theme-content: fixed overlay over arbitrary media.
     // Card / dropdown / popup drop-shadow color (~15%).
-    mod.widgets.RBX_SHADOW        = #x16233B26
+    mod.widgets.RBX_SHADOW        = #x16233B26 // theme-content: fixed overlay over arbitrary media.
     // Sheet / modal drop-shadow color (~25%).
-    mod.widgets.RBX_SHADOW_STRONG = #x16233B40
+    mod.widgets.RBX_SHADOW_STRONG = #x16233B40 // theme-content: fixed overlay over arbitrary media.
 
     // =========================================================================
     // 10. FOCUS — keyboard-navigation focus indication (== accent), spec §7.1.
@@ -247,14 +247,14 @@ script_mod! {
     // Tightened scale (squarer look, per design direction): every surface gets
     // smaller corners than the original 6/8/8/16/20.
     // Extra-extra-small: tightest radius, used by Agent Registry cards/sheets.
-    mod.widgets.RBX_RADIUS_XXS  = 4.0
-    mod.widgets.RBX_RADIUS_XS   = 4.0
-    mod.widgets.RBX_RADIUS_SM   = 6.0
+    mod.widgets.RBX_RADIUS_XXS  = theme.corner_radius * 0.67
+    mod.widgets.RBX_RADIUS_XS   = theme.corner_radius * 0.67
+    mod.widgets.RBX_RADIUS_SM   = theme.corner_radius * 1
     // Card / sheet default. Shares SM's value on purpose: small surfaces and
     // cards use one calm, tight radius.
-    mod.widgets.RBX_RADIUS_MD   = 6.0
-    mod.widgets.RBX_RADIUS_LG   = 12.0
-    mod.widgets.RBX_RADIUS_XL   = 16.0
+    mod.widgets.RBX_RADIUS_MD   = theme.corner_radius * 1
+    mod.widgets.RBX_RADIUS_LG   = theme.corner_radius * 2
+    mod.widgets.RBX_RADIUS_XL   = theme.corner_radius * 2.67
     // Fully-rounded (pill) — use on badges / chips.
     mod.widgets.RBX_RADIUS_PILL = 100.0
 
@@ -262,8 +262,8 @@ script_mod! {
     // 12. SPACING — the 4px grid SPACE_XS..SPACE_XXL (4..24) from styles.rs still
     //     applies. These add the two larger section-level steps the new layouts use.
     // =========================================================================
-    mod.widgets.RBX_SPACE_2XL = 32
-    mod.widgets.RBX_SPACE_3XL = 40
+    mod.widgets.RBX_SPACE_2XL = 32 * mod.widgets.RINX_SPACING
+    mod.widgets.RBX_SPACE_3XL = 40 * mod.widgets.RINX_SPACING
 
     // =========================================================================
     // 13. SIZING — control heights, list-row heights, icon & avatar sizes, the
@@ -273,7 +273,7 @@ script_mod! {
     // Control heights (buttons, inputs, segmented tabs).
     mod.widgets.RBX_CONTROL_H_SM = 32.0   // compact button / chip
     mod.widgets.RBX_CONTROL_H_MD = 36.0   // standard button / segmented tab (== SETTINGS_BUTTON_HEIGHT)
-    mod.widgets.RBX_CONTROL_H_LG = 44.0   // large button / text input
+    mod.widgets.RBX_CONTROL_H_LG = mod.widgets.RINX_CONTROL_HEIGHT   // large button / text input
     // List / setting row min heights (touch-first on mobile).
     mod.widgets.RBX_ROW_H_DESKTOP = 48.0
     mod.widgets.RBX_ROW_H_MOBILE  = 52.0
@@ -305,139 +305,23 @@ script_mod! {
     mod.widgets.RBX_FONT_REGULAR = theme.font_regular {}
     mod.widgets.RBX_FONT_BOLD = theme.font_bold {}
 
-    mod.widgets.RBX_TEXT_PAGE_TITLE    = mod.widgets.RBX_FONT_BOLD    { font_size: 17.0, line_spacing: 1.25 }
+    mod.widgets.RBX_TEXT_PAGE_TITLE    = mod.widgets.RBX_FONT_BOLD    { font_size: mod.widgets.RINX_TITLE_SIZE, line_spacing: 1.25 }
     // Section / group title inside a page.
-    mod.widgets.RBX_TEXT_SECTION_TITLE = mod.widgets.RBX_FONT_BOLD    { font_size: 13.0, line_spacing: 1.25 }
+    mod.widgets.RBX_TEXT_SECTION_TITLE = mod.widgets.RBX_FONT_BOLD    { font_size: 13.0 * mod.widgets.RINX_TEXT_SCALE, line_spacing: 1.25 }
     // Card title.
-    mod.widgets.RBX_TEXT_CARD_TITLE    = mod.widgets.RBX_FONT_BOLD    { font_size: 12.0, line_spacing: 1.3 }
+    mod.widgets.RBX_TEXT_CARD_TITLE    = mod.widgets.RBX_FONT_BOLD    { font_size: 12.0 * mod.widgets.RINX_TEXT_SCALE, line_spacing: 1.3 }
     // Default body / list-row title.
-    mod.widgets.RBX_TEXT_BODY          = mod.widgets.RBX_FONT_REGULAR { font_size: 11.0, line_spacing: 1.35 }
+    mod.widgets.RBX_TEXT_BODY          = mod.widgets.RBX_FONT_REGULAR { font_size: mod.widgets.RINX_BODY_SIZE, line_spacing: 1.35 }
     // Emphasized body (selected value, key figure).
-    mod.widgets.RBX_TEXT_BODY_STRONG   = mod.widgets.RBX_FONT_BOLD    { font_size: 11.0, line_spacing: 1.35 }
+    mod.widgets.RBX_TEXT_BODY_STRONG   = mod.widgets.RBX_FONT_BOLD    { font_size: mod.widgets.RINX_BODY_SIZE, line_spacing: 1.35 }
     // Meta / caption / helper text.
-    mod.widgets.RBX_TEXT_META          = mod.widgets.RBX_FONT_REGULAR { font_size: 9.5,  line_spacing: 1.3 }
+    mod.widgets.RBX_TEXT_META          = mod.widgets.RBX_FONT_REGULAR { font_size: mod.widgets.RINX_META_SIZE,  line_spacing: 1.3 }
     // Badge / chip label (single line).
-    mod.widgets.RBX_TEXT_BADGE         = mod.widgets.RBX_FONT_BOLD    { font_size: 9.0 }
+    mod.widgets.RBX_TEXT_BADGE         = mod.widgets.RBX_FONT_BOLD    { font_size: 9.0 * mod.widgets.RINX_TEXT_SCALE }
 }
 
-// =============================================================================
-// Rust-side Vec4 mirror — for programmatic styling (script_apply_eval!, shaders,
-// dynamic widgets). All semantic *colors* are mirrored; add non-color tokens
-// (TextStyle / spacing / radius / sizing) here only if a Rust call site needs them.
-// Values are straight sRGB/255 (matching styles.rs); 8-digit hex carries alpha.
-// =============================================================================
-
-// --- Surfaces ---
-/// #F7F9FC — page canvas.
-pub const RBX_BG_CANVAS:         Vec4 = vec4(0.969, 0.976, 0.988, 1.0);
-/// #FFFFFF — surface.
-pub const RBX_BG_SURFACE:        Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
-/// #F4F7FB — subtle surface.
-pub const RBX_BG_SURFACE_SUBTLE: Vec4 = vec4(0.957, 0.969, 0.984, 1.0);
-/// #EEF2F8 — sunken surface.
-pub const RBX_BG_SUNKEN:         Vec4 = vec4(0.933, 0.949, 0.973, 1.0);
-/// #EFF4FB — hover wash.
-pub const RBX_BG_HOVER:          Vec4 = vec4(0.937, 0.957, 0.984, 1.0);
-/// #E4F5F7 — selected row.
-pub const RBX_BG_SELECTED:       Vec4 = vec4(0.894, 0.961, 0.969, 1.0);
-/// #E7ECF3 — pressed surface.
-pub const RBX_BG_PRESSED:        Vec4 = vec4(0.906, 0.925, 0.953, 1.0);
-/// #F0F2F6 — disabled surface.
-pub const RBX_BG_DISABLED:       Vec4 = vec4(0.941, 0.949, 0.965, 1.0);
-
-// --- Foreground ---
-/// #16233B — primary text.
-pub const RBX_FG_PRIMARY:        Vec4 = vec4(0.086, 0.137, 0.231, 1.0);
-/// #5A6B86 — secondary text.
-pub const RBX_FG_SECONDARY:      Vec4 = vec4(0.353, 0.420, 0.525, 1.0);
-/// #687283 — tertiary text (darkened for WCAG AA on light surfaces).
-pub const RBX_FG_TERTIARY:       Vec4 = vec4(0.408, 0.447, 0.514, 1.0);
-/// #FFFFFF — on-accent foreground.
-pub const RBX_FG_ON_ACCENT:      Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
-/// #AEB7C6 — disabled text.
-pub const RBX_FG_DISABLED:       Vec4 = vec4(0.682, 0.718, 0.776, 1.0);
-
-// --- Accent ---
-/// #0D7988 — primary teal accent (deepened so white 11px labels clear AA).
-pub const RBX_ACCENT:            Vec4 = vec4(0.051, 0.475, 0.533, 1.0);
-/// #0A6675 — accent hover.
-pub const RBX_ACCENT_HOVER:      Vec4 = vec4(0.039, 0.400, 0.459, 1.0);
-/// #085460 — accent pressed.
-pub const RBX_ACCENT_PRESSED:    Vec4 = vec4(0.031, 0.329, 0.376, 1.0);
-/// #E4F5F7 — soft accent tint.
-pub const RBX_ACCENT_SOFT:       Vec4 = vec4(0.894, 0.961, 0.969, 1.0);
-/// #167CB9 — link.
-pub const RBX_LINK:              Vec4 = vec4(0.086, 0.486, 0.725, 1.0);
-/// #136DA3 — hovered link (same hue as `RBX_LINK`, darkened).
-pub const RBX_LINK_HOVER:        Vec4 = vec4(0.075, 0.427, 0.639, 1.0);
-
-// --- Brand ---
-/// #572DCC — brand purple.
-pub const RBX_BRAND_PURPLE:      Vec4 = vec4(0.341, 0.176, 0.800, 1.0);
-/// #05CDC7 — brand cyan.
-pub const RBX_BRAND_CYAN:        Vec4 = vec4(0.020, 0.804, 0.780, 1.0);
-/// #2D7CFF — brand blue.
-pub const RBX_BRAND_BLUE:        Vec4 = vec4(0.176, 0.486, 1.0, 1.0);
-/// #14B8A6 — room/space identity teal.
-pub const RBX_IDENTITY_TEAL:     Vec4 = vec4(0.078, 0.722, 0.651, 1.0);
-/// #0F88FE — DEPRECATED legacy blue. Use RBX_ACCENT for new work.
-pub const RBX_LEGACY_BLUE:       Vec4 = vec4(0.059, 0.533, 0.996, 1.0);
-
-// --- Strokes ---
-/// #E6EBF2 — soft stroke.
-pub const RBX_STROKE_SOFT:       Vec4 = vec4(0.902, 0.922, 0.949, 1.0);
-/// #D5DEEA — strong stroke.
-pub const RBX_STROKE_STRONG:     Vec4 = vec4(0.835, 0.871, 0.918, 1.0);
-
-// --- Semantic states ---
-/// #197F45 — success fg.
-pub const RBX_SUCCESS_FG:        Vec4 = vec4(0.098, 0.498, 0.271, 1.0);
-/// #E8F6EE — success bg.
-pub const RBX_SUCCESS_BG:        Vec4 = vec4(0.910, 0.965, 0.933, 1.0);
-/// #9C6009 — warning fg.
-pub const RBX_WARNING_FG:        Vec4 = vec4(0.612, 0.376, 0.035, 1.0);
-/// #FBF1DD — warning bg.
-pub const RBX_WARNING_BG:        Vec4 = vec4(0.984, 0.945, 0.867, 1.0);
-/// #B93429 — danger fg.
-pub const RBX_DANGER_FG:         Vec4 = vec4(0.725, 0.204, 0.161, 1.0);
-/// #FBE9E7 — danger bg.
-pub const RBX_DANGER_BG:         Vec4 = vec4(0.984, 0.914, 0.906, 1.0);
-/// #1C67B0 — info fg.
-pub const RBX_INFO_FG:           Vec4 = vec4(0.110, 0.404, 0.690, 1.0);
-/// #E7F0FB — info bg.
-pub const RBX_INFO_BG:           Vec4 = vec4(0.906, 0.941, 0.984, 1.0);
-/// #5A6B86 — neutral fg (== secondary).
-pub const RBX_NEUTRAL_FG:        Vec4 = vec4(0.353, 0.420, 0.525, 1.0);
-/// #EEF1F6 — neutral bg.
-pub const RBX_NEUTRAL_BG:        Vec4 = vec4(0.933, 0.945, 0.965, 1.0);
-
-// --- Dark surfaces ---
-/// #1A2336 — dark nav rail background.
-pub const RBX_NAV_BG:            Vec4 = vec4(0.102, 0.137, 0.212, 1.0);
-/// #AEBAD0 — nav item idle fg.
-pub const RBX_NAV_FG:            Vec4 = vec4(0.682, 0.729, 0.816, 1.0);
-/// #FFFFFF — nav item active fg.
-pub const RBX_NAV_FG_ACTIVE:     Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
-/// #2A3650 — nav item active bg.
-pub const RBX_NAV_ITEM_ACTIVE_BG: Vec4 = vec4(0.165, 0.212, 0.314, 1.0);
-/// #0E1626 — mobile login background.
-pub const RBX_LOGIN_BG:          Vec4 = vec4(0.055, 0.086, 0.149, 1.0);
-/// #16213A — mobile login surface.
-pub const RBX_LOGIN_SURFACE:     Vec4 = vec4(0.086, 0.129, 0.227, 1.0);
-
-// --- Code panel ---
-/// #1B2433 — dark code panel background.
-pub const RBX_CODE_BG:           Vec4 = vec4(0.106, 0.141, 0.200, 1.0);
-/// #D7DEE8 — code text.
-pub const RBX_CODE_FG:           Vec4 = vec4(0.843, 0.871, 0.910, 1.0);
-
-// --- Elevation / focus ---
-/// #16233B @ 50% — modal/sheet scrim.
-pub const RBX_SCRIM:             Vec4 = vec4(0.086, 0.137, 0.231, 0.5);
-/// #16233B @ 15% — drop-shadow color.
-pub const RBX_SHADOW:            Vec4 = vec4(0.086, 0.137, 0.231, 0.15);
-/// #0D7988 — focus ring (== accent).
-pub const RBX_FOCUS_RING:        Vec4 = vec4(0.051, 0.475, 0.533, 1.0);
+// Brand identity is content. Interface colors use per-instance theme snapshots.
+pub const RBX_IDENTITY_TEAL: Vec4 = vec4(0.078, 0.722, 0.651, 1.0); // theme-content: stable brand or avatar identity.
 
 // =============================================================================
 // Contrast guard

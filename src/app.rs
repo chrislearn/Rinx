@@ -33,6 +33,7 @@ use crate::shared::web_browser_window::WebBrowserWindowHostWidgetRefExt;
 use crate::agent_chat::ops::ui::{AgentOpsAction, AgentOpsPanelWidgetRefExt};
 use crate::moments::ui::{MomentsAction, MomentsPanelWidgetRefExt};
 use crate::octoscript_apps::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
+use crate::settings::theme_studio::{ThemeStudioAction, ThemeStudioWidgetRefExt};
 use crate::article_app::{ArticleAction, ArticlePanelWidgetRefExt};
 use crate::mini_app::{MiniAppAction, MiniAppPanelWidgetRefExt};
 use crate::forwarding::{ForwardAction, ForwardPanelWidgetRefExt};
@@ -69,6 +70,7 @@ mod embedded_content {
                 image_viewer_modal := Modal {
                     content := ImageViewer {}
                 }
+                theme_studio_modal := Modal {can_dismiss: false content := ThemeStudio {}}
                 web_browser_modal := Modal {can_dismiss: false content := WebBrowser {}}
                 
                 // The popup that lets the user select users to mention, rooms to link,
@@ -190,10 +192,10 @@ script_mod! {
                 window.title: "Rinx"
                 pass.clear_color: #FFFFFF00
                 caption_bar +: {
-                    draw_bg.color: #F3F3F3
+                    draw_bg.color: mod.widgets.RINX_PAGE
                     caption_label +: {
                         label +: {
-                            draw_text +: { color: #0 }
+                            draw_text +: { color: mod.widgets.RINX_INK }
                             text: "Rinx"
                         }
                     }
@@ -337,6 +339,13 @@ impl MatchEvent for App {
         }
 
         for action in actions {
+            if let Some(action) = action.downcast_ref::<ThemeStudioAction>() {
+                let modal = self.ui.modal(cx, ids!(theme_studio_modal));
+                self.ui
+                    .theme_studio(cx, ids!(theme_studio_modal.content))
+                    .action(cx, modal, action);
+                continue;
+            }
             if let Some(action) = action.downcast_ref::<WebBrowserAction>() {
                 if !action.allowed() { continue; }
                 let modal = self.ui.modal(cx, ids!(web_browser_modal));
@@ -1063,11 +1072,22 @@ impl AppMain for App {
     }
 
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        crate::theme::system::handle_event(cx, event);
         // Peek at Back instead of `back_pressed()`, which marks it handled: Back
         // is taken only when it closes one of these modals. Otherwise it goes on
         // to Rinx's views and, at the root of Rinx's navigation, to the host
         // (OctoSense leaves the app; Android backgrounds it).
         let back_unhandled = matches!(event, Event::BackPressed { handled } if !handled.get());
+        if (back_unhandled || matches!(event, Event::KeyDown(k) if k.key_code == KeyCode::Escape))
+            && self.ui.modal(cx, ids!(theme_studio_modal)).is_open()
+        {
+            event.back_pressed();
+            let modal = self.ui.modal(cx, ids!(theme_studio_modal));
+            self.ui
+                .theme_studio(cx, ids!(theme_studio_modal.content))
+                .action(cx, modal, &ThemeStudioAction::Close);
+            return;
+        }
         if back_unhandled || matches!(event, Event::KeyDown(k) if k.key_code == KeyCode::Escape) {
             // Let a nested destructive-action confirmation consume Back first.
             if !self.ui.modal(cx, ids!(delete_confirmation_modal)).is_open() && !self.ui.modal(cx, ids!(positive_confirmation_modal)).is_open() {
@@ -1119,6 +1139,7 @@ impl AppMain for App {
         crate::agent_access::publish(current_user_id(), &self.app_state.agent_access);
         let scope = &mut Scope::with_data(&mut self.app_state);
         self.ui.handle_event(cx, event, scope);
+        crate::theme::packages::after_event(cx, event);
         if matches!(event, Event::LiveEdit) {
             crate::i18n::refresh_ui(cx, &self.ui);
         }
@@ -1262,7 +1283,16 @@ impl App {
     /// wrapper alone cannot reach the app's new widget prototypes.
     pub fn reapply_embedded(&mut self, vm: &mut ScriptVm) {
         let value = script_eval!(vm, {mod.widgets.RinxContent {}});
-        self.ui.script_apply(vm, &Apply::ScriptReapply, &mut Scope::empty(), value);
+        self.ui
+            .script_apply(vm, &Apply::ScriptReapply, &mut Scope::empty(), value);
+        for (kind, panel) in &mut self.hosted_windows {
+            let value = match kind {
+                HostedWindow::Moments => script_eval!(vm, {mod.widgets.MomentsPanel {}}),
+                HostedWindow::Article => script_eval!(vm, {mod.widgets.ArticlePanel {}}),
+                HostedWindow::WebBrowser => script_eval!(vm, {mod.widgets.WebBrowser {}}),
+            };
+            panel.script_apply(vm, &Apply::ScriptReapply, &mut Scope::empty(), value);
+        }
         self.on_after_reload(vm);
     }
 

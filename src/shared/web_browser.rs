@@ -63,33 +63,33 @@ script_mod! {
 
     mod.widgets.WebBrowserIconButton = NavigationBarButton {
         width: 36 height: 36 padding: 8
-        draw_bg +: {color_hover: #xe8edef color_active: #xdce3e6 border_radius: 6}
-        icon := Icon {width: 20 height: 20 draw_icon.color: #x39444c}
+        draw_bg +: {color_hover: mod.widgets.RINX_FIELD color_active: mod.widgets.RINX_PRESSED border_radius: 6}
+        icon := Icon {width: 20 height: 20 draw_icon.color: mod.widgets.RINX_INK}
     }
 
     mod.widgets.WebBrowser = #(WebBrowser::register_widget(vm)) {
         ..mod.widgets.SolidView
         width: Fill height: Fill flow: Down
-        draw_bg.color: #xffffff
+        draw_bg.color: mod.widgets.RINX_SURFACE
         padding: Inset{top: mod.widgets.SAFE_INSET_PAD_TOP + #(CAPTION_PADDING) bottom: mod.widgets.SAFE_INSET_PAD_BOTTOM}
         web_tabs := TabBar {
             height: 40
-            draw_bg +: {color: #xe8edef color_dither: 0 border_size: 0}
-            draw_fill +: {color: #xe8edef color_2: vec4(-1, -1, -1, -1) border_size: 0}
+            draw_bg +: {color: mod.widgets.RINX_FIELD color_dither: 0 border_size: 0}
+            draw_fill +: {color: mod.widgets.RINX_FIELD color_2: vec4(-1, -1, -1, -1) border_size: 0}
             CloseableTab := Tab {
                 closeable: true height: 40 margin: 0
                 padding: Inset{left: 10 right: 14 top: 0 bottom: 0}
                 draw_text +: {
-                    color: #x606b72 color_active: #x191919 color_hover: #x191919
-                    text_style: theme.font_regular {font_size: 11}
+                    color: mod.widgets.RINX_MUTED color_active: mod.widgets.RINX_INK color_hover: mod.widgets.RINX_INK
+                    text_style: theme.font_regular {font_size: (11 * mod.widgets.RINX_TEXT_SCALE)}
                 }
                 draw_bg +: {
-                    color: #xe8edef color_hover: #xf3f5f6 color_active: #xffffff
+                    color: mod.widgets.RINX_FIELD color_hover: mod.widgets.RINX_HOVER color_active: mod.widgets.RINX_SURFACE
                     color_2: vec4(-1, -1, -1, -1) border_size: 0 color_dither: 0
                 }
                 close_button +: {
                     width: 18 height: 18 margin: Inset{right: 8 left: 0}
-                    draw_button +: {color: #x606b72 color_hover: #x191919}
+                    draw_button +: {color: mod.widgets.RINX_MUTED color_hover: mod.widgets.RINX_INK}
                 }
             }
         }
@@ -103,32 +103,32 @@ script_mod! {
                 width: Fill height: Fit flow: Down spacing: 3 padding: Inset{left: 8 right: 8}
                 web_title := Label {
                     width: Fill max_lines: 1 text_overflow: Ellipsis padding: 0
-                    draw_text +: {color: #x191919 text_style: theme.font_bold {font_size: 13}}
+                    draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold {font_size: (13 * mod.widgets.RINX_TEXT_SCALE)}}
                 }
                 web_address := Label {
                     width: Fill height: Fit padding: 0 max_lines: 1 text_overflow: Ellipsis
-                    draw_text +: {color: #x777777 text_style: theme.font_regular {font_size: 10}}
+                    draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular {font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}
                 }
             }
             web_external := mod.widgets.WebBrowserIconButton {icon.draw_icon.svg: (ICON_EXTERNAL_LINK)}
         }
-        SolidView {width: Fill height: 1 draw_bg.color: #xe8e8e8}
+        SolidView {width: Fill height: 1 draw_bg.color: mod.widgets.RINX_BORDER}
         web_surface := SolidView {
-            width: Fill height: Fill flow: Overlay draw_bg.color: #xffffff
+            width: Fill height: Fill flow: Overlay draw_bg.color: mod.widgets.RINX_SURFACE
             native_page := View {width: Fill height: Fill}
             web_status := Label {
                 visible: false width: Fill height: Fit margin: 24 flow: Flow.Right{wrap: true}
-                draw_text.color: #x777777
+                draw_text.color: mod.widgets.RINX_MUTED
             }
         }
         web_tooltip := Tooltip {
             abs_pos: vec2(0, 0)
-            content +: {padding: 7 tooltip_label +: {width: Fit draw_text.text_style.font_size: 10}}
+            content +: {padding: 7 tooltip_label +: {width: Fit draw_text.text_style.font_size: (10 * mod.widgets.RINX_TEXT_SCALE)}}
         }
     }
 }
 
-#[derive(Script, ScriptHook, Widget)]
+#[derive(Script, Widget)]
 pub struct WebBrowser {
     #[deref]
     view: View,
@@ -140,6 +140,28 @@ pub struct WebBrowser {
     session_account: Option<OwnedUserId>,
     #[rust]
     preserve_session: bool,
+    #[rust]
+    restore_after_theme: bool,
+}
+
+impl ScriptHook for WebBrowser {
+    fn on_after_apply(
+        &mut self,
+        vm: &mut ScriptVm,
+        apply: &Apply,
+        scope: &mut Scope,
+        _value: ScriptValue,
+    ) {
+        if apply.is_script_reapply() {
+            for tab in &mut self.tabs {
+                if let Some(panel) = &mut tab.article {
+                    let value = script_eval!(vm, { mod.widgets.ArticlePanel {padding: 0 tabbed_reader: true} });
+                    panel.script_apply(vm, apply, scope, value);
+                }
+            }
+            self.restore_after_theme = true;
+        }
+    }
 }
 
 struct WebTab {
@@ -511,6 +533,10 @@ impl WebBrowser {
 
 impl Widget for WebBrowser {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, scope: &mut Scope) {
+        if std::mem::take(&mut self.restore_after_theme) {
+            self.attach_document(cx);
+            self.update_header(cx);
+        }
         if matches!(event, Event::QuitRequested(_) | Event::Shutdown) {
             self.prepare_shutdown();
         }

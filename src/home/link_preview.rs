@@ -47,10 +47,7 @@ script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
 
-    mod.widgets.LINK_PREVIEW_MESSAGE_TEXT_STYLE = theme.font_regular {
-        font_size: (16),
-        line_spacing: (1.2),
-    }
+    mod.widgets.LINK_PREVIEW_MESSAGE_TEXT_STYLE = RBX_TEXT_BODY {}
 
     mod.widgets.LinkPreview = #(LinkPreview::register_widget(vm)) {
         width: Fill{max: 440}, height: Fit,
@@ -73,25 +70,25 @@ script_mod! {
                 padding: Inset{top: 4, bottom: 4, left: 8, right: 8},
                 draw_icon +: {
                     svg: (ICON_TRIANGLE_DOWN)
-                    color: #666666
+                    color: mod.widgets.RINX_MUTED
                 }
                 icon_walk: Walk{width: 10, height: 10}
                 draw_text +: {
                     text_style: mod.widgets.LINK_PREVIEW_MESSAGE_TEXT_STYLE {
-                        font_size: 10.0,
+                        font_size: (10.0 * mod.widgets.RINX_TEXT_SCALE),
                     },
-                    color: #666666,
-                    color_hover: #666666,
-                    color_down: #666666,
+                    color: mod.widgets.RINX_MUTED,
+                    color_hover: mod.widgets.RINX_MUTED,
+                    color_down: mod.widgets.RINX_MUTED,
                 }
                 draw_bg +: {
                     color: (COLOR_BG_PREVIEW)
                     color_hover: (COLOR_BG_PREVIEW_HOVER)
-                    color_down: #A8DBBF
+                    color_down: mod.widgets.RINX_PRESSED
                     border_size: 1.0
-                    border_color: #CCCCCC
-                    border_color_hover: #CCCCCC
-                    border_color_down: #CCCCCC
+                    border_color: mod.widgets.RINX_BORDER
+                    border_color_hover: mod.widgets.RINX_BORDER
+                    border_color_down: mod.widgets.RINX_BORDER
                     border_radius: 4.0
                 }
                 text: #(crate::i18n::tr("Show more links")) i18n_text: "Show more links"
@@ -104,25 +101,25 @@ script_mod! {
                 padding: Inset{top: 4, bottom: 4, left: 8, right: 8},
                 draw_icon +: {
                     svg: (ICON_TRIANGLE_UP)
-                    color: #666666
+                    color: mod.widgets.RINX_MUTED
                 }
                 icon_walk: Walk{width: 10, height: 10}
                 draw_text +: {
                     text_style: mod.widgets.LINK_PREVIEW_MESSAGE_TEXT_STYLE {
-                        font_size: 10.0,
+                        font_size: (10.0 * mod.widgets.RINX_TEXT_SCALE),
                     },
-                    color: #666666,
-                    color_hover: #666666,
-                    color_down: #666666,
+                    color: mod.widgets.RINX_MUTED,
+                    color_hover: mod.widgets.RINX_MUTED,
+                    color_down: mod.widgets.RINX_MUTED,
                 }
                 draw_bg +: {
                     color: (COLOR_BG_PREVIEW)
                     color_hover: (COLOR_BG_PREVIEW_HOVER)
-                    color_down: #A8DBBF
+                    color_down: mod.widgets.RINX_PRESSED
                     border_size: 1.0
-                    border_color: #CCCCCC
-                    border_color_hover: #CCCCCC
-                    border_color_down: #CCCCCC
+                    border_color: mod.widgets.RINX_BORDER
+                    border_color_hover: mod.widgets.RINX_BORDER
+                    border_color_down: mod.widgets.RINX_BORDER
                     border_radius: 4.0
                 }
                 text: #(crate::i18n::tr("Show fewer links")) i18n_text: "Show fewer links"
@@ -136,8 +133,8 @@ script_mod! {
             padding: 12
             show_bg: true
             draw_bg +: {
-                color: #xffffff
-                border_color: #xe3e6e8
+                color: mod.widgets.RINX_SURFACE
+                border_color: mod.widgets.RINX_BORDER
                 border_size: 1.0
                 border_radius: 8.0
             }
@@ -151,8 +148,8 @@ script_mod! {
                             width: Fill height: Fit padding: 0
                             flow: Flow.Right{wrap: true} max_lines: 2 text_overflow: Ellipsis
                             draw_text +: {
-                                text_style: theme.font_bold {font_size: 14}
-                                color: #x202428
+                                text_style: RBX_TEXT_BODY_STRONG {}
+                                color: mod.widgets.RINX_INK
                             }
                         }
                     }
@@ -160,8 +157,8 @@ script_mod! {
                         width: Fill height: Fit padding: 0
                         flow: Flow.Right{wrap: true} max_lines: 3 text_overflow: Ellipsis
                         draw_text +: {
-                            text_style: theme.font_regular {font_size: 11.5}
-                            color: #x626970
+                            text_style: RBX_TEXT_BODY {}
+                            color: mod.widgets.RINX_MUTED
                         }
                     }
                 }
@@ -178,17 +175,17 @@ script_mod! {
             }
             footer := View {
                 width: Fill height: Fit flow: Down spacing: 8
-                SolidView {width: Fill height: 1 draw_bg.color: #xeeeeee}
+                SolidView {width: Fill height: 1 draw_bg.color: mod.widgets.RINX_BORDER}
                 site_name_label := Label {
                     width: Fill height: Fit padding: 0 max_lines: 1 text_overflow: Ellipsis
-                    draw_text +: {text_style: theme.font_regular {font_size: 10} color: #x7b838b}
+                    draw_text +: {text_style: RBX_TEXT_META {} color: mod.widgets.RINX_MUTED}
                 }
             }
         }
     }
 }
 
-#[derive(Script, ScriptHook, Widget)]
+#[derive(Script, Widget)]
 pub struct LinkPreview {
     #[deref]
     view: View,
@@ -203,6 +200,53 @@ pub struct LinkPreview {
     /// The links that were last populated in this widget, to avoid unnecessary repopulation.
     #[rust]
     last_populated_links: Vec<Url>,
+}
+
+impl ScriptHook for LinkPreview {
+    fn on_after_apply(
+        &mut self,
+        vm: &mut ScriptVm,
+        apply: &Apply,
+        scope: &mut Scope,
+        _value: ScriptValue,
+    ) {
+        if apply.is_script_reapply() {
+            if let Some(template) = self.preview_template {
+                for child in &mut self.children {
+                    let labels: Vec<_> = [
+                        ids!(title_label),
+                        ids!(description_label),
+                        ids!(site_name_label),
+                    ]
+                    .into_iter()
+                    .map(|id| {
+                        (
+                            id,
+                            child.label(vm.cx_mut(), id).text(),
+                            child.label(vm.cx_mut(), id).visible(),
+                        )
+                    })
+                    .collect();
+                    let visible: Vec<_> = [ids!(image_view), ids!(footer)]
+                        .into_iter()
+                        .map(|id| (id, child.view(vm.cx_mut(), id).visible()))
+                        .collect();
+                    child.script_apply(vm, apply, scope, template);
+                    for (id, text, visible) in labels {
+                        let label = child.label(vm.cx_mut(), id);
+                        label.set_text(vm.cx_mut(), &text);
+                        label.set_visible(vm.cx_mut(), visible);
+                    }
+                    for (id, visible) in visible {
+                        child
+                            .view(vm.cx_mut(), id)
+                            .set_visible(vm.cx_mut(), visible);
+                    }
+                }
+            }
+            self.update_button_and_visibility(vm.cx_mut());
+        }
+    }
 }
 
 impl Widget for LinkPreview {
@@ -232,7 +276,7 @@ impl Widget for LinkPreview {
                 Hit::FingerHoverIn(_) | Hit::FingerDown(_) => {
                     let mut view = view.clone();
                     script_apply_eval!(cx, view, {
-                        draw_bg.color: #xf4f7f8
+                        draw_bg.color: mod.widgets.RINX_HOVER
                     });
                 }
                 Hit::FingerHoverOut(_) => {
@@ -392,7 +436,7 @@ fn previewable_links(links: &[Url]) -> Vec<Url> {
 fn reset_hover(cx: &mut Cx, item: &ViewRef) {
     let mut item = item.clone();
     script_apply_eval!(cx, item, {
-        draw_bg.color: #xffffff
+        draw_bg.color: mod.widgets.RINX_SURFACE
     });
 }
 

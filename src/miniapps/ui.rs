@@ -45,7 +45,7 @@ script_mod! {
                     draw_bg +: {color: RINX_SURFACE border_color: RINX_BORDER border_size: 1 border_radius: theme.corner_radius}
                     Icon {width: 28 height: 28 draw_icon +: {svg: ICON_EDIT color: RINX_ACCENT}}
                     copy := View {width: Fill height: Fit flow: Down spacing: 6
-                        name := RinxLabel {width: Fill draw_text.text_style: theme.font_bold{font_size: 13}}
+                        name := RinxLabel {width: Fill draw_text.text_style: theme.font_bold{font_size: (13 * mod.widgets.RINX_TEXT_SCALE)}}
                         RinxHint {width: Fill text: #(crate::i18n::tr("Your article, your style.")) i18n_text: "Your article, your style."}
                     }
                     launch := RinxPrimaryButton {text: #(crate::i18n::tr("Open")) i18n_text: "Open"}

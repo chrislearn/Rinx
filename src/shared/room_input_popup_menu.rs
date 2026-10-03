@@ -19,15 +19,15 @@ script_mod! {
 
         draw_bg +: {
             color: (COLOR_PRIMARY)
-            color_hover: #xE0E8F0
-            color_down: #xD0D8E8
+            color_hover: mod.widgets.RINX_HOVER
+            color_down: mod.widgets.RINX_PRESSED
             border_radius: 4.0
         }
         draw_text +: {
             color: (COLOR_TEXT)
             color_hover: (COLOR_TEXT)
             color_down: (COLOR_TEXT)
-            text_style: REGULAR_TEXT {font_size: 11}
+            text_style: REGULAR_TEXT {font_size: (11 * mod.widgets.RINX_TEXT_SCALE)}
         }
         draw_icon.color: (COLOR_ACTIVE_PRIMARY_DARKER)
         icon_walk: Walk{width: 18, height: 18}
