@@ -205,6 +205,7 @@ Proposed durable records in the existing Palpo service:
 | Runtime command | Stable command ID, exact operation/arguments digest, actor/scope proof, authority revision, fleet generation, expiry and runtime receipt |
 | Inbox entry | Recipient, workflow/revision, next action, read timestamp; recipients/actions derived on the server |
 | Notification outbox | Notification ID, recipient, workflow revision, channel, delivery attempts, next retry and returned Matrix event ID |
+| Reminder schedule | Workflow/action-step revision, recipient, policy, reminder ordinal, next due time, snooze time and cancellation state |
 
 Commit workflow changes, audit and intended notifications atomically using the
 existing store's transaction facility. A worker delivers notifications after
@@ -264,6 +265,63 @@ execution-approval rooms. If full workflow details are sent through encrypted
 notifications later, add a real SDK-backed encrypted bot rather than assuming
 the current Palpo signup worker can encrypt/decrypt them.
 
+## Opening a notification, unfinished actions and reminders
+
+Treat notification visibility, reading and action completion as independent:
+
+| What happened | Notification and workflow result |
+| --- | --- |
+| User taps a phone/desktop alert | Rinx opens the mini-app detail; the OS alert may be dismissed. The Matrix message is not deleted by the tap |
+| User reads the card or detail | Mark it seen/read as appropriate; its pending action and Needs my action entry remain |
+| User closes the mini app without deciding | Persist any supported draft; leave the action pending and its reminder schedule active |
+| Backend accepts a decision | Resolve this human action, cancel its reminders and refresh all relevant clients; runtime work may still be in progress |
+| Process reaches another human step | Create/activate the next action for its correct recipient and start that step's notification schedule |
+
+Show a pending-action count on the mini app separately from Matrix's unread
+count. Reading can clear an unread indicator without removing Needs my action.
+History retains resolved requests. A read receipt or dismissed banner never
+means approved, rejected, configuration imported or agent provisioned.
+
+Yes, an unfinished action should be reminded again. This is Palpo workflow
+behavior we must implement; Matrix delivers the resulting messages and push
+notifications but does not decide whether a business action remains unfinished.
+Run the reminder scheduler on the server, independently of any Rinx instance.
+
+For ordinary contribution/project/allocation requests, propose configurable
+defaults: notify immediately, then remind at 1 hour, 24 hours and 48 hours after
+the action became pending. After three reminders keep the action visible as
+overdue; any escalation goes only to explicitly configured, currently authorized
+recipients. This cadence is a proposal, not existing behavior. Workflow deadlines
+take precedence: expiry stops reminders and follows the defined expiry outcome;
+there is no automatic approval/rejection merely because a reminder was ignored.
+
+Respect quiet hours, notification preferences and an explicit Remind me later
+control. Snooze postpones reminders, not the request deadline or its pending
+status. Opening the screen does not reset the reminder clock. Coalesce overdue
+reminders after downtime instead of sending every missed reminder at once.
+
+Before enqueue and again before delivery, check that the same action revision is
+still pending, the recipient still needs to act and has permission, and the item
+is not expired, cancelled or snoozed. One administrator's accepted decision stops
+that action's reminders for all approvers. A notification already in flight may
+arrive after completion; opening it fetches the completed result with no active
+decision button. Server-side revision checks and idempotent decisions prevent
+duplicate approvals, even when two clients submit concurrently.
+
+Each scheduled reminder has a new notification ID, with an optional Matrix reply
+relation to the original card, so it can produce a fresh alert. Retries of that
+same reminder reuse its delivery identity; they do not create another scheduled
+reminder or workflow. Count a reminder once when Matrix accepts delivery, not on
+every failed attempt, and never equate that acceptance with the person seeing it.
+User/device settings can still suppress the OS alert; Inbox remains authoritative.
+
+Reminder wording follows the actual remaining action. For example, after JSON
+export, “Finish importing and verifying your Hagency connection” replaces
+“Download configuration.” Once an approval is accepted and Hagency is executing,
+show progress/failure updates rather than reminding the administrator to approve
+again. Persist reminder policy, due time and uniqueness keys so a worker restart
+does not reset counters or send duplicate scheduled reminders.
+
 ## Host services and API responsibilities
 
 These are proposed service groups, not existing endpoint names:
@@ -313,6 +371,9 @@ plus an unauthorized member. Cover:
   rejected edits and permission expiry during owner setup.
 - Mini app closed when notification arrives, missed notification recovered from
   Inbox, two devices, account switch, deep-link forgery and revoked grants.
+- Tap/read without deciding, reminders at configured times, snooze/quiet hours,
+  no reminder after another approver decides, expiry and in-flight late delivery;
+  restart recovery sends one reminder and never repeats an accepted decision.
 - Actual Makepad input/draw instrumentation for the script pages, shared themes,
   form drafts and file-export action; Android/OpenHarmony device notification,
   touch, Back, file picker and background/resume evidence before platform claims.
