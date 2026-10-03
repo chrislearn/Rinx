@@ -2,7 +2,8 @@
 
 - Date: 2026-10-03
 - Status: Implementation in progress. Shared-login frontend and durable Inbox
-  have local native validation; complete lifecycle and deployment acceptance
+  have local native validation; administrator/owner contribution approval and
+  Matrix notices also pass against live Palpo. Complete lifecycle and deployment acceptance
   remain open. See the [implementation checkpoint](../design/palpo-miniapp-implementation.md).
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),

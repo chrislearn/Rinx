@@ -177,9 +177,6 @@ impl PalpoHost {
                 "Palpo redirects are refused; configure the same-origin mini-app route".into(),
             );
         }
-        if matches!(status.as_u16(), 404 | 405 | 501) {
-            return Err("This server needs the Palpo mini-app adapter. Ask its operator to enable /_palpo/miniapp/v1 on this homeserver.".into());
-        }
         if response
             .content_length()
             .is_some_and(|n| n > MAX_WIRE_BYTES as u64)
@@ -197,31 +194,46 @@ impl PalpoHost {
             }
             bytes.extend_from_slice(&chunk);
         }
-        let value: Value =
-            serde_json::from_slice(&bytes).map_err(|_| "Palpo returned an invalid response")?;
-        if !status.is_success() {
-            // Backend errors are public messages, but never echo arbitrary server
-            // data (which could include a proxy's request headers/credentials).
-            let code = value["code"]
-                .as_str()
-                .filter(|s| {
-                    s.len() <= 80 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
-                })
-                .unwrap_or("operation_failed");
-            return Err(format!(
-                "{code}: {}. Refresh to see the current result.",
-                match status.as_u16() {
-                    401 => "Your app session expired; retry to reconnect",
-                    403 => "Your account is not authorized for this operation",
-                    409 => "The action or its prerequisites changed",
-                    429 => "Too many requests; try again later",
-                    400 => "Review the form fields",
-                    _ => "Palpo could not complete this operation",
-                }
-            ));
-        }
-        Ok(value)
+        decode_response(status, &bytes)
     }
+}
+
+fn decode_response(status: reqwest::StatusCode, bytes: &[u8]) -> Result<Value, String> {
+    let value = serde_json::from_slice::<Value>(bytes);
+    let code = value
+        .as_ref()
+        .ok()
+        .and_then(|v| v["code"].as_str())
+        .filter(|s| {
+            !s.is_empty()
+                && s.len() <= 80
+                && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        });
+    // Existing adapters also return 404 for inaccessible objects and 501 for
+    // unconfigured features. Preserve those application errors; only an
+    // unrecognized route response means the adapter itself is missing.
+    if matches!(status.as_u16(), 404 | 405 | 501) && code.is_none() {
+        return Err("This server needs the Palpo mini-app adapter. Ask its operator to enable /_palpo/miniapp/v1 on this homeserver.".into());
+    }
+    if !status.is_success() {
+        // Backend errors are public messages, but never echo arbitrary server
+        // data (which could include a proxy's request headers/credentials).
+        let code = code.unwrap_or("operation_failed");
+        return Err(format!(
+            "{code}: {}. Refresh to see the current result.",
+            match status.as_u16() {
+                401 => "Your app session expired; retry to reconnect",
+                403 => "Your account is not authorized for this operation",
+                404 => "This item is unavailable to your account",
+                409 => "The action or its prerequisites changed",
+                429 => "Too many requests; try again later",
+                400 => "Review the form fields",
+                501 => "This operation is not enabled on the server",
+                _ => "Palpo could not complete this operation",
+            }
+        ));
+    }
+    value.map_err(|_| "Palpo returned an invalid response".into())
 }
 
 fn endpoint(mut url: Url) -> Result<Url, String> {
@@ -262,6 +274,41 @@ pub async fn request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn inaccessible_configuration_does_not_report_a_missing_adapter() {
+        let error = decode_response(
+            reqwest::StatusCode::NOT_FOUND,
+            br#"{"code":"not_found","message":"private configuration details"}"#,
+        )
+        .unwrap_err();
+        assert!(error.starts_with("not_found: This item is unavailable"));
+        assert!(!error.contains("adapter"));
+        assert!(!error.contains("private configuration"));
+        let error = decode_response(
+            reqwest::StatusCode::NOT_IMPLEMENTED,
+            br#"{"code":"outbound_unconfigured"}"#,
+        )
+        .unwrap_err();
+        assert!(error.starts_with("outbound_unconfigured: This operation is not enabled"));
+    }
+    #[test]
+    fn absent_route_and_proxy_errors_have_safe_diagnostics() {
+        for body in [
+            b"<html>proxy debug headers</html>".as_slice(),
+            br#"{"errcode":"M_UNRECOGNIZED"}"#,
+        ] {
+            let error = decode_response(reqwest::StatusCode::NOT_FOUND, body).unwrap_err();
+            assert!(error.contains("enable /_palpo/miniapp/v1"));
+            assert!(!error.contains("debug headers"));
+        }
+        let error = decode_response(
+            reqwest::StatusCode::BAD_GATEWAY,
+            b"Authorization: Bearer private-token",
+        )
+        .unwrap_err();
+        assert!(!error.contains("private-token"));
+        assert!(decode_response(reqwest::StatusCode::OK, b"not-json").is_err());
+    }
     #[test]
     fn endpoint_is_the_authenticated_origin_only() {
         assert_eq!(

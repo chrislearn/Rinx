@@ -59,8 +59,9 @@ specific native run; this document is not a mobile or live-server acceptance cla
 
 This is **not the complete ADR**. Existing-operation parity still needs signup
 decision navigation, real native configuration saving/import and full account-
-switch/revocation integration. Current signup UI lists requests only. The live
-two-account administrator/owner Palpo/Hagency flow and real push-notification entry are untested.
+switch/revocation integration. Current signup UI lists requests only. Live
+administrator/owner contribution approval and Matrix-room notices now pass;
+the Hagency connection/lifecycle and OS push-notification entry remain untested.
 My Actions currently uses private Matrix notices and links; the Glance-style
 board, pinning, quiet hours and direct OS-notification mini-app routing remain.
 
@@ -124,8 +125,56 @@ The sidecar was stopped after the test. The same updated native binary also
 passed the original fixture administrator/owner scenario in run
 `f324de6560f44d3a933a4edcd71a7f98`.
 
-This is live **member** integration evidence. The public mini-app route still
-returns 404. The saved server-side administrator/bot credentials found during
-deployment inspection belong to the older test server and return M_UNKNOWN_TOKEN;
-the active Rinx account is a member. Live privileged approvals, owner export/import,
-real notification delivery and Hagency lifecycle acceptance remain outstanding.
+This member run did not cover privileged approvals. The saved server-side
+administrator/bot credentials found during deployment inspection belonged to an
+older test server and returned M_UNKNOWN_TOKEN. The subsequent operator test
+below resolves the validation credential problem without changing existing users.
+
+## Live administrator/owner validation on mini1 (2026-10-03)
+
+`tools/wechat-ux/live/live_palpo_admin.py` provisions temporary admin, owner and
+notification-bot identities through Palpo's supported no-server operator CLI.
+It overrides auto-join rooms for that one-shot process and does not restart the
+running homeserver or reset existing users. Credentials stay in private files
+and native memory. The production workflow database and public routing stay
+unchanged; the sidecar uses an isolated SQLite store and SSH port forwarding.
+
+```sh
+python3 tools/wechat-ux/live/live_palpo_admin.py \
+  --palpo /path/to/palpo-rinx-miniapp \
+  --binary /path/to/target/fast/examples/palpo_miniapp
+```
+
+The live native scenario verifies:
+
+- Real admin/member role checks and refusal of owner self-approval.
+- Native contribution submission, administrator approval, actual Matrix App
+  Service registration and the owner's configuration handoff screen.
+- Export authorization: only the owner receives configuration; even an unrelated
+  server administrator gets 404. No credentials enter notification cards.
+- Private My Actions rooms receive minimal Matrix notices. Marking a notice
+  seen leaves the action pending and a later reminder arrives. Only the test
+  runner uses accelerated reminder intervals.
+- A stale decision returns 409, while an old action reference reads the latest
+  approved state. Native rejection returns to owner history.
+- Disconnecting the mini app leaves its underlying Matrix login valid.
+
+Run `admin-144a5d328f504fce9046289f033f9f7f` passed all five report checks and
+cleanup with the corrected error handling. The native binary SHA-256 was
+`965245bde972eaa0e8b89694dce1c24b9ff00424ed20964bdf3a139e09c4a124`.
+Admin review, owner handoff and rejection-history screenshots were inspected.
+The native logs contain no script/render errors. Cleanup removed the test App
+Service, left/forgot the fixture rooms, deactivated and locked test users, removed
+their devices and confirmed all test tokens returned 401. Historical room events
+remain on Matrix; cleanup does not claim to erase that history. Both public
+Matrix and admin-web health checks returned 200 afterwards.
+
+The test exposed a misleading native error: a valid adapter's object-level 404
+was reported as a missing adapter. Rinx now distinguishes typed operation errors
+from missing routes while keeping upstream message/header text out of diagnostics.
+All four Rinx Palpo adapter tests and all eight Palpo mini-app backend tests pass.
+The companion live-server runner and documentation are in Palpo commit `9d640bb`.
+
+Public mini-app routing is still undeployed. Native save-dialog completion,
+Hagency import/connection, live project/agent lifecycle and OS push entry are
+separate outstanding gates; these results do not claim full ADR completion.
