@@ -1,8 +1,9 @@
 # ADR 0010: Palpo and agent administration through Rinx OctoScript mini apps
 
 - Date: 2026-10-03
-- Status: Proposed; revised for frontend replacement and shared login. Source mapping complete;
-  implementation and end-to-end validation remain open.
+- Status: Implementation in progress. Shared-login frontend and durable Inbox
+  have local native validation; complete lifecycle and deployment acceptance
+  remain open. See the [implementation checkpoint](../design/palpo-miniapp-implementation.md).
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),
   [ADR 0008](0008-rinx-system-app-catalog.md), and
@@ -420,7 +421,8 @@ text scaling. Capture widget bounds, screenshots, focus/selection and service-ca
 counts. Standalone Rinx and hosted OctoSense need separate integration evidence;
 Android/OpenHarmony require actual device build, touch/Back/keyboard/background
 checks. Desktop fixture success cannot substitute for those gates. No such
-implementation or device tests were run for this documentation revision.
+device acceptance is claimed. Local implementation tests are recorded in the
+[implementation checkpoint](../design/palpo-miniapp-implementation.md).
 
 ## Additional homeserver administration
 

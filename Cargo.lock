@@ -2207,7 +2207,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.3",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -8240,9 +8240,7 @@ dependencies = [
 
 [[package]]
 name = "octosense-app-contract"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6df5ab53906a90e05be4e32693728539486f404bd8639d2782534338631200bf"
+version = "1.2.0"
 dependencies = [
  "blake3",
  "serde",

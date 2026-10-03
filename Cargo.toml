@@ -214,6 +214,8 @@ log_space_service_diffs = []
 
 
 [patch.crates-io]
+# Pending additive App Hub contract release; see vendor/octosense-app-contract/RINX-PATCH.md.
+octosense-app-contract = { path = "vendor/octosense-app-contract" }
 ## This is required to avoid a version conflict on the libsqlite3-sys crate,
 ## which is a native crate that can only exist once in the dependency graph.
 ## The `matrix-sdk` crate's dependencies require a specific version of `libsqlite3-sys`
