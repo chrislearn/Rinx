@@ -47,6 +47,10 @@ struct RestoredMarkdown {
 /// Matrix links are resolved by the caller first. Other schemes retain their
 /// existing OS handler; only HTTP(S) pages belong in this reader.
 pub fn open_chat_link(cx: &mut Cx, address: &str) -> bool {
+    if let Some(id) = crate::miniapps::palpo::route(address) {
+        cx.action(crate::miniapps::MiniAppsAction::OpenPalpo(id));
+        return true;
+    }
     let Ok(url) = Url::parse(address) else {
         return false;
     };

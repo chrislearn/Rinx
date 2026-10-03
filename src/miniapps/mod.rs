@@ -42,8 +42,10 @@ pub async fn matrix_request(
 
 
 mod catalog_worker;
+mod consent;
 mod library;
 mod package;
+pub mod palpo;
 pub mod presentation;
 mod sandbox;
 pub mod ui;

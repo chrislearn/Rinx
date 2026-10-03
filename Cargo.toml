@@ -31,7 +31,7 @@ octoscript-widgets = { git = "https://github.com/OctoSense-org/Octoscript-Makepa
 ## a package, by version from crates.io. Rinx names no App Hub commit, so an App
 ## Hub change does not force a Rinx release; the mini-app catalog client and the
 ## Splash sandbox are Rinx's own (crates/miniapp-catalog, src/miniapps/sandbox.rs).
-octosense-app-contract = "1"
+octosense-app-contract = "1.2"
 article-makepad = { path = "crates/article-makepad" }
 ## The OctoSense module contract. Only a host build uses it, and the host redirects
 ## all of makepad to its own prepared checkout of the same OctoSense-org/makepad
@@ -214,6 +214,8 @@ log_space_service_diffs = []
 
 
 [patch.crates-io]
+# Pending additive App Hub contract release; see vendor/octosense-app-contract/RINX-PATCH.md.
+octosense-app-contract = { path = "vendor/octosense-app-contract" }
 ## This is required to avoid a version conflict on the libsqlite3-sys crate,
 ## which is a native crate that can only exist once in the dependency graph.
 ## The `matrix-sdk` crate's dependencies require a specific version of `libsqlite3-sys`
