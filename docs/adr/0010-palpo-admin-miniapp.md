@@ -13,7 +13,8 @@
   subsequent backend feature track, not prerequisites for frontend replacement.
 - The [three-stage workflow design](../design/palpo-miniapp-workflows.md)
   specifies the requested product: contribution approval and JSON handoff,
-  project approval, then agent approval/management with a persistent Inbox.
+  project approval, then agent approval/management with a personal My Actions
+  room inspired by OctoSense Glance, backed by the persistent Palpo Inbox.
   Frontend parity is a foundation milestone; all three stages are the product
   completion target.
 
@@ -31,7 +32,8 @@ The same flow targets desktop, Android and OpenHarmony, with platform validation
 required before release.
 
 Use the existing signed App Hub format and Splash runtime. Start with one Palpo
-package, a common Inbox and two role-aware areas. Separate packages remain a
+package, a common Inbox surfaced in a personal My Actions room, and two
+role-aware areas. Separate packages remain a
 distribution option without changing authentication. The pages and workflows are:
 
 | Area | Audience and pages |

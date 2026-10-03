@@ -5,6 +5,7 @@
 - Refines [ADR 0010](../adr/0010-palpo-admin-miniapp.md).
 - Palpo source: `3f1ad3ba5c80a7206521b3eb4059a4f1f3786700`.
 - Hagency Rust source: `e51a0b1385437c7b5e6893e68233b8173a0db018`.
+- OctoSense Glance source: `a30984868a121b36fc1c8a3c2e50753c5fe0410e`.
 - Rinx baseline and theme branch are recorded in ADR 0010.
 
 ## Scope and identity
@@ -182,11 +183,102 @@ finish separately; preserve both results. Do not delete history or claim to stop
 an uncontactable process. Top-up keeps the same agent and usage history. Current
 quota pause gates new turns and lets an in-flight turn finish. [Allocation][hagency-allocation]
 
+## A personal My Actions room, following OctoSense Glance
+
+Give each Matrix account a dedicated private **My Actions** room, shown near
+the top of the Rinx room list by default. Use one room for the user's Palpo
+actions on this homeserver, with a card per workflow/action step. Creating a
+new Matrix room for every approval would fragment the work and is not required.
+The person can change the room's position without deleting pending actions.
+
+Inside Rinx this room opens an action board inspired by OctoSense Glance:
+
+- **Needs my action:** pending approvals, configuration handoff, setup and
+  recovery tasks; order by deadline/overdue status and then age.
+- **Waiting:** requests the person submitted and operations awaiting another
+  actor or runtime completion.
+- **History:** completed, rejected, cancelled and expired actions.
+
+Show cards with the app/source, project/resource, requester, current status,
+age/due time and the available actions. Examples: a project card with Review /
+Approve / Reject; an approved contribution with Download configuration / Verify
+connection; an agent card with requested tokens and Review allocation.
+These actions are rendered by the installed Palpo mini app's trusted card UI,
+within its current account-bound permissions. Small decisions can complete in
+the card; larger forms expand into a mini-app sheet/detail view inside Rinx.
+The room shell handles layout, navigation and card lifecycle. It does not
+reimplement all Palpo application pages in Rust.
+
+Clicking a system notification opens My Actions and focuses the exact card. It
+can expand the card's mini-app detail directly when the action needs a form.
+The notification can clear while that card stays pending. A resolved card moves
+to History; the workflow and its audit record remain available. Reminders bring
+the same card back to attention rather than inserting duplicate tasks. The room
+list's pending-action badge is independent of Matrix's unread-message count.
+
+Admins, project owners and Hagency operators each receive their own room. A
+person holding several roles sees their combined permitted actions there. A
+request requiring any one of several admins appears in each eligible admin's
+room; one accepted decision updates all copies. No shared personal room gives
+one user access to another user's projects or owner-only configuration.
+
+### Room binding and synchronization
+
+Persist a server-side binding of account, homeserver, room ID, workflow bot and
+purpose. Create/recover the room idempotently; the only initial participants are
+that user and the designated workflow bot. Use invite-only membership and bound
+service identity checks. Rinx joins through the normal authenticated room flow
+under the user's approved service setup. Do not infer trust from a room's name.
+Leaving the room stops that room's delivery; the next explicit My Actions setup
+can repair/recreate its binding without discarding canonical pending work.
+
+Matrix messages carry stable workflow/action references and a readable fallback.
+Rinx obtains current details and allowed actions from Palpo, then groups updates
+and reminders under the same card. The ordinary message history remains available
+as a fallback for clients without this room view. A lost/redacted Matrix message
+does not delete a workflow: the board reloads from the recipient-filtered Inbox.
+Never execute Splash source attached by an arbitrary Matrix sender; load the
+installed, verified mini-app card template and treat event content as data.
+
+The existing minimal plaintext notification-room policy below applies here:
+only non-secret routing metadata and generic notices enter room history. Details
+are fetched under the viewer's current authorization. The separate encrypted
+Hagency execution-approval room and its bot/device binding remain intact. My
+Actions can link to its original approvals through the trusted host; it does not
+copy private keys, credentials or approval authority into a new room.
+
+### What to reuse from Glance
+
+The reviewed OctoSense host has `glance.publish`, `glance.withdraw` and
+`glance.list`. A stable `(app, card_id)` replaces an existing card, publisher
+identity comes from the host, and interactive tiles run under the publisher's
+policy. Cards can open their publisher's app/route; notification behavior is
+separate from the live card. Reuse those concepts, card/theme components and
+bounded execution where compatible. [Glance service][octosense-glance],
+[card runtime][octosense-glance-card]
+
+Its current store has card expiry (24 hours by default, at most seven days),
+user dismissal and small per-app/display caps. Those are presentation rules,
+not suitable as the durable task ledger. Palpo's Inbox remains authoritative;
+pagination must expose every pending action. Card expiry, dismissal or a full
+Glance panel never resolves a workflow. In My Actions, Remind me later affects
+the reminder schedule; a task leaves Needs my action when its human step is
+resolved or no longer assigned to that user.
+
+Standalone Rinx currently rejects the `glance` capability in catalog admission
+and has no `glance.*` dispatch adapter. Permission-description text alone does
+not establish support. This design needs a room/card host integration; it must
+not claim the OctoSense API already works in Rinx. If Rinx is hosted in OctoSense,
+an optional Glance summary such as “3 Palpo actions pending” can route to this
+same room. That summary is a second entry point to the same tasks, not another
+Inbox or another approval state machine.
+
 ## One Inbox and persistent process state
 
 Use one Palpo mini app with role-aware pages: Inbox, Resources, Projects and
-Agents. Inbox has Needs my action, My requests and History. A person with several
-roles sees all their relevant work without logging in again or switching apps.
+Agents. Its Inbox and the My Actions room are two views of the same records,
+using Needs my action, Waiting and History. A person with several roles sees
+all their relevant work without logging in again or switching apps.
 Each detail page shows who must act next, the decision history, execution status
 and a concrete action: Review, Download configuration, Verify connection, Open
 project, Request tokens or Retry cleanup.
@@ -204,6 +296,7 @@ Proposed durable records in the existing Palpo service:
 | Project resource grant | Approved owner/project/fleet/resource scope, approval reference, current revision and state |
 | Runtime command | Stable command ID, exact operation/arguments digest, actor/scope proof, authority revision, fleet generation, expiry and runtime receipt |
 | Inbox entry | Recipient, workflow/revision, next action, read timestamp; recipients/actions derived on the server |
+| Action-room binding | Account, homeserver, room ID, trusted workflow bot, purpose and binding revision |
 | Notification outbox | Notification ID, recipient, workflow revision, channel, delivery attempts, next retry and returned Matrix event ID |
 | Reminder schedule | Workflow/action-step revision, recipient, policy, reminder ordinal, next due time, snooze time and cancellation state |
 
@@ -238,8 +331,9 @@ as a new revision requiring a fresh verdict; old cards cannot approve new input.
    are needed for background device alerts. Matrix sync alone is not a promise
    of notifications while Android/OpenHarmony has suspended Rinx. [Matrix notifications][matrix-notifications]
 4. Rinx verifies the bot/room binding and maps the typed notification to the
-   registered Palpo package. On tap, open that workflow in the correct account
-   and homeserver, reuse host login, fetch its current record and render actions.
+   registered Palpo package. On tap, open My Actions in the correct account and
+   homeserver, focus the workflow card and expand its mini-app detail if needed.
+   Reuse host login, fetch its current record and render actions.
    A forged card or external URL cannot select a credential destination, install
    an arbitrary package or execute an approval. Missing package/permission opens
    the normal trusted installation/consent flow and retains the pending route.
@@ -271,7 +365,7 @@ Treat notification visibility, reading and action completion as independent:
 
 | What happened | Notification and workflow result |
 | --- | --- |
-| User taps a phone/desktop alert | Rinx opens the mini-app detail; the OS alert may be dismissed. The Matrix message is not deleted by the tap |
+| User taps a phone/desktop alert | Rinx opens My Actions at the relevant card, expanding its mini-app detail when needed; the OS alert may be dismissed. The Matrix message is not deleted by the tap |
 | User reads the card or detail | Mark it seen/read as appropriate; its pending action and Needs my action entry remain |
 | User closes the mini app without deciding | Persist any supported draft; leave the action pending and its reminder schedule active |
 | Backend accepts a decision | Resolve this human action, cancel its reminders and refresh all relevant clients; runtime work may still be in progress |
@@ -371,6 +465,9 @@ plus an unauthorized member. Cover:
   rejected edits and permission expiry during owner setup.
 - Mini app closed when notification arrives, missed notification recovered from
   Inbox, two devices, account switch, deep-link forgery and revoked grants.
+- Personal action-room binding and privacy, one card across many reminders,
+  inline versus expanded actions, all approver copies resolving after one verdict,
+  room leave/recovery and complete pending-task pagination beyond Glance caps.
 - Tap/read without deciding, reminders at configured times, snooze/quiet hours,
   no reminder after another approver decides, expiry and in-flight late delivery;
   restart recovery sends one reminder and never repeats an accepted decision.
@@ -395,3 +492,5 @@ This document changes no live service and is not evidence those tests have run.
 [hagency-engagements]: https://github.com/hagency-org/hagency-rs/blob/e51a0b1385437c7b5e6893e68233b8173a0db018/native/hagency/src/console/engagements.rs
 [hagency-allocation]: https://github.com/hagency-org/hagency-rs/blob/e51a0b1385437c7b5e6893e68233b8173a0db018/knowledge/decisions/adr-186-engagement-allocation-pause-and-top-up.md
 [matrix-notifications]: https://spec.matrix.org/v1.16/client-server-api/#push-notifications
+[octosense-glance]: https://github.com/OctoSense-org/OctoSense/blob/a30984868a121b36fc1c8a3c2e50753c5fe0410e/crates/shell/src/glance.rs
+[octosense-glance-card]: https://github.com/OctoSense-org/OctoSense/blob/a30984868a121b36fc1c8a3c2e50753c5fe0410e/crates/shell/src/glance_card.rs
