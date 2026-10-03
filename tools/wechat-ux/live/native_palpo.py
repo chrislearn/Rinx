@@ -51,7 +51,7 @@ def port():
         return s.getsockname()[1]
 
 
-def launch(root, binary, endpoint, admin=False, narrow=False):
+def launch(root, binary, endpoint, admin=False, narrow=False, session_file=None):
     profile = root / 'profile'
     (profile / 'app').mkdir(parents=True, exist_ok=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -60,6 +60,9 @@ def launch(root, binary, endpoint, admin=False, narrow=False):
     env = dict(os.environ, RINX_DATA_DIR=str(profile.resolve()), MAKEPAD_HIDE_WINDOWS='1',
                MAKEPAD_NO_FOCUS='1', MAKEPAD_REMOTE=str(app.port), PALPO_FIXTURE_URL=endpoint)
     env.pop('MAKEPAD_FOCUS', None)
+    env.pop('PALPO_LIVE_SESSION_FILE', None)
+    if session_file:
+        env['PALPO_LIVE_SESSION_FILE'] = str(session_file.resolve())
     args = [str(binary.resolve())] + (['--admin'] if admin else []) + (['--narrow'] if narrow else [])
     app.process = subprocess.Popen(args, env=env, stdout=app.log, stderr=subprocess.STDOUT)
     for _ in range(120):

@@ -60,7 +60,7 @@ specific native run; this document is not a mobile or live-server acceptance cla
 This is **not the complete ADR**. Existing-operation parity still needs signup
 decision navigation, real native configuration saving/import and full account-
 switch/revocation integration. Current signup UI lists requests only. The live
-two-account Palpo/Hagency flow and real push-notification entry are untested.
+two-account administrator/owner Palpo/Hagency flow and real push-notification entry are untested.
 My Actions currently uses private Matrix notices and links; the Glance-style
 board, pinning, quiet hours and direct OS-notification mini-app routing remain.
 
@@ -91,3 +91,41 @@ crate after cross-repository review; no private App Hub git dependency is added.
 - Design Flow stamp: `25e82095e7e9a68b300e1553cda7b53702cdfd531e6fee73cde6b417aab3da0a`.
   `octo check --allow-unsigned` reports the expected missing store listing as
   its sole refusal, plus an unsigned-publisher warning. This is not a gate pass.
+
+## Live member validation on mini1 (2026-10-03)
+
+SSH succeeds with the configured key using macOS `UseKeychain=yes`. The public
+Matrix endpoint is `https://crew.ominix.io:19443`; the existing admin web service
+is `https://crew.ominix.io:19444`. The admin service and PostgreSQL are Docker
+containers. The Docker homeserver service name currently resolves to a socat
+forwarder targeting the native Palpo process at host port 18010. Both public
+Matrix traffic and the admin service reach that active Palpo instance.
+
+`tools/wechat-ux/live/live_palpo.py` ran the actual production Splash app through
+Makepad with the current member's real saved Matrix session. It uploaded an
+isolated validation backend to mini1 and reached it over SSH port forwarding.
+Matrix identity and role checks went to the real running Palpo. Workflow records
+went into a new private SQLite database, not the production admin database;
+notification workers stayed off. Existing public services were not reconfigured.
+
+Live run `edd7f85cdf9f4917846d20793c4dc7c0` passed:
+
+- Real Matrix whoami and the existing admin web service authenticated the same
+  session; a deliberately nonexistent fleet returned 404 for the member and
+  401 for an invalid bearer.
+- The new app-session exchange succeeded. A member's administrator operation
+  returned 403, and administrator decision buttons were absent.
+- Native input submitted a contribution under the real member identity into
+  the isolated workflow store. Live dark-theme reapply preserved heap and calls.
+- Mini-app disconnect left the original Matrix session valid.
+
+Screenshots were inspected, and the native log contains no script/render errors.
+The sidecar was stopped after the test. The same updated native binary also
+passed the original fixture administrator/owner scenario in run
+`f324de6560f44d3a933a4edcd71a7f98`.
+
+This is live **member** integration evidence. The public mini-app route still
+returns 404. The saved server-side administrator/bot credentials found during
+deployment inspection belong to the older test server and return M_UNKNOWN_TOKEN;
+the active Rinx account is a member. Live privileged approvals, owner export/import,
+real notification delivery and Hagency lifecycle acceptance remain outstanding.

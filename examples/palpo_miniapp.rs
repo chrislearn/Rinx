@@ -1,5 +1,7 @@
 //! Native instrument host for the production Palpo bundle and HTTP adapter.
-//! Only fixture Matrix credentials are accepted. Never opens the user's profile.
+//! Defaults to fixture credentials. PALPO_LIVE_SESSION_FILE explicitly borrows a
+//! saved Matrix session for an operator-owned loopback/SSH validation sidecar.
+//! It never opens or changes the user's Matrix database or logs credentials.
 pub use makepad_widgets;
 use makepad_widgets::*;
 use makepad_widgets::splash_host::{take_splash_host_requests_for, splash_host_respond};
@@ -42,6 +44,8 @@ struct App {
     pending: Vec<(usize, u64, mpsc::Receiver<Result<Value, String>>)>,
     #[rust]
     calls: usize,
+    #[rust]
+    matrix_token: String,
 }
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
@@ -49,17 +53,26 @@ impl MatchEvent for App {
         let manifest =
             octosense_app_contract::parse(include_str!("../apps/palpo/bundle/manifest.json"))
                 .unwrap();
-        let account = if std::env::args().any(|a| a == "--admin") {
-            "@admin:example.test"
+        let (account, token) = if let Some(path) = std::env::var_os("PALPO_LIVE_SESSION_FILE") {
+            let raw = std::fs::read(path).expect("explicit live session file");
+            let session: Value = serde_json::from_slice(&raw).expect("saved Matrix session");
+            assert_eq!(session["client_session"]["homeserver"].as_str().unwrap().trim_end_matches('/'),
+                "https://crew.ominix.io:19443", "this live check is bound to the authorized crew server");
+            self.ui.label(cx, ids!(hint)).set_text(cx, "Live Matrix · isolated Palpo validation backend");
+            (session["user_session"]["user_id"].as_str().or_else(|| session["user_session"]["meta"]["user_id"].as_str()).unwrap().to_owned(),
+             session["user_session"]["access_token"].as_str().or_else(|| session["user_session"]["tokens"]["access_token"].as_str()).unwrap().to_owned())
+        } else if std::env::args().any(|a| a == "--admin") {
+            ("@admin:example.test".into(), "admin-secret".into())
         } else {
-            "@owner:example.test"
+            ("@owner:example.test".into(), "owner-secret".into())
         };
+        self.matrix_token = token;
         self.runtime = Some(tokio::runtime::Runtime::new().unwrap());
         self.host = Some(PalpoHost::new("a".repeat(64)).unwrap());
         self.lease = Some(Lease::new(
             InstanceId {
                 app: APP_ID.into(),
-                account: account.into(),
+                account,
                 room: None,
                 generation: 1,
             },
@@ -138,17 +151,13 @@ impl AppMain for App {
                 "fixture host must be loopback"
             );
             let account = lease.identity().account.clone();
-            let token = if account == "@admin:example.test" {
-                "admin-secret"
-            } else {
-                "owner-secret"
-            };
+            let token = self.matrix_token.clone();
             let (tx, rx) = mpsc::channel();
             self.pending.push((req.heap_key, req.req_id, rx));
             self.runtime.as_ref().unwrap().spawn(async move {
                 let args = serde_json::from_str(&req.args_json).unwrap();
                 let result = host
-                    .execute(&lease, &account, url, token, &req.service, args)
+                    .execute(&lease, &account, url, &token, &req.service, args)
                     .await;
                 let _ = tx.send(result);
                 SignalToUI::set_ui_signal();
