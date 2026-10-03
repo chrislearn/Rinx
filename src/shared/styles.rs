@@ -89,7 +89,7 @@ script_mod! {
 
     mod.widgets.USERNAME_FONT_SIZE = 11
 
-    mod.widgets.USERNAME_TEXT_COLOR = #x2
+    mod.widgets.USERNAME_TEXT_COLOR = mod.widgets.RINX_INK
     mod.widgets.USERNAME_TEXT_STYLE = theme.font_bold {
         font_size: (mod.widgets.USERNAME_FONT_SIZE),
     }
@@ -104,7 +104,7 @@ script_mod! {
     mod.widgets.MESSAGE_FONT_SIZE = 11
     mod.widgets.REDACTED_MESSAGE_FONT_SIZE = 10
 
-    mod.widgets.MESSAGE_TEXT_COLOR = #x333
+    mod.widgets.MESSAGE_TEXT_COLOR = mod.widgets.RINX_INK
     // notices (automated messages from bots) use a lighter color
     mod.widgets.COLOR_MESSAGE_NOTICE_TEXT = #x888
     mod.widgets.MESSAGE_TEXT_LINE_SPACING = 1.3
@@ -122,21 +122,21 @@ script_mod! {
     mod.widgets.SMALL_STATE_FONT_SIZE = 9.0
 
 
-    mod.widgets.SMALL_STATE_TEXT_COLOR = #x888
+    mod.widgets.SMALL_STATE_TEXT_COLOR = mod.widgets.RINX_MUTED
     mod.widgets.SMALL_STATE_TEXT_STYLE = theme.font_regular {
         font_size: (mod.widgets.SMALL_STATE_FONT_SIZE),
     }
 
     mod.widgets.TIMESTAMP_FONT_SIZE = 8.5
 
-    mod.widgets.TIMESTAMP_TEXT_COLOR = #x999
+    mod.widgets.TIMESTAMP_TEXT_COLOR = mod.widgets.RINX_MUTED
     mod.widgets.TIMESTAMP_TEXT_STYLE = theme.font_regular {
         font_size: (mod.widgets.TIMESTAMP_FONT_SIZE),
     }
 
-    mod.widgets.ROOM_NAME_TEXT_COLOR = #x0
+    mod.widgets.ROOM_NAME_TEXT_COLOR = mod.widgets.RINX_INK
 
-    mod.widgets.COLOR_META = #xccc
+    mod.widgets.COLOR_META = mod.widgets.RINX_MUTED
 
     mod.widgets.COLOR_DIVIDER = #00000018
 
@@ -162,25 +162,23 @@ script_mod! {
     mod.widgets.COLOR_SELECT_TEXT = #087DFC33
     // mod.widgets.COLOR_SELECT_TEXT = #4D9BFD88 // results in #A6CDFE when mixed halfway with white
 
-    mod.widgets.COLOR_PRIMARY = #ffffff
+    mod.widgets.COLOR_PRIMARY = mod.widgets.RINX_SURFACE
 
     mod.widgets.COLOR_PRIMARY_DARKER = #ffffff
-    mod.widgets.COLOR_SECONDARY = #E3E3E3
-    mod.widgets.COLOR_SECONDARY_DARKER = #C8C8C8
+    mod.widgets.COLOR_SECONDARY = mod.widgets.RINX_FIELD
+    mod.widgets.COLOR_SECONDARY_DARKER = mod.widgets.RINX_BORDER
 
     // What a rooms list entry or timeline message darkens to on hover or press.
     mod.widgets.COLOR_LIST_ITEM_BG_HOVER = #f4f4f4
 
-    // The primary/CTA/focus colour: the robrix2 accent teal. Literals mirroring
-    // RBX_ACCENT / RBX_ACCENT_HOVER — this file is registered before
-    // design_tokens.rs, so `RBX_*` is not resolvable here.
-    mod.widgets.COLOR_ACTIVE_PRIMARY = #0D7988
+    // Legacy aliases resolve from the same host roles as the newer RBX names.
+    mod.widgets.COLOR_ACTIVE_PRIMARY = mod.widgets.RINX_ACCENT
 
-    mod.widgets.COLOR_ACTIVE_PRIMARY_DARKER = #0A6675
+    mod.widgets.COLOR_ACTIVE_PRIMARY_DARKER = mod.widgets.RINX_ACCENT_HOVER
 
-    mod.widgets.COLOR_BG_PREVIEW = #F0F5FF
+    mod.widgets.COLOR_BG_PREVIEW = mod.widgets.RINX_SELECTED
 
-    mod.widgets.COLOR_BG_PREVIEW_HOVER = #CDEDDF
+    mod.widgets.COLOR_BG_PREVIEW_HOVER = mod.widgets.RINX_HOVER
 
     mod.widgets.COLOR_AVATAR_BG = #52b2ac
 
@@ -190,21 +188,21 @@ script_mod! {
     // Unread badge fills, mirroring RBX_DANGER_FG / RBX_ACCENT / RBX_FG_TERTIARY
     // (RBX_* is registered after this file, so literals are used here).
     mod.widgets.COLOR_UNREAD_BADGE_MENTIONS = #B93429;
-    mod.widgets.COLOR_UNREAD_BADGE_MARKED = #0D7988;
+    mod.widgets.COLOR_UNREAD_BADGE_MARKED = mod.widgets.RINX_ACCENT;
     mod.widgets.COLOR_UNREAD_BADGE_MESSAGES = #687283
 
 
-    mod.widgets.COLOR_TEXT_IDLE = #d8d8d8
+    mod.widgets.COLOR_TEXT_IDLE = mod.widgets.RINX_MUTED
 
 
-    mod.widgets.COLOR_TEXT = #1C274C
-    mod.widgets.COLOR_TEXT_INPUT_IDLE = #d8d8d8
+    mod.widgets.COLOR_TEXT = mod.widgets.RINX_INK
+    mod.widgets.COLOR_TEXT_INPUT_IDLE = mod.widgets.RINX_MUTED
 
     mod.widgets.COLOR_TRANSPARENT = #00000000
 
     mod.widgets.COLOR_WARNING = #fcdb03
 
-    mod.widgets.COLOR_LINK_HOVER = #21B070
+    mod.widgets.COLOR_LINK_HOVER = mod.widgets.RINX_ACCENT_HOVER
 
 
     // Use an even value for this, not odd, such that it can be divided in half,
@@ -240,14 +238,14 @@ script_mod! {
     mod.widgets.RADIUS_LG = 8.0
 
     // Settings screen colors
-    mod.widgets.COLOR_DROPDOWN_TEXT = #x333333
-    mod.widgets.COLOR_DROPDOWN_BORDER = #xC8D9F2
-    mod.widgets.COLOR_DROPDOWN_POPUP_BORDER = #xD3E1F6
-    mod.widgets.COLOR_DROPDOWN_ARROW = #x888888
-    mod.widgets.COLOR_INACTIVE_BORDER = #xBBBBBB
-    mod.widgets.COLOR_DESCRIPTION_TEXT = #x7A7A7A
-    mod.widgets.COLOR_FIELD_LABEL = #x555555
-    mod.widgets.COLOR_DISABLED_TEXT = #x999999
+    mod.widgets.COLOR_DROPDOWN_TEXT = mod.widgets.RINX_INK
+    mod.widgets.COLOR_DROPDOWN_BORDER = mod.widgets.RINX_BORDER
+    mod.widgets.COLOR_DROPDOWN_POPUP_BORDER = mod.widgets.RINX_BORDER
+    mod.widgets.COLOR_DROPDOWN_ARROW = mod.widgets.RINX_MUTED
+    mod.widgets.COLOR_INACTIVE_BORDER = mod.widgets.RINX_BORDER
+    mod.widgets.COLOR_DESCRIPTION_TEXT = mod.widgets.RINX_MUTED
+    mod.widgets.COLOR_FIELD_LABEL = mod.widgets.RINX_MUTED
+    mod.widgets.COLOR_DISABLED_TEXT = mod.widgets.RINX_MUTED
 
     // Settings screen layout
     mod.widgets.SETTINGS_CONTENT_PADDING = 16

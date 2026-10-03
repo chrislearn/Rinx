@@ -6,9 +6,11 @@ pub mod app_settings;
 pub mod privacy_settings;
 pub mod about_settings;
 pub mod app_preferences;
+pub mod appearance;
 pub mod mobile_settings;
 
 pub fn script_mod(vm: &mut ScriptVm) {
+    appearance::script_mod(vm);
     account_settings::script_mod(vm);
     app_settings::script_mod(vm);
     privacy_settings::script_mod(vm);

@@ -239,6 +239,8 @@ script_mod! {
             text: #(crate::i18n::tr("App Settings")) i18n_text: "App Settings"
         }
 
+        appearance := AppearanceSettings {}
+
         View {
             width: Fill height: Fit flow: Right align: Align{y: 0.5} spacing: 12
             SubsectionLabel {text: #(crate::i18n::tr("Language")) i18n_text: "Language"}

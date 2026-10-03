@@ -1,7 +1,8 @@
 # ADR 0009: Shared reloadable themes for Rinx and mini apps
 
 - Date: 2026-10-02
-- Status: Accepted; implementation not started.
+- Status: Accepted; first native/Splash/L0 theme MVP implemented. See the
+  [implementation and validation scope](../theme-mvp.md).
 - Extends [ADR 0003](0003-shared-article-components.md),
   [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),

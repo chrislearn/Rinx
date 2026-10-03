@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "theme": "light",
+  "tokens": {
+    "color.surface.panel": {
+      "value": 4294967295
+    },
+    "color.surface.field": {
+      "value": 4293848814
+    },
+    "color.content.primary": {
+      "value": 4279308561
+    },
+    "color.content.secondary": {
+      "value": 4283782485
+    },
+    "color.action.primary": {
+      "value": 4279073160
+    },
+    "color.action.on_primary": {
+      "value": 4294967295
+    },
+    "color.border.default": {
+      "value": 4288256409
+    },
+    "shape.surface.radius": {
+      "value": 6
+    }
+  },
+  "components": {
+    "panel": {
+      "style": {
+        "t": "stack",
+        "bg": {
+          "$token": "color.surface.panel"
+        },
+        "radius": {
+          "$token": "shape.surface.radius"
+        }
+      },
+      "props": {},
+      "slot": true
+    },
+    "title": {
+      "style": {
+        "t": "text",
+        "color": {
+          "$token": "color.content.primary"
+        },
+        "size": 22.6667,
+        "font_src": "makepad_widgets:resources/IBMPlexSans-Text.ttf",
+        "weight": 700
+      },
+      "props": {
+        "text": "text"
+      },
+      "slot": false
+    },
+    "hint": {
+      "style": {
+        "t": "text",
+        "color": {
+          "$token": "color.content.secondary"
+        },
+        "size": 14,
+        "font_src": "makepad_widgets:resources/IBMPlexSans-Text.ttf"
+      },
+      "props": {
+        "text": "text"
+      },
+      "slot": false
+    },
+    "button": {
+      "style": {
+        "t": "stack",
+        "color": {
+          "$token": "color.action.on_primary"
+        },
+        "bg": {
+          "$token": "color.action.primary"
+        },
+        "radius": {
+          "$token": "shape.surface.radius"
+        },
+        "size": 16,
+        "variant": "surface"
+      },
+      "props": {},
+      "slot": true
+    },
+    "input": {
+      "style": {
+        "t": "input",
+        "color": {
+          "$token": "color.content.primary"
+        },
+        "bg": {
+          "$token": "color.surface.field"
+        },
+        "bordercolor": {
+          "$token": "color.border.default"
+        },
+        "radius": {
+          "$token": "shape.surface.radius"
+        },
+        "size": 16,
+        "changeto": "l0:{\"k\":\"root\",\"e\":\"typing\",\"v\":\"$$\"}",
+        "font_src": "makepad_widgets:resources/IBMPlexSans-Text.ttf",
+        "padleft": 12
+      },
+      "props": {
+        "text": "text"
+      },
+      "slot": false
+    },
+    "field": {
+      "style": {
+        "t": "stack",
+        "variant": "surface",
+        "bg": {
+          "$token": "color.surface.field"
+        },
+        "bordercolor": {
+          "$token": "color.border.default"
+        },
+        "border": 1,
+        "radius": {
+          "$token": "shape.surface.radius"
+        }
+      },
+      "props": {},
+      "slot": true
+    },
+    "caption": {
+      "style": {
+        "t": "text",
+        "color": {
+          "$token": "color.action.on_primary"
+        },
+        "font_src": "makepad_widgets:resources/IBMPlexSans-Text.ttf",
+        "size": 16,
+        "alignx": 0.5
+      },
+      "props": {
+        "text": "text"
+      },
+      "slot": false
+    },
+    "hit": {
+      "style": {
+        "t": "button"
+      },
+      "props": {},
+      "slot": false
+    }
+  }
+}

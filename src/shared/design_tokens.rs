@@ -1,47 +1,7 @@
-//! Robrix2 design tokens — the semantic color / size / radius / type layer.
-//!
-//! This is the single source of truth for the "AI workspace" visual language
-//! described in `docs/ui-visual-spec-zh.md`. It is **light-first**: the primary
-//! content surfaces are light, with a small set of explicit *dark surface* tokens
-//! for the desktop navigation rail and the mobile login screen. (A full dark theme
-//! is intentionally out of scope for this round — see the spec, §11.)
-//!
-//! ## Naming
-//! All tokens use the `RBX_` prefix and a `GROUP_ROLE[_STATE]` shape so they never
-//! collide with the legacy `COLOR_*` / `SPACE_*` tokens in `styles.rs`:
-//!
-//! - `RBX_BG_*`      surfaces / backgrounds (incl. hover / selected / pressed / disabled)
-//! - `RBX_FG_*`      text / foreground
-//! - `RBX_ACCENT*`   the teal brand-accent (primary CTA, selection, focus, links)
-//! - `RBX_STROKE_*`  borders / dividers
-//! - `RBX_<STATE>_FG` / `RBX_<STATE>_BG`  semantic state pairs (success/warning/danger/info/neutral)
-//! - `RBX_NAV_*`     dark navigation-rail surfaces
-//! - `RBX_LOGIN_*`   dark login surfaces
-//! - `RBX_CODE_*`    dark code/SQL output panel (timeline)
-//! - `RBX_RADIUS_*`  corner radii
-//! - `RBX_CONTROL_H_* / RBX_ROW_H_* / RBX_ICON_* / RBX_AVATAR_*`  sizing
-//! - `RBX_SHADOW* / RBX_SCRIM`  elevation / modal scrim
-//! - `RBX_FOCUS_*`   keyboard-nav focus ring
-//! - `RBX_TEXT_*`    type-scale `TextStyle` presets
-//!
-//! ## Primary color migration — done
-//! The teal `RBX_ACCENT` (#0D7988) is the single primary/CTA/focus color, and
-//! `COLOR_ACTIVE_PRIMARY` in `styles.rs` now resolves to it, so the ~40 remaining
-//! call sites moved together rather than a screen at a time — every one of them
-//! means "primary", "active" or "focus", and staging them would only have grown
-//! the stretch where blue and teal sat side by side. New UI should still name
-//! `RBX_ACCENT` directly; `COLOR_ACTIVE_PRIMARY` survives as a compatibility
-//! alias for the call sites that have not been renamed yet.
-//! `RBX_LEGACY_BLUE` records the retired #0F88FE and now has no users.
-//!
-//! Tokens are registered into the global `mod.widgets.*` namespace (so any other
-//! `script_mod!` block can read them via `(RBX_TOKEN)` after `use mod.widgets.*`).
-//! A curated subset is also exported as Rust `Vec4` consts for use in
-//! `script_apply_eval!` / programmatic styling, mirroring the convention in
-//! `styles.rs`.
-//!
-//! NOTE: inside the `script_mod!` block, only `//` comments are allowed — `///`
-//! doc comments are parsed by Rust as `#[doc]` attributes and will not compile.
+//! Compatibility names for Rinx semantic tokens (ADR 0009).
+//! Interface roles resolve from the active Makepad stylesheet at registration
+//! and reapply. Brand/content colors retain their meaning. The Rust constants
+//! below are legacy migration values; new runtime drawing uses theme::Snapshot.
 
 use makepad_widgets::*;
 
@@ -50,59 +10,59 @@ script_mod! {
     use mod.widgets.*
 
     // =========================================================================
-    // 1. SURFACES — light-first backgrounds + interaction states
+    // 1. SURFACES — host backgrounds + interaction states
     // =========================================================================
-    // Page background. The calm cool-white the whole app sits on.
-    mod.widgets.RBX_BG_CANVAS         = #xF7F9FC
+    // Page background from the resolved host stylesheet.
+    mod.widgets.RBX_BG_CANVAS         = mod.widgets.RINX_PAGE
     // Card / sheet / elevated surface.
-    mod.widgets.RBX_BG_SURFACE        = #xFFFFFF
+    mod.widgets.RBX_BG_SURFACE        = mod.widgets.RINX_SURFACE
     // Subtle inset surface (grouped rows, secondary panels, table zebra).
-    mod.widgets.RBX_BG_SURFACE_SUBTLE = #xF4F7FB
+    mod.widgets.RBX_BG_SURFACE_SUBTLE = mod.widgets.RINX_FIELD
     // Sunken surface for light code/preview insets.
-    mod.widgets.RBX_BG_SUNKEN         = #xEEF2F8
+    mod.widgets.RBX_BG_SUNKEN         = mod.widgets.RINX_FIELD
     // Hover wash over a surface (rows, list items).
-    mod.widgets.RBX_BG_HOVER          = #xEFF4FB
-    // Selected row / item background (teal-tinted, == RBX_ACCENT_SOFT).
-    mod.widgets.RBX_BG_SELECTED       = #xE4F5F7
+    mod.widgets.RBX_BG_HOVER          = mod.widgets.RINX_HOVER
+    // Selected row / item background (== RBX_ACCENT_SOFT).
+    mod.widgets.RBX_BG_SELECTED       = mod.widgets.RINX_SELECTED
     // Pressed surface (rows, list items, ghost buttons).
-    mod.widgets.RBX_BG_PRESSED        = #xE7ECF3
+    mod.widgets.RBX_BG_PRESSED        = mod.widgets.RINX_PRESSED
     // Disabled control surface.
-    mod.widgets.RBX_BG_DISABLED       = #xF0F2F6
+    mod.widgets.RBX_BG_DISABLED       = mod.widgets.RINX_FIELD
     // Fully transparent + press/hover overlay washes (used by Agent Registry tiles).
     mod.widgets.RBX_TRANSPARENT       = #x00000000
     mod.widgets.RBX_HIT_HOVER         = #x00000008
     mod.widgets.RBX_HIT_DOWN          = #x00000012
 
     // =========================================================================
-    // 2. FOREGROUND — text & icons on light surfaces
+    // 2. FOREGROUND — text & icons on host surfaces
     // =========================================================================
-    // Primary text (titles, body). Deep blue-grey, never pure black.
-    mod.widgets.RBX_FG_PRIMARY    = #x16233B
+    // Primary text (titles, body).
+    mod.widgets.RBX_FG_PRIMARY    = mod.widgets.RINX_INK
     // Secondary text (subtitles, meta, helper).
-    mod.widgets.RBX_FG_SECONDARY  = #x5A6B86
+    mod.widgets.RBX_FG_SECONDARY  = mod.widgets.RINX_MUTED
     // Tertiary text (timestamps, faint captions).
-    mod.widgets.RBX_FG_TERTIARY   = #x687283
+    mod.widgets.RBX_FG_TERTIARY   = mod.widgets.RINX_MUTED
     // Text/icon on top of an accent or dark fill.
-    mod.widgets.RBX_FG_ON_ACCENT  = #xFFFFFF
+    mod.widgets.RBX_FG_ON_ACCENT  = mod.widgets.RINX_ON_ACCENT
     // Disabled text.
-    mod.widgets.RBX_FG_DISABLED   = #xAEB7C6
+    mod.widgets.RBX_FG_DISABLED   = mod.widgets.RINX_MUTED
 
     // =========================================================================
-    // 3. ACCENT — the teal brand color (primary CTA, selection, focus)
+    // 3. ACCENT — host selection (primary CTA, selection, focus)
     // =========================================================================
-    // Primary accent (calm teal — the "Sign in securely" / primary button color).
-    mod.widgets.RBX_ACCENT         = #x0D7988
+    // Primary accent for actions and focus.
+    mod.widgets.RBX_ACCENT         = mod.widgets.RINX_ACCENT
     // Accent hover.
-    mod.widgets.RBX_ACCENT_HOVER   = #x0A6675
+    mod.widgets.RBX_ACCENT_HOVER   = mod.widgets.RINX_ACCENT_HOVER
     // Accent pressed.
-    mod.widgets.RBX_ACCENT_PRESSED = #x085460
+    mod.widgets.RBX_ACCENT_PRESSED = mod.widgets.RINX_ACCENT_DOWN
     // Soft accent tint (selected chip bg, highlighted row, focus ring fill).
-    mod.widgets.RBX_ACCENT_SOFT    = #xE4F5F7
+    mod.widgets.RBX_ACCENT_SOFT    = mod.widgets.RINX_SELECTED
     // Hyperlink / inline-link color.
-    mod.widgets.RBX_LINK           = #x167CB9
+    mod.widgets.RBX_LINK           = mod.widgets.RINX_ACCENT
     // Hovered link. Same hue, darkened like ACCENT → ACCENT_HOVER, so a link
     // deepens on hover instead of jumping to another hue.
-    mod.widgets.RBX_LINK_HOVER     = #x136DA3
+    mod.widgets.RBX_LINK_HOVER     = mod.widgets.RINX_ACCENT_HOVER
 
     // =========================================================================
     // 4. BRAND — logo colors. Use sparingly (brand entry points, app icon, the
@@ -121,15 +81,15 @@ script_mod! {
     // 5. STROKES & DIVIDERS
     // =========================================================================
     // Default card / control border (low contrast).
-    mod.widgets.RBX_STROKE_SOFT   = #xE6EBF2
+    mod.widgets.RBX_STROKE_SOFT   = mod.widgets.RINX_BORDER
     // Stronger border (focused / emphasized control).
-    mod.widgets.RBX_STROKE_STRONG = #xD5DEEA
+    mod.widgets.RBX_STROKE_STRONG = mod.widgets.RINX_BORDER
     // Floating-overlay border (toast / notification card). Distinctly darker than
     // STRONG so a white card reads clearly against the light canvas WITHOUT a
     // shadow. Tune this one value to make overlay edges softer / harder.
-    mod.widgets.RBX_STROKE_OVERLAY = #xC8D2DE
+    mod.widgets.RBX_STROKE_OVERLAY = mod.widgets.RINX_BORDER
     // Hairline divider between rows (alpha black).
-    mod.widgets.RBX_DIVIDER       = #x00000010
+    mod.widgets.RBX_DIVIDER       = mod.widgets.RINX_BORDER
 
     // =========================================================================
     // 6. SEMANTIC STATES — fg/bg pairs. One meaning = one color, always.
@@ -165,21 +125,21 @@ script_mod! {
     //    in this round). Kept explicit rather than as a full theme.
     // =========================================================================
     // Desktop left navigation rail background.
-    mod.widgets.RBX_NAV_BG             = #x1A2336
+    mod.widgets.RBX_NAV_BG             = mod.widgets.RINX_FIELD
     // Nav item idle foreground.
-    mod.widgets.RBX_NAV_FG             = #xAEBAD0
+    mod.widgets.RBX_NAV_FG             = mod.widgets.RINX_MUTED
     // Nav item active foreground.
-    mod.widgets.RBX_NAV_FG_ACTIVE      = #xFFFFFF
+    mod.widgets.RBX_NAV_FG_ACTIVE      = mod.widgets.RINX_INK
     // Nav item hover background (between rail bg and active).
-    mod.widgets.RBX_NAV_ITEM_HOVER_BG  = #x222D43
+    mod.widgets.RBX_NAV_ITEM_HOVER_BG  = mod.widgets.RINX_HOVER
     // Nav item active / selected pill background.
-    mod.widgets.RBX_NAV_ITEM_ACTIVE_BG = #x2A3650
+    mod.widgets.RBX_NAV_ITEM_ACTIVE_BG = mod.widgets.RINX_SELECTED
     // Nav rail hairline / section divider.
-    mod.widgets.RBX_NAV_DIVIDER        = #x2C384F
+    mod.widgets.RBX_NAV_DIVIDER        = mod.widgets.RINX_BORDER
     // Mobile login page background (deep navy).
-    mod.widgets.RBX_LOGIN_BG           = #x0E1626
+    mod.widgets.RBX_LOGIN_BG           = mod.widgets.RINX_PAGE
     // Mobile login field / card surface on the dark page.
-    mod.widgets.RBX_LOGIN_SURFACE      = #x16213A
+    mod.widgets.RBX_LOGIN_SURFACE      = mod.widgets.RINX_SURFACE
 
     // =========================================================================
     // 8. CODE PANEL (dark) — timeline code / SQL output (CodeOutputCard, §4.7).
@@ -211,18 +171,18 @@ script_mod! {
     //     separate from the page surfaces because the composer sits *on* the
     //     canvas and needs its own quiet contrast steps.
     // =========================================================================
-    mod.widgets.RBX_COMPOSER_BG          = #xF0F4FA   // composer / attach-row fill
-    mod.widgets.RBX_COMPOSER_BG_SUNKEN   = #xE8EEF8   // inset row inside the composer
-    mod.widgets.RBX_COMPOSER_BG_ACTIVE   = #xE0E8F0   // active/selected inset row
-    mod.widgets.RBX_COMPOSER_INPUT_BG    = #xF7F9FD   // text field fill
-    mod.widgets.RBX_COMPOSER_INPUT_HOVER = #xEEF3F9
-    mod.widgets.RBX_COMPOSER_INPUT_DOWN  = #xE5ECF5
-    mod.widgets.RBX_COMPOSER_STROKE      = #xD7DFEA   // text field border
-    mod.widgets.RBX_COMPOSER_INK         = #x333333   // primary glyph/icon ink
-    mod.widgets.RBX_COMPOSER_INK_MUTED   = #x555555   // secondary ink
-    mod.widgets.RBX_COMPOSER_INK_FAINT   = #x999999   // placeholder / disabled ink
-    mod.widgets.RBX_COMPOSER_GREY_HOVER  = #xE0E0E0   // neutral button hover
-    mod.widgets.RBX_COMPOSER_GREY_DOWN   = #xD0D0D0   // neutral button pressed
+    mod.widgets.RBX_COMPOSER_BG          = mod.widgets.RINX_FIELD   // composer / attach-row fill
+    mod.widgets.RBX_COMPOSER_BG_SUNKEN   = mod.widgets.RINX_FIELD   // inset row inside the composer
+    mod.widgets.RBX_COMPOSER_BG_ACTIVE   = mod.widgets.RINX_SELECTED   // active/selected inset row
+    mod.widgets.RBX_COMPOSER_INPUT_BG    = mod.widgets.RINX_FIELD   // text field fill
+    mod.widgets.RBX_COMPOSER_INPUT_HOVER = mod.widgets.RINX_HOVER
+    mod.widgets.RBX_COMPOSER_INPUT_DOWN  = mod.widgets.RINX_PRESSED
+    mod.widgets.RBX_COMPOSER_STROKE      = mod.widgets.RINX_BORDER   // text field border
+    mod.widgets.RBX_COMPOSER_INK         = mod.widgets.RINX_INK   // primary glyph/icon ink
+    mod.widgets.RBX_COMPOSER_INK_MUTED   = mod.widgets.RINX_MUTED   // secondary ink
+    mod.widgets.RBX_COMPOSER_INK_FAINT   = mod.widgets.RINX_MUTED   // placeholder / disabled ink
+    mod.widgets.RBX_COMPOSER_GREY_HOVER  = mod.widgets.RINX_HOVER   // neutral button hover
+    mod.widgets.RBX_COMPOSER_GREY_DOWN   = mod.widgets.RINX_PRESSED   // neutral button pressed
 
     // Accent washes: the accent at low alpha, for hover/active tints over dark
     // or image backgrounds (spaces rail). Derived from RBX_ACCENT — keep in
@@ -238,9 +198,9 @@ script_mod! {
 
     // Inline toggle text ("show 3 more") inside small-state groups: near-ink,
     // deepening on interaction.
-    mod.widgets.RBX_INK_TOGGLE       = #x232A31
-    mod.widgets.RBX_INK_TOGGLE_HOVER = #x1A1F25
-    mod.widgets.RBX_INK_TOGGLE_DOWN  = #x0E1217
+    mod.widgets.RBX_INK_TOGGLE       = mod.widgets.RINX_INK
+    mod.widgets.RBX_INK_TOGGLE_HOVER = mod.widgets.RINX_INK
+    mod.widgets.RBX_INK_TOGGLE_DOWN  = mod.widgets.RINX_INK
 
     // Controls that sit on top of media (video player chrome), where the page
     // palette would disappear against the frame behind them.
@@ -248,11 +208,11 @@ script_mod! {
     mod.widgets.RBX_MEDIA_CONTROL_BG_HOVER = #x374151
 
     // Neutral icon grey for indicator glyphs drawn in a shader.
-    mod.widgets.RBX_ICON_NEUTRAL = #x888888
+    mod.widgets.RBX_ICON_NEUTRAL = mod.widgets.RINX_MUTED
     // Mention/keyboard-focus highlight in the composer's autocomplete.
-    mod.widgets.RBX_MENTION_FOCUS = #x1C274C
+    mod.widgets.RBX_MENTION_FOCUS = mod.widgets.RINX_ACCENT
     // Near-opaque light green wash marking a freshly-arrived timeline item.
-    mod.widgets.RBX_HIGHLIGHT_NEW = #xDAF5E5F0
+    mod.widgets.RBX_HIGHLIGHT_NEW = mod.widgets.RINX_SELECTED
 
     // =========================================================================
     // 9. ELEVATION — modal scrim + drop-shadow colors. Cards lean on radius +
@@ -273,9 +233,9 @@ script_mod! {
     //     shader insets its box by `border_size`, so switching a border on just
     //     for focus would resize the control — a tinted fill does not.
     // =========================================================================
-    mod.widgets.RBX_FOCUS_RING  = #x0D7988
+    mod.widgets.RBX_FOCUS_RING  = mod.widgets.RINX_ACCENT
     mod.widgets.RBX_FOCUS_WIDTH = 2.0
-    mod.widgets.RBX_FOCUS_TINT  = #x0A6675
+    mod.widgets.RBX_FOCUS_TINT  = mod.widgets.RINX_ACCENT
 
     // =========================================================================
     // 11. RADIUS scale — bigger & softer than the legacy RADIUS_* (4/6/8).
@@ -512,28 +472,16 @@ mod tests {
         ("RBX_CODE_COMMENT", "RBX_CODE_BG", "code panel comment"),
     ];
 
-    /// Reads the token values out of this file's own `script_mod!` block, so
-    /// the test guards what actually renders rather than the Rust mirror.
-    fn token_hex(name: &str) -> (u8, u8, u8) {
-        let source = include_str!("design_tokens.rs");
-        let needle = format!("mod.widgets.{name} ");
-        for line in source.lines() {
-            let trimmed = line.trim();
-            if !trimmed.starts_with(&needle) {
-                continue;
-            }
-            let Some((_, rhs)) = trimmed.split_once('=') else { continue };
-            let value = rhs.split("//").next().unwrap_or(rhs).trim();
-            let hex = value.trim_start_matches("#x");
-            if hex.len() >= 6 {
-                return (
-                    u8::from_str_radix(&hex[0..2], 16).unwrap(),
-                    u8::from_str_radix(&hex[2..4], 16).unwrap(),
-                    u8::from_str_radix(&hex[4..6], 16).unwrap(),
-                );
-            }
-        }
-        panic!("design token {name} not found in design_tokens.rs");
+    /// Read the resolved VM roles, including host aliases, rather than parsing
+    /// source literals (which cannot follow a live theme).
+    fn token_hex(vm: &mut makepad_widgets::ScriptVm, name: &str) -> (u8, u8, u8) {
+        use makepad_widgets::*;
+        let widgets = vm.module(id!(widgets));
+        let value = vm.bx.heap.value(widgets, LiveId::from_str(name).into(), NoTrap);
+        assert!(!value.is_nil(), "missing {name}");
+        let color = Vec4f::script_from_value(vm,value);
+        let argb = crate::theme::argb(color);
+        ((argb >> 16) as u8, (argb >> 8) as u8, argb as u8)
     }
 
     fn relative_luminance((r, g, b): (u8, u8, u8)) -> f64 {
@@ -556,11 +504,22 @@ mod tests {
     /// the nearest compliant value.
     #[test]
     fn semantic_token_pairs_meet_wcag_aa() {
+        use makepad_widgets::*;
+        use crate::theme::{Accent, Appearance, Selection};
         let mut failures = Vec::new();
-        for (fg, bg, usage) in SEMANTIC_PAIRS {
-            let ratio = contrast(token_hex(fg), token_hex(bg));
-            if ratio < 4.5 {
-                failures.push(format!("{fg} on {bg} = {ratio:.2}:1 ({usage})"));
+        let mut cx = Cx::new(Box::new(|_,_|{}));
+        let mut first = true;
+        for appearance in [Appearance::Light, Appearance::Dark] {
+            for accent in [Accent::Teal, Accent::Violet] {
+                cx.with_vm(|vm| {
+                    if first {crate::theme::tests::install(vm,Selection{appearance,accent}); first=false;}
+                    else {vm.with_reload(|vm| crate::theme::tests::install(vm,Selection{appearance,accent}));}
+                    super::script_mod(vm);
+                    for (fg,bg,usage) in SEMANTIC_PAIRS {
+                        let ratio = contrast(token_hex(vm,fg),token_hex(vm,bg));
+                        if ratio < 4.5 { failures.push(format!("{appearance:?}/{accent:?}: {fg} on {bg} = {ratio:.2}:1 ({usage})")); }
+                    }
+                });
             }
         }
         assert!(

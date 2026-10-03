@@ -38,6 +38,7 @@ pub mod web_browser_window;
 
 pub fn script_mod(vm: &mut ScriptVm) {
     // Order matters here, as some widget definitions depend on others.
+    crate::theme::script_mod(vm);
     cached_widget::script_mod(vm);
     styles::script_mod(vm);
     design_tokens::script_mod(vm);

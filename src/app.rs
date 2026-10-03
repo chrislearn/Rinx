@@ -1053,9 +1053,11 @@ impl AppMain for App {
         script_eval!(vm, {
             mod.theme = mod.themes.light
         });
+        crate::theme::init_standalone(vm);
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         crate::apple_fonts::install(vm);
         makepad_widgets::widgets_mod(vm);
+        makepad_widgets::desktop_style::apply_widgets(vm);
         register_widgets(vm);
         self::script_mod(vm)
     }
@@ -1254,6 +1256,14 @@ impl App {
     /// The hosted content widget, which the host seats in its pane.
     pub fn content(&self) -> WidgetRef {
         self.ui.clone()
+    }
+
+    /// The module owns this content dynamically, so reapplying its empty
+    /// wrapper alone cannot reach the app's new widget prototypes.
+    pub fn reapply_embedded(&mut self, vm: &mut ScriptVm) {
+        let value = script_eval!(vm, {mod.widgets.RinxContent {}});
+        self.ui.script_apply(vm, &Apply::ScriptReapply, &mut Scope::empty(), value);
+        self.on_after_reload(vm);
     }
 
     pub fn draw_embedded(&mut self, cx: &mut Cx2d, view: &mut View, walk: Walk) -> DrawStep {
