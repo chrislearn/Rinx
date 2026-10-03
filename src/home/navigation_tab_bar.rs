@@ -20,6 +20,7 @@
 //!      SpacesBar content
 //!
 
+use crate::theme::Snapshot as ThemeSnapshot;
 use makepad_widgets::*;
 use serde::{Deserialize, Serialize};
 use crate::{
@@ -36,8 +37,7 @@ use crate::{
     shared::{
         avatar::{AvatarState, AvatarWidgetExt},
         navigation_bar_button::{NavigationBarButton, NavigationBarButtonWidgetExt},
-        styles::*,
-        verification_badge::VerificationBadgeWidgetExt
+        verification_badge::VerificationBadgeWidgetExt,
     },
     sliding_sync::{current_user_id, AccountDataAction},
     utils::{self, RoomNameId},
@@ -247,10 +247,10 @@ script_mod! {
         draw_bg +: {color_hover: #x00000000 color_active: #x00000000 border_radius: 0}
         icon := Icon {
             icon_walk: Walk{width: 24 height: 24}
-            draw_icon.color: #x191919
+            draw_icon.color: mod.widgets.RINX_INK
         }
         label := Label {
-            draw_text +: {color: #x191919 text_style: theme.font_regular {font_size: 8}}
+            draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_regular {font_size: (8 * mod.widgets.RINX_TEXT_SCALE)}}
         }
     }
 
@@ -318,7 +318,7 @@ script_mod! {
             new_batch: true flow: Right align: Align{y: 0.5}
             width: Fill height: (56 + mod.widgets.SAFE_INSET_PAD_BOTTOM)
             padding: Inset{bottom: (mod.widgets.SAFE_INSET_PAD_BOTTOM)}
-            draw_bg.color: #xf7f7f7
+            draw_bg.color: mod.widgets.RINX_PAGE
             chats_tab := mod.widgets.MobileTabButton {
                 icon.draw_icon.svg: crate_resource("self://resources/icons/double_chat.svg")
                 label.text: #(crate::i18n::tr("Chats")) label.i18n_text: "Chats"
@@ -344,11 +344,18 @@ script_mod! {
 /// using `NavigationBarButton`'s built-in `tooltip_text`.
 #[derive(Script, Widget)]
 pub struct ProfileIcon {
-    #[deref] inner: NavigationBarButton,
-    #[rust] own_profile: Option<UserProfile>,
+    #[rust]
+    appearance: ThemeSnapshot,
+    #[deref]
+    inner: NavigationBarButton,
+    #[rust]
+    own_profile: Option<UserProfile>,
 }
 
 impl ScriptHook for ProfileIcon {
+    fn on_after_apply(&mut self, vm: &mut ScriptVm, _: &Apply, _: &mut Scope, _: ScriptValue) {
+        self.appearance = crate::theme::snapshot_for_vm(vm);
+    }
     fn on_after_reload(&mut self, vm: &mut ScriptVm) {
         vm.with_cx_mut(|cx| {
             if self.own_profile.is_none() {
@@ -499,7 +506,7 @@ impl Widget for ProfileIcon {
             // If we don't have a profile, default to an unknown avatar.
             our_own_avatar.show_text(
                 cx,
-                Some(COLOR_FG_DISABLED),
+                Some(self.appearance.role("color.content.disabled")),
                 None, // don't make this avatar clickable; we handle clicks on this ProfileIcon widget directly.
                 "",
             );
@@ -543,7 +550,10 @@ impl ProfileIconRef {
 /// * In the "mobile" (narrow) layout, this is a horizontal bar on the bottom.
 #[derive(Script, Widget)]
 pub struct NavigationTabBar {
-    #[deref] view: AdaptiveView,
+    #[rust]
+    appearance: ThemeSnapshot,
+    #[deref]
+    view: AdaptiveView,
 
     #[rust] is_spaces_bar_shown: bool,
 
@@ -556,6 +566,10 @@ pub struct NavigationTabBar {
 }
 
 impl ScriptHook for NavigationTabBar {
+    fn on_after_apply(&mut self, vm: &mut ScriptVm, _: &Apply, _: &mut Scope, _: ScriptValue) {
+        self.appearance = crate::theme::snapshot_for_vm(vm);
+        self.mobile_palette = None;
+    }
     fn on_after_new(&mut self, vm: &mut ScriptVm) {
         vm.with_cx_mut(|cx| {
             self.apply_selected_tab(cx, None);
@@ -607,7 +621,11 @@ impl NavigationTabBar {
             let button = self.view.navigation_bar_button(cx, id);
             button.set_selected(cx, selected);
             if update_palette && !button.is_empty() {
-                let color = if selected { vec4(0.027, 0.757, 0.376, 1.0) } else { vec4(0.098, 0.098, 0.098, 1.0) };
+                let color = if selected {
+                    self.appearance.accent
+                } else {
+                    self.appearance.ink
+                };
                 let mut icon = self.view.icon(cx, &[id[0], id!(icon)]);
                 script_apply_eval!(cx, icon, {draw_icon +: {color: #(color)}});
                 self.view.label(cx, &[id[0], id!(label)]).set_text_color(cx, color);

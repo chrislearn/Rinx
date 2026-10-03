@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test the real in-app WebKit view with local HTML, redirects, and history."""
 import argparse
+import hashlib
 import http.server
 import json
 import os
@@ -10,6 +11,7 @@ import subprocess
 import threading
 import time
 import uuid
+from PIL import Image
 from native_probe import NativeApp
 
 
@@ -59,7 +61,7 @@ class Pages(http.server.BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--binary", type=Path, default=Path("target/debug/examples/chat_web_browser"))
+    parser.add_argument("--binary", type=Path, default=Path("target/fast/examples/chat_web_browser"))
     parser.add_argument("--desktop", action="store_true")
     args = parser.parse_args()
     root = (Path("target/chat-web-browser-regressions") / uuid.uuid4().hex).resolve()
@@ -80,7 +82,7 @@ def main():
                  RINX_BROWSER_FIXTURE_OUTPUT=str(root),
                  RINX_BROWSER_FIXTURE_SESSION=str(root / "reader-session.json")),
         stdin=subprocess.DEVNULL, stdout=app.log, stderr=subprocess.STDOUT)
-    report = {"passed": False, "mode": "desktop" if args.desktop else "modal", "checks": []}
+    report = {"passed": False, "mode": "desktop" if args.desktop else "modal", "checks": [], "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest()}
     try:
         for _ in range(100):
             if app.process.poll() is not None:
@@ -240,6 +242,10 @@ def main():
         app.wait_text("Shared notes 1.md")
         app.wait_text("Shared Markdown")
         app.capture("markdown-document")
+        reader = next(w for w in app.snap() if w['i'] == 'article_reader')
+        window_width = next(w['sz'][0] for w in app.request('/s')['w'] if w['i'] == app.window)
+        left, _, width, _ = reader['r']
+        assert width <= 760.5 and abs(left - (window_width-left-width)) <= 2, reader
         app.wait_text("Tables", pixels=True)
         app.wait_text("answer", pixels=True)
         assert len(tabs()) == 2
@@ -274,6 +280,46 @@ def main():
         select_tab(second_doc)
         app.wait_text("Document 2 paragraph 1")
         report["checks"].append("multiple_documents_preserve_scroll_and_coexist_with_live_webpages")
+        def appearance():
+            app.request('/event', data='theme:inspect', wait=1)
+            data=json.loads((root / 'appearance.json').read_text())
+            assert data['toolbar_ink'] == data['ink'], data
+            return data
+        previous_appearance=appearance()
+        stable_tabs = [(t['i'],t.get('t')) for t in tabs()]
+        for mode in ('dark','light'):
+            app.request('/event', data=f'theme:{mode}', wait=1)
+            time.sleep(.6)
+            new_appearance=appearance()
+            assert new_appearance['revision'] != previous_appearance['revision']
+            assert new_appearance['toolbar_ink'] != previous_appearance['toolbar_ink']
+            assert new_appearance['toolbar_uid'] == previous_appearance['toolbar_uid']
+            previous_appearance=new_appearance
+            assert [(t['i'],t.get('t')) for t in tabs()] == stable_tabs
+            app.wait_text('Document 2 paragraph 1')
+            select_tab(first_doc)
+            assert document_paragraphs() == saved_paragraphs
+            select_tab(web_tab)
+            assert inspect('First page')['text'] == website['text'], 'Appearance reloaded external website'
+            select_tab(second_doc)
+            app.wait_text('Tables', pixels=True)
+            app.capture(f'themed-{mode}-documents')
+            code=next(w for w in app.snap() if w['ty']=='MarkdownCode')
+            x,y,w,h=code['r']
+            png=Image.open(root / f'themed-{mode}-documents.png').convert('RGB')
+            logical=next(w['sz'] for w in app.request('/s')['w'] if w['i']==app.window)
+            pixel=png.getpixel((int((x+w-5)*png.width/logical[0]),int((y+5)*png.height/logical[1])))
+            expected=new_appearance['code_bg']
+            expected=((expected>>16)&255,(expected>>8)&255,expected&255)
+            assert all(abs(a-b)<5 for a,b in zip(pixel,expected)), (mode,pixel,expected,code)
+            ink = new_appearance['code_fg']
+            ink = ((ink >> 16) & 255, (ink >> 8) & 255, ink & 255)
+            sx, sy = png.width / logical[0], png.height / logical[1]
+            text_pixels = png.crop((int((x+8)*sx), int((y+6)*sy),
+                                    int((x+min(w-8,300))*sx), int((y+h-6)*sy)))
+            assert sum(all(abs(a-b)<5 for a,b in zip(p,ink)) for p in text_pixels.getdata()) > 10, (mode,ink,code)
+
+        report['checks'].append('live_theme_preserves_reader_window_tabs_inactive_document_scroll_and_external_website')
         close_tab(first_doc)
         app.wait_text("Document 2 paragraph 1")
         close_tab(second_doc)

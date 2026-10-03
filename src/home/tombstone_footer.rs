@@ -47,7 +47,7 @@ script_mod! {
             align: Align{x: 0.5}
             draw_text +: {
                 color: (TYPING_NOTICE_TEXT_COLOR),
-                text_style: REGULAR_TEXT {font_size: 11}
+                text_style: REGULAR_TEXT {font_size: (11 * mod.widgets.RINX_TEXT_SCALE)}
             }
         }
 
@@ -63,7 +63,7 @@ script_mod! {
             text_view +: {
                 text +: {
                     draw_text +: {
-                        text_style: TITLE_TEXT { font_size: 13.0 }
+                        text_style: TITLE_TEXT { font_size: (13.0 * mod.widgets.RINX_TEXT_SCALE) }
                     }
                 }
             }
@@ -74,7 +74,7 @@ script_mod! {
             flow: Flow.Right{wrap: true},
             align: Align{x: 0.5}
             draw_text +: {
-                text_style: TITLE_TEXT { font_size: 12 }
+                text_style: TITLE_TEXT { font_size: (12 * mod.widgets.RINX_TEXT_SCALE) }
                 color: (COLOR_TEXT)
             }
         }

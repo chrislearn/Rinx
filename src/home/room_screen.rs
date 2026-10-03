@@ -1,7 +1,13 @@
 //! The `RoomScreen` widget is the UI view that displays a single room or thread's timeline
 //! of events (messages，state changes, etc.), along with an input bar at the bottom.
 
-use std::{borrow::Cow, cell::RefCell, ops::{DerefMut, Range}, sync::Arc};
+use crate::theme::Snapshot as ThemeSnapshot;
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    ops::{DerefMut, Range},
+    sync::Arc,
+};
 use crate::mini_app::{MiniAppCardWidgetRefExt, SharedMiniApp};
 use crate::forwarding::{ForwardAction, ForwardBundle, ForwardCardWidgetRefExt, ForwardMessage};
 use crate::home::mobile_chat_info::MobileChatInfoWidgetExt;
@@ -36,7 +42,32 @@ use crate::{
     },
     room::{BasicRoomDetails, reply_preview::{CollapsiblePreviewRef, CollapsiblePreviewWidgetRefExt}, room_input_bar::{RoomInputBarState, RoomInputBarWidgetRefExt}, typing_notice::TypingNoticeWidgetExt},
     shared::{
-        attachment_download::{enqueue_already_downloading_notification, DownloadDisplayState, DownloadKind, DownloadableAttachment, PendingDownload, PendingDownloadState, TimelineUpdateSenderOption, TransferKind, media_source_mxc, start_attachment_download, start_attachment_share}, avatar::{AvatarState, AvatarWidgetRefExt}, confirmation_modal::ConfirmationModalContent, context_menu::ContextMenuClosed, file_upload_modal::FileUploadAttemptId, hover_highlight::handle_hover_hit, html_or_plaintext::{HtmlOrPlaintextRef, HtmlOrPlaintextWidgetExt, HtmlOrPlaintextWidgetRefExt, RobrixHtmlLinkAction}, image_viewer::{ImageViewerAction, ImageViewerMetaData, LoadState}, jump_to_bottom_button::{JumpToBottomButtonWidgetExt, UnreadMessageCount, SCROLL_TO_BOTTOM_SPEED}, popup_list::{PopupKind, enqueue_popup_notification}, restore_status_view::RestoreStatusViewWidgetExt, room_input_popup_menu::{RoomInputPopupMenuAction, RoomInputPopupMenuRef, RoomInputPopupMenuWidgetExt}, styles::*, text_or_image::{TextOrImageAction, TextOrImageRef, TextOrImageWidgetRefExt}, timestamp::TimestampWidgetRefExt
+        attachment_download::{
+            enqueue_already_downloading_notification, DownloadDisplayState, DownloadKind,
+            DownloadableAttachment, PendingDownload, PendingDownloadState,
+            TimelineUpdateSenderOption, TransferKind, media_source_mxc, start_attachment_download,
+            start_attachment_share,
+        },
+        avatar::{AvatarState, AvatarWidgetRefExt},
+        confirmation_modal::ConfirmationModalContent,
+        context_menu::ContextMenuClosed,
+        file_upload_modal::FileUploadAttemptId,
+        hover_highlight::handle_hover_hit,
+        html_or_plaintext::{
+            HtmlOrPlaintextRef, HtmlOrPlaintextWidgetExt, HtmlOrPlaintextWidgetRefExt,
+            RobrixHtmlLinkAction,
+        },
+        image_viewer::{ImageViewerAction, ImageViewerMetaData, LoadState},
+        jump_to_bottom_button::{
+            JumpToBottomButtonWidgetExt, UnreadMessageCount, SCROLL_TO_BOTTOM_SPEED,
+        },
+        popup_list::{PopupKind, enqueue_popup_notification},
+        restore_status_view::RestoreStatusViewWidgetExt,
+        room_input_popup_menu::{
+            RoomInputPopupMenuAction, RoomInputPopupMenuRef, RoomInputPopupMenuWidgetExt,
+        },
+        text_or_image::{TextOrImageAction, TextOrImageRef, TextOrImageWidgetRefExt},
+        timestamp::TimestampWidgetRefExt,
     },
     sliding_sync::{BackwardsPaginateUntilEventRequest, MatrixRequest, PaginationDirection, TimelineEndpoints, TimelineKind, TimelineRequestSender, UserPowerLevels, submit_async_request, take_timeline_endpoints, TimelineEndpointsRecreated}, utils::{self, MEDIA_THUMBNAIL_FORMAT, RoomNameId, unix_time_millis_to_datetime}
 };
@@ -91,27 +122,21 @@ const MAX_BACKWARDS_PAGINATIONS_WITHOUT_PROGRESS: usize = 5;
 
 static UNNAMED_ROOM: &str = "Unnamed Room";
 
-/// #FFF4E5
-const COLOR_THREAD_SUMMARY_BG: Vec4 = vec4(1.0, 0.957, 0.898, 1.0);
-/// #FFEACC
-const COLOR_THREAD_SUMMARY_BG_HOVER: Vec4 = vec4(1.0, 0.918, 0.8, 1.0);
-
-
 script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
 
 
-    mod.widgets.COLOR_BG = #xfff8ee
+    mod.widgets.COLOR_BG = mod.widgets.RINX_PAGE
     mod.widgets.COLOR_OVERLAY_BG = #x000000d8
-    mod.widgets.COLOR_READ_MARKER = #xeb2733
+    mod.widgets.COLOR_READ_MARKER = mod.widgets.RINX_ACCENT
 
-    mod.widgets.REACTION_TEXT_COLOR = #4c00b0
+    mod.widgets.REACTION_TEXT_COLOR = mod.widgets.RINX_ACCENT
 
-    mod.widgets.COLOR_THREAD_SUMMARY_BG = #FFF4E5
-    mod.widgets.COLOR_THREAD_SUMMARY_BG_HOVER = #FFEACC
-    mod.widgets.COLOR_THREAD_SUMMARY_BORDER = #E8C99A
-    mod.widgets.COLOR_THREAD_SUMMARY_REPLY_COUNT = #A35A00
+    mod.widgets.COLOR_THREAD_SUMMARY_BG = mod.widgets.RINX_FIELD
+    mod.widgets.COLOR_THREAD_SUMMARY_BG_HOVER = mod.widgets.RINX_HOVER
+    mod.widgets.COLOR_THREAD_SUMMARY_BORDER = mod.widgets.RINX_BORDER
+    mod.widgets.COLOR_THREAD_SUMMARY_REPLY_COUNT = mod.widgets.RINX_MUTED
 
     // An empty view that takes up no space in the portal list.
     mod.widgets.Empty = View { }
@@ -166,7 +191,7 @@ script_mod! {
                 padding: 0
                 margin: 0
                 draw_text +: {
-                    text_style: REGULAR_TEXT { font_size: 11 },
+                    text_style: REGULAR_TEXT { font_size: (11 * mod.widgets.RINX_TEXT_SCALE) },
                     color: (COLOR_ACTIVE_PRIMARY)
                 }
                 text: #(crate::i18n::tr("Downloading…")) i18n_text: "Downloading…"
@@ -225,7 +250,7 @@ script_mod! {
         thread_summary_count := Label {
             width: Fit,
             draw_text +: {
-                text_style: USERNAME_TEXT_STYLE { font_size: 11 }
+                text_style: USERNAME_TEXT_STYLE { font_size: (11 * mod.widgets.RINX_TEXT_SCALE) }
                 color: (mod.widgets.COLOR_THREAD_SUMMARY_REPLY_COUNT)
             }
             text: ""
@@ -279,7 +304,7 @@ script_mod! {
 
                 let with_highlight = mix(
                     base_color,
-                    #c5d6fa,
+                    mod.widgets.RINX_SELECTED,
                     self.highlight
                 );
 
@@ -342,7 +367,7 @@ script_mod! {
             width: Fill,
             height: Fit
             flow: Right,
-            padding: Inset{top: 0, bottom: 10, left: 24, right: 24},
+            padding: Inset{top: 0, bottom: 10, left: (1.5 * mod.widgets.RINX_GUTTER), right: (1.5 * mod.widgets.RINX_GUTTER)},
 
             profile := View {
                 align: Align{x: 0.5, y: 0.0} // centered horizontally, top aligned
@@ -362,7 +387,7 @@ script_mod! {
             }
 
             content := View {
-                width: Fill{max: 760},
+                width: Fill{max: mod.widgets.RINX_READING_WIDTH},
                 height: Fit
                 flow: Down,
                 padding: 0.0
@@ -413,7 +438,7 @@ script_mod! {
         avatar := MobileAvatar {width: 40 height: 40}
         edited_indicator := EditedIndicator {
             width: Fill
-            edit_html +: {width: Fill font_size: 8 font_color: #x888888 body: #(crate::i18n::tr("edited")) i18n_body: "edited"}
+            edit_html +: {width: Fill font_size: (8 * mod.widgets.RINX_TEXT_SCALE) font_color: mod.widgets.RINX_MUTED body: #(crate::i18n::tr("edited")) i18n_body: "edited"}
         }
         tsp_sign_indicator := TspSignIndicator {}
     }
@@ -423,17 +448,17 @@ script_mod! {
             width: Fill height: Fit flow: Right
             username := Label {
                 width: Fill max_lines: 1 text_overflow: Ellipsis padding: 0
-                draw_text +: {color: #x888888 text_style: theme.font_regular {font_size: 9}}
+                draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular {font_size: (9 * mod.widgets.RINX_TEXT_SCALE)}}
             }
             agent_badge := mod.widgets.AgentBadge {}
         }
         bubble := RoundedView {
             width: Fill height: Fit flow: Down padding: 10
-            draw_bg +: {color: #xffffff border_radius: 5}
+            draw_bg +: {color: mod.widgets.RINX_INCOMING border_radius: theme.corner_radius}
             message := HtmlOrPlaintext {
                 selectable: true
-                plaintext_view +: {pt_label +: {draw_text +: {color: #x191919 text_style: theme.font_regular {font_size: 12.5}}}}
-                html_view +: {html +: {font_size: 12.5 font_color: #x191919}}
+                plaintext_view +: {pt_label +: {draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_regular {font_size: (12.5 * mod.widgets.RINX_TEXT_SCALE)}}}}
+                html_view +: {html +: {font_size: (12.5 * mod.widgets.RINX_TEXT_SCALE) font_color: mod.widgets.RINX_INK}}
             }
             mini_app_card := mod.widgets.MiniAppCard {}
                 forward_card := mod.widgets.ForwardCard {}
@@ -454,7 +479,7 @@ script_mod! {
     }
     mod.widgets.MobileMessage = mod.widgets.Message {
         mobile_bubble: true
-        draw_bg +: {color: #xededed mentions_bar_color: #xededed mentions_bar_width: 0}
+        draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
             width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
             profile := MobileMessageProfile {}
@@ -464,14 +489,14 @@ script_mod! {
     }
     mod.widgets.MobileOwnMessage = mod.widgets.Message {
         mobile_bubble: true
-        draw_bg +: {color: #xededed mentions_bar_color: #xededed mentions_bar_width: 0}
+        draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
             width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
             View {width: Fill height: 1}
             content := MobileMessageContent {
                 align: Align{x: 1}
                 username_view.visible: false
-                bubble +: {draw_bg.color: #x95ec69}
+                bubble +: {draw_bg.color: mod.widgets.RINX_OUTGOING}
             }
             profile := MobileMessageProfile {}
         }
@@ -479,7 +504,7 @@ script_mod! {
 
     mod.widgets.MobileMiniAppMessage = mod.widgets.MobileMessage {}
     mod.widgets.MobileOwnMiniAppMessage = mod.widgets.MobileOwnMessage {
-        body.content.bubble.draw_bg.color: #xffffff
+        body.content.bubble.draw_bg.color: mod.widgets.RINX_SURFACE
     }
     mod.widgets.MiniAppMessage = mod.widgets.Message {}
 
@@ -489,7 +514,7 @@ script_mod! {
             width: Fill height: Fit flow: Right
             username := Label {
                 width: Fill max_lines: 1 text_overflow: Ellipsis padding: 0
-                draw_text +: {color: #x888888 text_style: theme.font_regular {font_size: 9}}
+                draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular {font_size: (9 * mod.widgets.RINX_TEXT_SCALE)}}
             }
             agent_badge := mod.widgets.AgentBadge {}
         }
@@ -515,7 +540,7 @@ script_mod! {
     }
     mod.widgets.MobileImageMessage = mod.widgets.Message {
         mobile_media: true
-        draw_bg +: {color: #xededed mentions_bar_color: #xededed mentions_bar_width: 0}
+        draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
             width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
             profile := MobileMessageProfile {}
@@ -525,7 +550,7 @@ script_mod! {
     }
     mod.widgets.MobileOwnImageMessage = mod.widgets.Message {
         mobile_media: true
-        draw_bg +: {color: #xededed mentions_bar_color: #xededed mentions_bar_width: 0}
+        draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
             width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
             View {width: Fill height: 1}
@@ -547,7 +572,7 @@ script_mod! {
             width: Fill,
             height: Fit
             flow: Right,
-            padding: Inset{ top: 0, bottom: 2.5, left: 24.0, right: 24.0 },
+            padding: Inset{ top: 0, bottom: 2.5, left: (1.5 * mod.widgets.RINX_GUTTER), right: (1.5 * mod.widgets.RINX_GUTTER) },
             profile := View {
                 align: Align{x: 0.5, y: 0.0} // centered horizontally, top aligned
                 width: 65.0,
@@ -699,7 +724,7 @@ script_mod! {
                 text_view +: {
                     text +: {
                         draw_text +: {
-                            text_style: TITLE_TEXT { font_size: 7.0 }
+                            text_style: TITLE_TEXT { font_size: (7.0 * mod.widgets.RINX_TEXT_SCALE) }
                         }
                     }
                 }
@@ -747,7 +772,7 @@ script_mod! {
             content +: {
                 align: Align{x: 0.5 y: 0.5}
                 margin: 0
-                draw_text +: {color: #x999999 text_style: theme.font_regular {font_size: 9}}
+                draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular {font_size: (9 * mod.widgets.RINX_TEXT_SCALE)}}
             }
         }
     }
@@ -797,7 +822,7 @@ script_mod! {
     mod.widgets.MobileDateDivider = mod.widgets.DateDivider {
         left_line.visible: false right_line.visible: false
         padding: 6
-        date +: {draw_text +: {color: #x999999 text_style: theme.font_regular {font_size: 9}}}
+        date +: {draw_text +: {color: mod.widgets.RINX_MUTED text_style: theme.font_regular {font_size: (9 * mod.widgets.RINX_TEXT_SCALE)}}}
     }
     mod.widgets.MobileReadMarker = mod.widgets.MobileDateDivider {date.text: #(crate::i18n::tr("New Messages")) date.i18n_text: "New Messages"}
 
@@ -819,7 +844,7 @@ script_mod! {
             flow: Flow.Right { wrap: true },
             padding: Inset{ top: 10.0, bottom: 7.0, left: 15.0, right: 15.0 }
             draw_text +: {
-                text_style: MESSAGE_TEXT_STYLE { font_size: 10 },
+                text_style: MESSAGE_TEXT_STYLE { font_size: (10 * mod.widgets.RINX_TEXT_SCALE) },
                 color: (TIMESTAMP_TEXT_COLOR)
             }
             text: #(crate::i18n::tr("Loading earlier messages...")) i18n_text: "Loading earlier messages..."
@@ -903,8 +928,8 @@ script_mod! {
                     width: Fill, height: Fit
                     flow: Flow.Right{wrap: false}
                     draw_text +: {
-                        color: #x191919
-                        text_style: theme.font_bold {font_size: 13}
+                        color: mod.widgets.RINX_INK
+                        text_style: theme.font_bold {font_size: (13 * mod.widgets.RINX_TEXT_SCALE)}
                     }
                     text: ""
                 }
@@ -915,7 +940,7 @@ script_mod! {
                     align: Align{x: 0.5, y: 0.5}
                     spacing: 0
                     text: "···"
-                    draw_text +: {color: #x191919 text_style: theme.font_bold {font_size: 16}}
+                    draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold {font_size: (16 * mod.widgets.RINX_TEXT_SCALE)}}
                     draw_bg +: {color: #x00000000 color_hover: #x0000000d color_down: #x0000001a border_size: 0}
                     icon_walk: Walk{width: 0 height: 0}
                 }
@@ -3277,7 +3302,23 @@ impl RoomScreen {
                     self.begin_media_transfer(cx, portal_list, info, TransferKind::Download, start_attachment_download);
                 }
                 MessageAction::OpenMarkdownAttachment(info) => {
-                    self.begin_media_transfer(cx, portal_list, info, TransferKind::Preview, crate::shared::attachment_download::start_markdown_preview);
+                    if info.kind == DownloadKind::Theme {
+                        self.begin_media_transfer(
+                            cx,
+                            portal_list,
+                            info,
+                            TransferKind::Preview,
+                            crate::shared::attachment_download::start_theme_preview,
+                        );
+                    } else {
+                        self.begin_media_transfer(
+                            cx,
+                            portal_list,
+                            info,
+                            TransferKind::Preview,
+                            crate::shared::attachment_download::start_markdown_preview,
+                        );
+                    }
                 }
                 MessageAction::ShareAttachment(info) => {
                     self.begin_media_transfer(cx, portal_list, info, TransferKind::Share, start_attachment_share);
@@ -5232,8 +5273,26 @@ fn populate_message_view(
                     download_info = Some(DownloadableAttachment {
                         media_source: file_content.source.clone(),
                         filename: file_content.filename().to_owned(),
-                        size: file_content.info.as_ref().and_then(|i| i.size).map(u64::from),
-                        kind: if crate::shared::attachment_download::is_markdown_attachment(file_content.filename(), file_content.info.as_ref().and_then(|info| info.mimetype.as_deref())) {
+                        size: file_content
+                            .info
+                            .as_ref()
+                            .and_then(|i| i.size)
+                            .map(u64::from),
+                        kind: if crate::shared::attachment_download::is_theme_attachment(
+                            file_content.filename(),
+                            file_content
+                                .info
+                                .as_ref()
+                                .and_then(|info| info.mimetype.as_deref()),
+                        ) {
+                            DownloadKind::Theme
+                        } else if crate::shared::attachment_download::is_markdown_attachment(
+                            file_content.filename(),
+                            file_content
+                                .info
+                                .as_ref()
+                                .and_then(|info| info.mimetype.as_deref()),
+                        ) {
                             DownloadKind::Markdown
                         } else { DownloadKind::File },
                     });
@@ -5704,7 +5763,11 @@ fn populate_message_view(
         else {
             // Server notices are drawn with a red color avatar background and username.
             let avatar = item.avatar(cx, ids!(profile.avatar));
-            avatar.show_text(cx, Some(COLOR_FG_DANGER_RED), None, "⚠");
+            let color = item
+                .as_message()
+                .borrow()
+                .map(|m| m.appearance.role("color.status.danger.foreground"));
+            avatar.show_text(cx, color, None, "⚠");
             username_label.set_text(cx, crate::i18n::tr("Server notice"));
             script_apply_eval!(cx, username_label, {
                 draw_text +: {
@@ -6960,13 +7023,21 @@ impl ActionDefaultRef for MessageAction {
 /// A widget representing a single message of any kind within a room timeline.
 #[derive(Script, Widget, Animator)]
 pub struct Message {
-    #[live] mobile_bubble: bool,
-    #[live] mobile_media: bool,
-    #[source] source: ScriptObjectRef,
-    #[deref] view: View,
-    #[apply_default] animator: Animator,
+    #[rust]
+    appearance: ThemeSnapshot,
+    #[live]
+    mobile_bubble: bool,
+    #[live]
+    mobile_media: bool,
+    #[source]
+    source: ScriptObjectRef,
+    #[deref]
+    view: View,
+    #[apply_default]
+    animator: Animator,
 
-    #[rust] details: Option<MessageDetails>,
+    #[rust]
+    details: Option<MessageDetails>,
     /// `True` while a context menu that we opened is being shown.
     #[rust] is_context_menu_open: bool,
     /// Set on file/image/audio/video messages so the download button knows
@@ -6987,6 +7058,10 @@ pub struct Message {
 }
 
 impl ScriptHook for Message {
+    fn on_after_apply(&mut self, vm: &mut ScriptVm, _: &Apply, _: &mut Scope, _: ScriptValue) {
+        self.appearance = crate::theme::snapshot_for_vm(vm);
+    }
+
     fn on_after_reload(&mut self, _vm: &mut ScriptVm) {
         // A script reload changes the Message's children; invalidate the ones we cached.
         self.replied_to_message_view = None;
@@ -7090,24 +7165,31 @@ impl Widget for Message {
             match summary_hit {
                 Hit::FingerDown(_) => {
                     self.animator_play(cx, ids!(bg_hover.on));
-                    apply_hover(cx, COLOR_THREAD_SUMMARY_BG_HOVER);
+                    apply_hover(cx, self.appearance.hover);
                 }
                 Hit::FingerHoverIn(_) => {
                     self.animator_play(cx, ids!(bg_hover.on));
-                    apply_hover(cx, COLOR_THREAD_SUMMARY_BG_HOVER);
+                    apply_hover(cx, self.appearance.hover);
                 }
                 Hit::FingerHoverOut(_) => {
-                    apply_hover(cx, COLOR_THREAD_SUMMARY_BG);
+                    apply_hover(cx, self.appearance.field);
                 }
                 Hit::FingerMove(fe) if !fe.is_over => {
-                    apply_hover(cx, COLOR_THREAD_SUMMARY_BG);
+                    apply_hover(cx, self.appearance.field);
                 }
                 Hit::FingerLongPress(_) => {
-                    apply_hover(cx, COLOR_THREAD_SUMMARY_BG_HOVER);
+                    apply_hover(cx, self.appearance.hover);
                 }
                 Hit::FingerUp(fe) => {
                     let still_hovered = fe.device.has_hovers() && fe.is_over;
-                    apply_hover(cx, if still_hovered { COLOR_THREAD_SUMMARY_BG_HOVER } else { COLOR_THREAD_SUMMARY_BG });
+                    apply_hover(
+                        cx,
+                        if still_hovered {
+                            self.appearance.hover
+                        } else {
+                            self.appearance.field
+                        },
+                    );
                     // Same as the reply preview: this press never reaches the body's
                     // hit test, so settle the message highlight here too.
                     if !self.is_context_menu_open {
@@ -7169,7 +7251,7 @@ impl Widget for Message {
         if let Event::ClearHover = event && thread_root_event_id.is_some() {
             let mut summary = self.thread_root_summary_view(cx);
             script_apply_eval!(cx, summary, {
-                draw_bg.color: #(COLOR_THREAD_SUMMARY_BG)
+                draw_bg.color: #(self.appearance.field)
             });
         }
 
@@ -7223,8 +7305,16 @@ impl Widget for Message {
 
             // Handle clicks on the media-related buttons (download, share, cancel) beneath media messages.
             if let Some(info) = self.download_info.as_ref() {
-                if info.kind == DownloadKind::Markdown && self.view.button(cx, ids!(content.download_section.open_markdown_button)).clicked(actions) {
-                    cx.widget_action(room_screen_widget_uid, MessageAction::OpenMarkdownAttachment(info.clone()));
+                if matches!(info.kind, DownloadKind::Markdown | DownloadKind::Theme)
+                    && self
+                        .view
+                        .button(cx, ids!(content.download_section.open_markdown_button))
+                        .clicked(actions)
+                {
+                    cx.widget_action(
+                        room_screen_widget_uid,
+                        MessageAction::OpenMarkdownAttachment(info.clone()),
+                    );
                 }
                 if self.view.button(cx, ids!(content.download_section.download_button)).clicked(actions) {
                     cx.widget_action(
@@ -7293,8 +7383,8 @@ impl Widget for Message {
         if self.details.as_ref().is_some_and(|d| d.should_be_highlighted) {
             script_apply_eval!(cx, self, {
                 draw_bg +: {
-                    color: #ffffd1,
-                    mentions_bar_color: #ffd54f
+                    color: mod.widgets.RINX_MENTION,
+                    mentions_bar_color: mod.widgets.RINX_ACCENT
                 }
             });
         }
@@ -7413,14 +7503,34 @@ impl Message {
         let section_visible = self.download_info.is_some();
         self.view.view(cx, ids!(content.download_section)).set_visible(cx, section_visible);
         if section_visible {
-            self.view.button(cx, ids!(content.download_section.open_markdown_button)).set_visible(cx,
-                matches!(download_state, DownloadDisplayState::Idle) && self.download_info.as_ref().is_some_and(|info| info.kind == DownloadKind::Markdown));
-            let download_button  = self.view.button(cx, ids!(content.download_section.download_button));
-            let share_button     = self.view.button(cx, ids!(content.download_section.share_button));
-            let downloading_view = self.view.view(cx, ids!(content.download_section.downloading_view));
-            let cancel_button    = self.view.button(cx, ids!(content.download_section.downloading_view.cancel_button));
-            let success_button   = self.view.button(cx, ids!(content.download_section.success_button));
-            let failure_button   = self.view.button(cx, ids!(content.download_section.failure_button));
+            self.view
+                .button(cx, ids!(content.download_section.open_markdown_button))
+                .set_visible(
+                    cx,
+                    matches!(download_state, DownloadDisplayState::Idle)
+                        && self.download_info.as_ref().is_some_and(|info| {
+                            matches!(info.kind, DownloadKind::Markdown | DownloadKind::Theme)
+                        }),
+                );
+            let download_button = self
+                .view
+                .button(cx, ids!(content.download_section.download_button));
+            let share_button = self
+                .view
+                .button(cx, ids!(content.download_section.share_button));
+            let downloading_view = self
+                .view
+                .view(cx, ids!(content.download_section.downloading_view));
+            let cancel_button = self.view.button(
+                cx,
+                ids!(content.download_section.downloading_view.cancel_button),
+            );
+            let success_button = self
+                .view
+                .button(cx, ids!(content.download_section.success_button));
+            let failure_button = self
+                .view
+                .button(cx, ids!(content.download_section.failure_button));
             let is_idle = matches!(download_state, DownloadDisplayState::Idle);
             download_button.set_visible(cx, is_idle);
             share_button.set_visible(cx, is_idle);

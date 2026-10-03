@@ -8,9 +8,6 @@ use crate::{avatar_cache::{self, AvatarCacheEntry}, profile::user_profile_cache,
 
 use super::avatar::{AvatarImage, AvatarState, AvatarWidgetExt};
 
-/// The color of the text used to print the spoiler reason before the hidden text.
-const COLOR_SPOILER_REASON: Vec4 = vec4(0.6, 0.6, 0.6, 1.0);
-
 script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
@@ -20,7 +17,7 @@ script_mod! {
         width: Fill height: Fit
         padding: 0
         selectable: true
-        draw_selection +: { color: #x3399ff55 }
+        draw_selection +: { color: mod.widgets.RINX_SELECTED }
     }
 
     // A pill-shaped widget that displays a Matrix link,
@@ -52,7 +49,7 @@ script_mod! {
                 // pill's black background.
                 img_view +: {
                     show_bg: true,
-                    draw_bg +: { color: #fff }
+                    draw_bg +: { color: mod.widgets.RINX_SURFACE }
                 }
                 text_view +: {
                     text +: {
@@ -119,7 +116,7 @@ script_mod! {
         font_size: (MESSAGE_FONT_SIZE),
         font_color: (MESSAGE_TEXT_COLOR),
         draw_text +: { color: (MESSAGE_TEXT_COLOR) }
-        draw_selection +: { color: #x3399ff55 }
+        draw_selection +: { color: mod.widgets.RINX_SELECTED }
         text_style_normal: mod.widgets.MESSAGE_TEXT_STYLE {
             font_size: (MESSAGE_FONT_SIZE)
             line_spacing: (MESSAGE_TEXT_LINE_SPACING)
@@ -715,10 +712,9 @@ impl Widget for MatrixHtmlSpan {
         }
 
         match &self.spoiler {
-            SpoilerDisplay::Hidden { reason }
-            | SpoilerDisplay::Revealed { reason } => {
-                // Draw the spoiler reason text in an italic gray font.
-                tf.font_colors.push(COLOR_SPOILER_REASON);
+            SpoilerDisplay::Hidden { reason } | SpoilerDisplay::Revealed { reason } => {
+                // Draw the spoiler reason text in the inherited italic font.
+                tf.font_colors.push(tf.font_color);
                 tf.italic.push();
                 // tf.push_size_rel_scale(0.8);
                 if reason.is_empty() {

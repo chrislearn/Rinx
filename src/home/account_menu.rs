@@ -180,7 +180,7 @@ script_mod! {
                     margin: 0, padding: 0,
                     draw_text +: {
                         color: (mod.widgets.RBX_ACCENT)
-                        text_style: theme.font_bold { font_size: 10.5 }
+                        text_style: theme.font_bold { font_size: (10.5 * mod.widgets.RINX_TEXT_SCALE) }
                     }
                     text: #(crate::i18n::tr("Active"))
                 }

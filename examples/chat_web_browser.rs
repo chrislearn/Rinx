@@ -169,7 +169,7 @@ impl MatchEvent for App {
 impl AppMain for App {
     fn script_mod(vm: &mut ScriptVm) -> ScriptValue {
         makepad_widgets::theme_mod(vm);
-        script_eval!(vm, {mod.theme = mod.themes.light});
+        rinx::theme::init_standalone(vm);
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         article_makepad::apple_fonts::install(vm);
         makepad_widgets::widgets_mod(vm);
@@ -189,8 +189,34 @@ impl AppMain for App {
             }
             browser.prepare_shutdown();
         }
+        if let Event::Custom(command) = event {
+            if command == "theme:inspect" {
+                let appearance = rinx::theme::snapshot(cx);
+                let label = self.browser(cx).label(cx, ids!(web_title));
+                let toolbar_ink = label
+                    .borrow()
+                    .map(|label| rinx::theme::argb(label.draw_text.color));
+                let data = serde_json::json!({"revision":appearance.revision,"ink":rinx::theme::argb(appearance.ink),"code_bg":rinx::theme::argb(appearance.role("color.code.background")),"code_fg":rinx::theme::argb(appearance.role("color.code.foreground")),"toolbar_ink":toolbar_ink,"toolbar_uid":format!("{:?}",label.widget_uid())});
+                let root = std::env::var("RINX_BROWSER_FIXTURE_OUTPUT").unwrap();
+                std::fs::write(
+                    std::path::Path::new(&root).join("appearance.json"),
+                    data.to_string(),
+                )
+                .unwrap();
+            }
+            if command == "theme:dark" || command == "theme:light" {
+                let mut selection = rinx::theme::selection(cx).unwrap();
+                selection.appearance = if command == "theme:dark" {
+                    rinx::theme::Appearance::Dark
+                } else {
+                    rinx::theme::Appearance::Light
+                };
+                rinx::theme::select(cx, selection).unwrap();
+            }
+        }
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
+        rinx::theme::packages::after_event(cx, event);
         if matches!(event, Event::WindowCloseRequested(e) if Some(e.window_id) == self.ui.window(cx, ids!(main_window)).window_id())
         {
             self.ui

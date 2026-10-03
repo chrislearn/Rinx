@@ -1,7 +1,10 @@
 # ADR 0009: Shared reloadable themes for Rinx and mini apps
 
 - Date: 2026-10-02
-- Status: Accepted; implementation not started.
+- Status: Accepted; Rinx customer-theme implementation delivered, with external
+  host transports and platform/device release gates still open. See the
+  [customer-theme guide](../customer-themes.md) and
+  [implementation and validation scope](../theme-validation.md).
 - Extends [ADR 0003](0003-shared-article-components.md),
   [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),

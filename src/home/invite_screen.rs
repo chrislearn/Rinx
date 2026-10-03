@@ -55,7 +55,7 @@ script_mod! {
                 text_view +: {
                     text +: {
                         draw_text +: {
-                            text_style: TITLE_TEXT { font_size: 10.0 }
+                            text_style: TITLE_TEXT { font_size: (10.0 * mod.widgets.RINX_TEXT_SCALE) }
                         }
                     }
                 }
@@ -71,9 +71,9 @@ script_mod! {
                 text: ""
                 draw_text +: {
                     text_style: TITLE_TEXT {
-                        font_size: 15,
+                        font_size: (15 * mod.widgets.RINX_TEXT_SCALE),
                     },
-                    color: #000
+                    color: mod.widgets.RINX_INK
                 }
             }
 
@@ -85,9 +85,9 @@ script_mod! {
                 text: ""
                 draw_text +: {
                     text_style: TITLE_TEXT {
-                        font_size: 10,
+                        font_size: (10 * mod.widgets.RINX_TEXT_SCALE),
                     },
-                    color: #888
+                    color: mod.widgets.RINX_MUTED
                 }
             }
 
@@ -105,9 +105,9 @@ script_mod! {
             text: "",
             draw_text +: {
                 text_style: REGULAR_TEXT {
-                    font_size: 15,
+                    font_size: (15 * mod.widgets.RINX_TEXT_SCALE),
                 },
-                color: #000
+                color: mod.widgets.RINX_INK
             }
         }
 
@@ -124,7 +124,7 @@ script_mod! {
                 text_view +: {
                     text +: {
                         draw_text +: {
-                            text_style: TITLE_TEXT { font_size: 13.0 }
+                            text_style: TITLE_TEXT { font_size: (13.0 * mod.widgets.RINX_TEXT_SCALE) }
                         }
                     }
                 }
@@ -138,9 +138,9 @@ script_mod! {
                 flow: Flow.Right{wrap: true},
                 draw_text +: {
                     text_style: TITLE_TEXT {
-                        font_size: 18,
+                        font_size: (18 * mod.widgets.RINX_TEXT_SCALE),
                     },
-                    color: #000
+                    color: mod.widgets.RINX_INK
                 }
             }
         }
@@ -189,7 +189,7 @@ script_mod! {
             flow: Flow.Right{wrap: true},
             draw_text +: {
                 color: (COLOR_FG_ACCEPT_GREEN),
-                text_style: theme.font_bold {font_size: 12}
+                text_style: theme.font_bold {font_size: (12 * mod.widgets.RINX_TEXT_SCALE)}
             }
             text: ""
         }
