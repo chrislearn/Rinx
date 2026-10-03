@@ -1,44 +1,50 @@
 # ADR 0010: Palpo and agent administration through Rinx OctoScript mini apps
 
 - Date: 2026-10-03
-- Status: Proposed; revised after product review. Source mapping complete;
+- Status: Proposed; revised for frontend replacement and shared login. Source mapping complete;
   implementation and end-to-end validation remain open.
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),
   [ADR 0008](0008-rinx-system-app-catalog.md), and
   [ADR 0009](0009-shared-reloadable-themes.md).
-- Replaces this proposal's initial choice of a compiled native admin dashboard
-  and read-only first release. The intended product is a complete agent/project
-  workflow inside Rinx, delivered through OctoScript mini apps.
+- Replaces this proposal's initial choice of a compiled native admin dashboard.
+  The first delivery replaces Palpo's web frontend with an OctoScript frontend
+  and reuses the signed-in Rinx identity. Additional agent workflows are a
+  subsequent backend feature track, not prerequisites for frontend replacement.
 
 ## Product decision
 
-People sign into Rinx once with their Matrix account. They open an appropriate
-mini app, authorize its requested services through a Rinx-owned sheet, and
-create, request, approve, allocate, manage and retire agents without visiting a
-web console or remembering another password. The same flow serves desktop,
-Android and OpenHarmony, with platform validation required before release.
+Keep the Palpo server, its web-admin backend, stored data, business operations
+and existing administrator/member checks. Replace the browser presentation with
+an OctoScript mini-app frontend. Add a passwordless session adapter so people
+already signed into Rinx enter as that same Matrix user, with that user's current
+Palpo permissions. No separate username/password form is needed in the mini app.
 
-Ship two first-party OctoScript packages, using the existing signed App Hub
-format and Splash runtime:
+People grant mini-app services through Rinx-owned authorization UI when needed;
+login reuse and remembered grants do not require a new prompt on every launch.
+The same flow targets desktop, Android and OpenHarmony, with platform validation
+required before release.
 
-| Mini app | Audience and pages |
+Use the existing signed App Hub format and Splash runtime. Expose two role-aware
+areas; they can live in one Palpo package or separate packages without changing
+authentication. The longer-term pages and workflows are:
+
+| Area | Audience and pages |
 | --- | --- |
 | Palpo Operations | Authorized server administrators and fleet operators: Requests, Projects, Agents, Fleets and Activity; resource approval, assignment, budget decisions and retirement within their granted scope |
 | My Agents | Project owners and authorized members: My projects, My agents, Requests and Approvals; create/request an agent, inspect usage, request more tokens, exercise permitted management actions and use the agent in chat |
 
-These are product surfaces, not new account systems. One Matrix identity can
-hold several roles. The backend returns the actions that identity may perform,
-scoped to a server, fleet, project and engagement. An administrator who also
-operates a fleet can approve its requests in Operations. Owning a Matrix server
-alone does not confer authority over another contributor's resource pool.
+These are product surfaces, not new account systems. For frontend parity, keep
+Palpo's existing server-admin, fleet-owner and project-membership checks. An
+admin and an ordinary user follow the same login flow; the server decides which
+pages/actions each may access. Neither an app manifest nor consent changes roles.
 
 Reuse the server logic currently housed in Palpo's `web-admin` service, while
-making its browser frontend optional. Reuse Hagency's agent/runtime/allocation
-engine. All required human steps must have an in-Rinx path. Do not make “open
-the web console” an implementation dependency or the completion state of a
-mini-app workflow. Infrastructure installation still happens on the server;
-ongoing registration, pairing and workflow decisions must be manageable in Rinx.
+making its browser frontend optional. All replaced browser interactions must
+have an in-Rinx path. Existing runtime setup requirements remain backend
+requirements; improvements such as one-time pairing and remote Hagency resource
+decisions belong to the extension track below. Frontend parity does not require
+redesigning Hagency, a new identity provider or a new resource delegation model.
 
 The mini apps render through OctoScript/Makepad and use ADR 0009's shared theme.
 Rust code in Rinx supplies bounded host services and trusted authorization UI;
@@ -55,7 +61,7 @@ still require a compatible Rinx release. A Splash isolate is not an OS process.
 | Palpo main | `3f1ad3ba5c80a7206521b3eb4059a4f1f3786700`; [HTTP routes][palpo-http], [workflow][palpo-workflow], [service operations][palpo-service] |
 | Hagency Rust main | `e51a0b1385437c7b5e6893e68233b8173a0db018`; [engagement operations][hagency-engagements], [agent operations][hagency-agents], [allocation ADR 186][hagency-allocation] and [fleet service ADR 187][hagency-fleet] |
 
-The current Rust Hagency baseline matters. It already supports approving an
+The Rust Hagency baseline informs the extension track. It already supports approving an
 adjusted allocation, increasing an existing allocation, quota pause/resume and
 retirement. Those operations need a scoped Rinx/Palpo integration; the allocation
 engine does not need rebuilding. This review does not identify the versions
@@ -66,7 +72,10 @@ actually deployed at `crew.ominix.io:19443`.
 “Exists” below means source implementation exists behind its current authority.
 It does not mean a Rinx mini app can call it today. Palpo browser endpoints use
 cookies/CSRF; Hagency console endpoints use their own trusted console session.
-Both need the integration described below.
+Palpo needs the login/host adapter for frontend parity. Hagency integration is
+needed only for operations not currently exposed by the Palpo backend. The
+tables retain the broader product mapping; their remaining-work column is not
+a list of prerequisites for the first frontend replacement.
 
 ### Palpo Operations
 
@@ -108,55 +117,94 @@ A new allocation request must not be used as an imitation top-up: it may create
 a second agent. A top-up keeps the same engagement, agent, project and usage
 history, and adds only the authorized amount.
 
-## One login, explicit authorization inside Rinx
+## WeChat precedent: host login to mini-app session
 
-Mini-app consent, server role and business approval are three different checks.
-A user can consent to an app acting for them; that cannot grant them a role they
-do not possess or approve a provider's resources for themselves.
+WeChat's official [login guide][wechat-login] documents this sequence:
+
+1. The mini program calls `wx.login()` and receives a temporary code from WeChat.
+2. It sends that code to its own backend. That backend calls `code2Session` with
+   its app ID, server-side app secret and the code.
+3. WeChat returns the user's app-specific OpenID and a session key; UnionID is
+   available under its documented account-linking conditions.
+4. The application backend maps the verified identity into its own user system
+   and establishes its own application session.
+
+The [login API][wechat-login-api] specifies a five-minute code lifetime; the login
+guide specifies single use. The [exchange API][wechat-exchange] is server-only.
+App secrets and the returned WeChat session key stay out of the mini-program
+frontend. OpenID is an identifier, not a credential that a caller may assert.
+The person does not enter their WeChat password in the mini program.
+
+Login identifies the person. WeChat separately documents [authorization scopes][wechat-authorize]
+for protected capabilities such as location or camera, including remembered
+grants. Obtaining a login identity does not confer a business role such as
+administrator; the application backend owns that decision. We should carry this
+separation into Rinx without introducing another set of user credentials.
+
+| WeChat concept | Rinx/Palpo equivalent |
+| --- | --- |
+| Signed-in WeChat user | Signed-in Rinx Matrix account |
+| Registered mini program/app ID | Installed, verified OctoScript package identity |
+| `wx.login()` | Proposed host login service; `rinx.login()` is illustrative API spelling |
+| Server-verified code exchange | Palpo session adapter verifies the existing Matrix session |
+| App-specific OpenID mapped to an application user | Existing Matrix user ID in Palpo; no new user mapping is necessary for this first-party app |
+| Application login state | Short-lived Palpo mini-app session held by Rinx |
+| Application's business permissions | Existing Palpo admin, owner and membership checks |
+
+For these first-party Palpo apps, the identity provider and business backend are
+already in the same server trust boundary. The host can perform session exchange
+directly with Palpo. A general code issuer/redemption service is an option for
+future independent mini-app backends, not a prerequisite for this frontend. If
+introduced, its codes must be one-time, short-lived and bound to app, audience
+and user session; a backend app secret must never be embedded in a bundle.
+
+## Passwordless session adapter in the existing backend
 
 The intended launch flow is:
 
-1. Rinx verifies the installed package and identifies its publisher, digest and
-   declared exact host services. It supplies the signed-in Matrix account; the
-   script cannot supply a replacement user or credential.
-2. A Rinx-owned authorization sheet appears within the mini-app flow: for example,
-   “My Agents can view projects you belong to and submit agent/token requests as
-   @alice:example.org.” Show project/fleet scope and any sensitive write separately.
-   Existing grants can be reused within their scope; do not prompt on each read.
-3. Rinx binds the grant to account/session, package/digest, operation set, selected
-   resources and instance generation. The app receives a service result or opaque
-   handle, never a password, Matrix bearer, App Service secret or operator token.
-4. A Palpo-owned integration API authenticates that session and checks current
-   membership and roles for every operation. It returns allowed actions and scoped
-   data. UI hiding is not authorization.
-5. For Hagency resource decisions, the service checks the fleet's explicit operator
-   delegation and forwards a bounded command to that Hagency. Hagency validates
-   the actor/delegation/target and its own capacity/state rules before committing.
-6. Closing/logging out or removing authorization stops future calls and delivery
-   to that instance. It does not undo an already committed request. Reopening
-   restores its canonical server status with fresh authorization.
+1. Rinx verifies the package and obtains consent for its declared Palpo services
+   when no applicable grant exists. Reuse remembered consent within its scope.
+2. The mini app invokes the proposed login service. The host selects the current
+   account; the script cannot supply an arbitrary user ID, role or credential.
+3. The host authenticates to a Palpo-owned session endpoint using its existing
+   Matrix session. For a separately deployed web-admin process, use a trusted
+   same-origin server route or an explicitly configured server-side handoff.
+   Never attach the Matrix token to a package-supplied URL.
+4. Palpo verifies `whoami` and current privileges using the same checks as the
+   web backend. It creates an app-scoped session with the verified actor and
+   returns identity, role/allowed-action information and an opaque session.
+5. Rinx retains session credentials. The script receives a bound handle and
+   displayable identity/permissions, then calls bounded host services. Backend
+   dispatch enters the existing `Workflow` and service operations with the same
+   actor and Matrix authority that the browser operations use today.
+6. Each operation still checks its existing backend permissions. Expired app
+   sessions can be renewed using the valid Rinx login; revoked Matrix authority
+   fails normally. Admin demotion and membership changes take effect server-side.
 
-Implement the workflow API under a versioned Palpo-owned namespace; the precise
-route is a new contract, not an existing endpoint. Rinx sends its Matrix authority
-only to the already bound homeserver endpoint. The server can mint a short-lived,
-scoped grant held by the host for this app. If a separate service accepts grants,
-it must have an operator-configured audience, authenticated issuer and revocation
-rules. Do not forward the Rinx token to a mini-app-supplied URL.
+This is an additive authentication/dispatch adapter in Palpo, not a replacement
+backend or a new account system. Existing login currently creates a Matrix token
+from a password and stores it in a cookie-backed session. Existing request paths
+already recheck `whoami` and privileged routes call `requireAdmin`. Reuse those
+checks and operation handlers. Keep browser cookie/Origin/CSRF behavior intact
+for browser callers; give host calls their own explicitly authenticated entry.
 
-Adapt the existing workflow handlers behind this boundary rather than scraping
-browser pages or simulating browser cookies/Origin headers. Preserve the actual
-Matrix actor for room creation, state writes and request events. A private
-service-to-service actor header is insufficient unless authenticated and verified;
-a service account must not silently impersonate a user's business authority.
+Bind app sessions to the account, Palpo server, verified package identity,
+approved operations and expiry; bind local handles to the current instance and
+account generation. Enforce the declared operation subset as well as the user's
+business permissions. Identity bootstrap must not turn into an unrestricted
+HTTP proxy or expose registration/transport secrets in ordinary script results.
 
-The fleet owner explicitly delegates resource-management rights to authorized
-Matrix identities, which may include the Palpo administrator. This association
-is established once through authenticated fleet enrollment, not by accepting a
-caller-provided `isAdmin`, `ownerMxid` or operator role. Runtime machine credentials
-remain on the server. An in-Rinx pairing sheet can authorize a short-lived,
-single-use claim consumed directly by the runtime, avoiding manual secret files.
-The initial binding must prove control of the existing runtime/fleet; possession
-of a chosen display name or fleet ID is not enough.
+App-session revocation and Matrix logout have different lifetimes. The current
+web `/api/logout` logs out its stored Matrix token. An adapter reusing Rinx's
+token must not use that path when disconnecting the mini app: revoke only the
+app session. Rinx account logout/switch discards the relevant handles, cached
+user data and pending UI results. Closing an instance stops its calls; reopening
+can reestablish the app session without a password while host login remains valid.
+
+For the later Hagency control extension, add explicit fleet-operator delegation
+and authenticated commands to that runtime. Palpo server administration alone
+does not grant rights over an independently owned resource pool. This concerns
+new runtime-management functionality, not login or existing Palpo admin actions.
 
 ## Host contract and distribution
 
@@ -178,6 +226,7 @@ Proposed service groups, not existing callable APIs:
 
 | Group | Examples and scope |
 | --- | --- |
+| App session | `palpo.session.open`, `palpo.session.disconnect`; current Rinx account only, credentials retained by host |
 | Discovery and scoped reads | `palpo.catalog.list`, `palpo.projects.list`, `palpo.agents.get`, `palpo.requests.get` |
 | User intents | `palpo.projects.create`, `palpo.agents.request`, `palpo.allocations.request_increase` |
 | Authorized decisions | `palpo.requests.decide`, `palpo.allocations.decide_increase`, `palpo.engagements.retire` |
@@ -190,11 +239,20 @@ patches. Updating a package to ask for broader services requires renewed consent
 Execution/tool approval uses the existing trusted host mechanism, not a new
 script-created approval token.
 
-## Backend gaps that must be implemented
+## Migration requirements and later workflow gaps
+
+Frontend replacement requires three integrated changes: the session adapter
+above, explicit Rinx host capabilities for existing Palpo operations, and the
+OctoScript pages. Preserve existing backend authorization and response semantics.
+Adapt browser-specific download/export interactions through trusted host UI.
+
+The following table records the broader workflow findings. Except for mobile
+validation and accurately presenting existing state/room policy, these are new
+product capabilities beyond frontend parity. They do not block replacing pages
+whose underlying Palpo operations already exist.
 
 | Obstacle | Current evidence | Required change |
 | --- | --- | --- |
-| Matrix session to workflow authentication | Palpo browser API expects its login cookie/CSRF; Hagency console uses separate console authority and rejects Authorization headers | Add the Palpo-owned authenticated app boundary and fleet-specific delegation; reuse existing domain functions, not browser middleware bypasses |
 | Remote operator commands | Palpo outbound work currently carries request/probe; Hagency's worker accepts those kinds, not generic approve/top-up/retire commands | Extend the versioned machine protocol with finite command kinds, actor/scope proof, command IDs and execution receipts; retain outbound polling so no new public Hagency listener is needed |
 | Ordinary user's top-up workflow | Hagency has operator allocation increases, but no reviewed Palpo user top-up request/decision API | Add durable request, approve/reject, pending/expired/conflict states and exactly-once increase through existing command-ID handling |
 | Complete user-visible status | Hagency's Palpo projection and Palpo's allowlist omit observed spend and quota hold; terminal states/cleanup lose detail in the public projection | Add versioned usage, pause, cleanup and observation fields end to end; do not infer them from an allocation number or heartbeat |
@@ -229,7 +287,10 @@ Manual Palpo identity retirement does not prove a remote runtime stopped. Preser
 partial/unknown results and retry the failed cleanup, not the allocation decision.
 [Palpo operations][palpo-service], [Hagency retirement][hagency-engagements]
 
-## The complete in-Rinx flow
+## Extended agent workflow after frontend parity
+
+This is the complete product target once Palpo exposes the additional Hagency
+operations. It is separate from the passwordless frontend migration milestone.
 
 ```mermaid
 sequenceDiagram
@@ -261,7 +322,7 @@ sequenceDiagram
 
 All mini-app network intents in the diagram pass through the Rinx host, even
 where the arrows omit that hop. Each human uses their own Matrix identity. A
-single person holding both roles can open both apps without another login.
+single person holding both roles can open either area without another login.
 
 The mobile UI uses short forms, lists and detail pages: choose a project, name
 an agent, choose an offered role/resource, set initial tokens and submit. Hide
@@ -270,7 +331,7 @@ trusted code and retain them across retries. Show who must act next, what is
 pending and the server-observed result. A notification opens the exact request
 inside the appropriate mini app, with fresh authorization.
 
-The same theme snapshot styles both packages and host sheets. Reapply preserves
+The same theme snapshot styles both areas and host sheets. Reapply preserves
 form drafts, focus, selection, navigation and request IDs. It must not resubmit
 a decision, recreate an agent or duplicate a top-up. Back/background can leave
 a submitted request running on the server; foreground restores the result.
@@ -279,9 +340,34 @@ and must not inherit an old authorization if their authority request changes.
 
 ## Delivery and acceptance
 
-Deliver the capability contract, identity/role adapter and complete business
-slices together. A read-only dashboard is insufficient to validate this decision.
-The core acceptance target is two signed-in Rinx identities completing:
+### First delivery: existing Palpo functions through a mini app
+
+Deliver the host capability contract, passwordless session adapter and frontend
+pages against the existing Palpo backend. Validate with two real Rinx accounts:
+
+1. Open the mini app as an existing administrator and as an ordinary user. Neither
+   enters another password; the backend reports the correct identity and role.
+2. The administrator lists/registers a fleet and performs an existing permitted
+   management operation. The ordinary user sees only their permitted data and
+   creates a project/submits an agent request using existing backend operations.
+3. Reproduce the reviewed web frontend's available actions and results, including
+   owner pairing/export, connection checks, identity management and activity.
+   Mark each page's parity explicitly; unavailable backend features stay unavailable.
+4. Attempt an admin operation as the ordinary user and a cross-owner access;
+   the server rejects them. Admin demotion or membership removal takes effect.
+5. Expire/reopen the app session while Rinx remains signed in; renew without a
+   password. Disconnect the mini app without logging Rinx out. Switch accounts
+   and verify that data, grants and asynchronous replies do not cross accounts.
+6. Run the actual OctoScript frontend with Makepad instrumentation and validate
+   touch, Back/keyboard and background/resume on each claimed mobile platform.
+
+This milestone validates frontend replacement and shared login. It does not
+claim new Hagency allocation approval or top-up features have been implemented.
+
+### Subsequent delivery: complete agent lifecycle
+
+Add the backend extensions and corresponding pages without changing the login
+model. The acceptance target is two signed-in Rinx identities completing:
 
 1. Authorize the mini apps with no password/token entry in either package.
 2. Register/select a fleet and complete any required owner pairing inside Rinx.
@@ -295,24 +381,28 @@ The core acceptance target is two signed-in Rinx identities completing:
 7. Close/reopen or background either client during the flow and recover without
    a duplicate request, lost decision or a browser detour.
 
-Implement prerequisites in this order:
+Repository responsibilities by delivery:
 
 | Work | Repository ownership |
 | --- | --- |
-| Exact capability schemas, supported-version checks, host consent and dispatch | Shared App Contract and Rinx |
-| Matrix-authenticated app API, scoped project/agent views, role bindings and top-up requests | Palpo/workflow service |
-| New outbound control commands, delegated actor validation, read/decision adapters and status projection | Palpo and Hagency together |
-| First-party Operations and My Agents bundles, shared components and notification routes | Mini-app packages and Rinx host |
-| Pairing claim, ownership/key-readiness UI, lifecycle recovery and platform evidence | Palpo, Hagency and Rinx |
+| First delivery: existing-operation capability schemas, host consent/session handling and dispatch | Shared App Contract and Rinx |
+| First delivery: Matrix-session adapter and reuse of existing actor/role checks and operation handlers | Existing Palpo web-admin backend |
+| First delivery: admin/member pages, existing flow parity, shared themes and platform evidence | Mini-app frontend and Rinx host |
+| Extension: top-up requests, additional scoped reads and resource-operator delegation | Palpo/workflow service |
+| Extension: outbound control commands, actor validation and richer runtime status | Palpo and Hagency together |
+| Extension: one-time pairing claim, new workflow pages and notification routes | Palpo, Hagency and mini-app frontend |
 
-Validation must include domain/transport fixtures, a disposable real Palpo plus
-Hagency runtime, and actual Makepad draw/input instrumentation. Test unauthorized
+First-delivery validation covers real Palpo session/role behavior and actual
+Makepad draw/input instrumentation, including cookie-auth browser regression,
+borrowed-token logout isolation and absence of secrets in script-visible data.
+Extension validation additionally needs domain/transport fixtures and a
+disposable real Palpo plus Hagency runtime. Test unauthorized
 users, cross-project/fleet requests, forged roles/consent, revoked delegation,
 concurrent approvers, insufficient capacity, offline queue expiry, duplicate
 commands, lost responses after commit, stale status, logout/account switch and
 bundle replacement. Assert one agent/one budget increase, not only a success toast.
 
-Native tests must exercise both real script packages with host-owned consent,
+Native tests must exercise the real script frontend's admin and member flows with host-owned consent,
 project selection, request/decision actions, live light/dark/customer themes and
 text scaling. Capture widget bounds, screenshots, focus/selection and service-call
 counts. Standalone Rinx and hosted OctoSense need separate integration evidence;
@@ -348,3 +438,7 @@ fixes whichever frontend is used. [Room routes][palpo-rooms], [admin router][pal
 [hagency-agents]: https://github.com/hagency-org/hagency-rs/blob/e51a0b1385437c7b5e6893e68233b8173a0db018/native/hagency/src/console/agents.rs
 [hagency-allocation]: https://github.com/hagency-org/hagency-rs/blob/e51a0b1385437c7b5e6893e68233b8173a0db018/knowledge/decisions/adr-186-engagement-allocation-pause-and-top-up.md
 [hagency-fleet]: https://github.com/hagency-org/hagency-rs/blob/e51a0b1385437c7b5e6893e68233b8173a0db018/knowledge/decisions/adr-187-palpo-fleet-without-coordinator.md
+[wechat-login]: https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/login.html
+[wechat-login-api]: https://developers.weixin.qq.com/miniprogram/dev/api/open-api/login/wx.login.html
+[wechat-exchange]: https://developers.weixin.qq.com/miniprogram/dev/server/API/user-login/api_code2session.html
+[wechat-authorize]: https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/authorize.html
