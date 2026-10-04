@@ -176,7 +176,7 @@ def main():
             reviews = [w for w in owner.snap() if w['i'] == 'review']
             target = min(reviews, key=lambda w: w['r'][1])
             x, y, w, h = target['r']; owner.click(x+w/2, y+h/2)
-            owner.wait_text('Continue approved work'); owner.click_id('continue_work')
+            owner.wait_text('Create project'); owner.click_id('continue_work')
             owner.wait_text('Latest result received.')
             owner.click_id('projects'); owner.wait_text('Native test project'); owner.click_id('agent')
             owner.wait_text('Use this resource'); owner.click_id('choose'); owner.wait_text('Agent name')

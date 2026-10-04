@@ -178,3 +178,47 @@ The companion live-server runner and documentation are in Palpo commit `9d640bb`
 Public mini-app routing is still undeployed. Native save-dialog completion,
 Hagency import/connection, live project/agent lifecycle and OS push entry are
 separate outstanding gates; these results do not claim full ADR completion.
+
+
+## Desktop window and verification follow-up (2026-10-03)
+
+Desktop standalone Rinx now hosts MiniAppsPanel in a lazily created native
+window. OctoSense uses its injected window host; Android, iOS and OpenHarmony
+retain the in-app modal. Closing the native window revokes its instance, and
+closing the main window or clearing the account closes the mini-app window.
+Theme reapply preserves the panel and the main conversation's display context.
+
+Palpo's contribution detail and fleet cards read the server's connection proof
+and show **Connection verified** only for a ready fleet with verified event
+delivery and a verification timestamp. Verify performs one mutation and polls
+only fleet reads, at two-second intervals for up to 30 reads. Navigation cancels
+the watch; a failed or pending proof is never reported as complete. Project
+cards distinguish waiting for approval, approved/ready to create, and created.
+
+Validation evidence (local `target/` artifacts are intentionally untracked):
+
+- `miniapp-window-validation/5fe7a341ebfb4ff1b11f93f0f6beabd7`: real hidden
+  Makepad windows; lazy open, text input, dark-theme reapply, main draft/display
+  preservation, OS close, reopen, and panel Back close passed. Captures inspected.
+- `palpo-connection-validation/7fb4401c0447441298015591eddf6a06`: production
+  Splash/host with explicit HTTP fixtures; delayed proof, read-only polling,
+  navigation cancellation, persistent verified label and server refusal passed.
+- `palpo-validation/8fbb736c16eb4448a04da9811a2f8378`: existing native
+  contribution/project/named-agent submission, draft restart, theme and logout
+  isolation scenarios passed against the local Palpo fixture.
+- Library tests: 323 passed, two existing ignored. Account cleanup tests passed
+  again after wiring main-window close. No-default-features OctoSense module
+  compilation passed. Android/OpenHarmony device validation remains outstanding.
+- Rebuilt full Rinx and restarted the isolated owner/admin profiles against
+  `crew.ominix.io`. Each has its main chat and a separate Palpo window. The actual
+  user's contribution displays Connection verified; both mini-app sessions have
+  no Splash errors. No additional resource/agent approvals were submitted by
+  this window/status validation.
+
+The live `octosense-dev` project exists and its owner is joined. The diagnostic
+at this checkpoint found no agent request in Palpo and no Hagency engagement;
+project approval alone had not provisioned an agent. The product owner's new
+requirement is recorded in the ADR's project-administrator amendment: assigned
+project administrators decide agents within accepted budgeted grants, and
+Hagency applies those decisions automatically. That grant/role/protocol work
+is **not implemented by this UI fix**.

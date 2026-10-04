@@ -49,6 +49,7 @@ pub mod palpo;
 pub mod presentation;
 mod sandbox;
 pub mod ui;
+pub mod window;
 pub use crate::host::octos::ContextProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
@@ -71,4 +72,5 @@ pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
     });
     library::script_mod(vm);
     ui::script_mod(vm);
+    window::script_mod(vm);
 }
