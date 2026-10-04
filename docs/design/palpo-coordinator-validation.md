@@ -11,6 +11,12 @@ can connect during migration without advertising unsupported operations.
 Approval state and execution state are displayed separately. Contribution drafts
 from the earlier workflow are retained locally but cannot be resumed.
 
+Projects and Agents use the Rust service's role-scoped, paginated read models.
+Approved agents appear while allocation is still pending. Missing consumption is
+explicitly unreported; reported consumption is a lower bound with freshness,
+never an invented remaining balance. Stale readiness becomes unknown. Matrix
+administrators do not inherit access to other users' agent lists.
+
 The production OctoScript form sends a decision intent and stable command ID.
 Rust Palpo constructs the authority envelope from its authenticated Matrix
 session and frozen request. Retrying cannot create another Hagency delivery.
@@ -33,6 +39,12 @@ Run `6d7e0802975f493e96e167b94de1b01c` passed all seven checks:
 - The manager sees `approved` alongside `Execution · pending`, not a live agent.
 - Resource contribution is absent from the mini app.
 
+The extended run `532acbbcffc4484288443239c3d1f04e` passed eleven checks,
+adding Projects/Agents navigation, pending allocation/unknown usage, current
+lower-bound usage, and stale observations. Provider updates are explicit fixtures
+sent through the real authenticated machine HTTP route. The pending, current and
+stale agent cards were visually inspected. Four Rust Palpo host tests also pass.
+
 Real captures were inspected: the narrow owner result, desktop coordinator dark
 form and administrator Inbox. Runtime logs had no Splash evaluation/callback
 errors. Evidence remains under `target/palpo-coordinator-validation/<run>/`,
@@ -54,8 +66,8 @@ was fabricated. Rinx's own bundle packaging/build validation passed.
 ## Remaining acceptance
 
 This is a draft integration, not the full ADR implementation. The Rust backend
-still needs association/profile issuance, room preparation and the remaining
-resource/project/agent navigation services. Those unsupported entries are hidden.
+still needs association/profile issuance, room preparation, resource browsing and
+creation routes. Those unsupported entries are hidden.
 The real Hagency runtime has separate tests; this UI run does not establish
 combined provisioning, live chat, usage metering or notification delivery.
 Android, OpenHarmony and hosted OctoSense also require their own device evidence.

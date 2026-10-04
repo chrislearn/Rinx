@@ -50,10 +50,10 @@ fn refresh_page(){
         call("palpo.inbox.list", {view: P.filter offset: P.offset limit: 50}, fn(data){ P.rows = data.actions P.pending = data.pendingCount P.total = data.total })
     }
     if P.page == "projects" {
-        call("palpo.projects.list", {}, fn(data){ P.rows = data.projects })
+        call("palpo.projects.list", {offset: P.offset limit: 50}, fn(data){ P.rows = data.projects P.total = data.total })
     }
     if P.page == "requests" {
-        call("palpo.requests.list", {}, fn(data){ P.rows = data.requests })
+        call("palpo.requests.list", {offset: P.offset limit: 50}, fn(data){ P.rows = data.requests P.total = data.total })
     }
     if P.page == "resources" {
         call("palpo.catalog.list", {}, fn(data){ P.rows = data.fleets })
@@ -283,15 +283,15 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             }
         }
         if P.page == "projects" {
-            new_project := mod.widgets.RinxPrimaryButton{text: "Request a project" on_click: || open_page("resources")}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No projects yet. Choose an offered resource to request one."} }
+            if available("palpo.catalog.list") { new_project := mod.widgets.RinxPrimaryButton{text: "Request a project" on_click: || open_page("resources")} }
+            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your approved projects will appear here."} }
             for i in P.rows.len() {
                 let project = P.rows[i]
                 mod.widgets.PalpoCard{
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: project.name}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: project.state + " · " + project.ownerMxid}
-                    if project.canRequest { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
-                    if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Project setup or membership verification is still pending. Refresh after setup completes."} }
+                    if project.canRequest && available("palpo.requests.create") { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
+                    if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "New agent requests are not available for this project yet."} }
                 }
             }
         }
@@ -322,15 +322,32 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         }
         if P.page == "requests" {
             mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Agent provisioning and connection readiness are verified by the server."}
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation approval and token increases aren't available in this app yet."}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No agent requests yet. Open a project to request an agent."} }
+            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your agent requests will appear here, including those awaiting approval or setup."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
                 mod.widgets.PalpoCard{
                     if row.agentDefinition != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.agentDefinition.name} }
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.role + " · " + row.state}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Initial request: " + row.requestedTokens + " tokens"}
+                    if row.execution != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                    if row.allocatedTokens != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocated: " + row.allocatedTokens + " tokens"} }
+                    if row.allocatedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
+                    if row.usage != nil {
+                        if row.usage.consumedTokens != nil {
+                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Consumed: at least " + row.usage.consumedTokens + " tokens"}
+                            if row.usage.state == "stale" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Usage sample is out of date. Refresh for the latest report."} }
+                        }
+                        if row.usage.consumedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
+                    }
+                    if row.agentMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.agentMxid} }
+                    if available("palpo.inbox.get") { agent_result := mod.widgets.RinxButton{text: "Open latest result" on_click: || review_action(row)} }
                 }
+            }
+        }
+        if P.page == "projects" || P.page == "requests" {
+            View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
+                if P.offset > 0 { previous := mod.widgets.RinxButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
+                if P.offset + 50 < P.total { next := mod.widgets.RinxButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
             }
         }
         if P.page == "fleets" {

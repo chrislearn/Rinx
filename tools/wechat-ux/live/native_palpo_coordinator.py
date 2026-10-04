@@ -5,6 +5,7 @@ No live accounts, JavaScript backend, deployment state or existing app instances
 This proves the mini-app decision boundary, not native Hagency provisioning/chat.
 """
 import argparse
+from datetime import datetime, timezone
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -55,6 +56,18 @@ def post(endpoint, operation, token, body):
 
 def call(endpoint, token, service, args):
     return post(endpoint, "call", token, {"service": service, "args": args})
+
+
+def digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def machine_update(endpoint, fleet, body):
+    req = Request(endpoint + f"/api/fleet/v2/{fleet}/updates", data=json.dumps(body).encode(),
+                  headers={"Content-Type": "application/json", "Authorization": "Bearer fixture-machine",
+                           "X-Hagency-Generation": "1"})
+    with HTTP.open(req, timeout=10) as response:
+        return json.load(response)
 
 
 def launch(root, binary, endpoint, role):
@@ -143,10 +156,9 @@ def main():
             "targetRoomId": "!project:example.test", "sourceRoomId": "!reception:example.test", "sourceEventId": "$fixture-request",
             "ownerMxid": "@owner:example.test", "requesterMxid": "@owner:example.test", "ownerDmRoomId": "!private:example.test",
             "role": "developer", "requestedTokens": 100000, "agentDefinition": {"name": "Littlewhite", "instructions": "Help with the project"}}
-        digest = hashlib.sha256(json.dumps(definition, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         request = {"kind": "agent", "request": {"id": "a" * 40, "revision": 1, "serverEngagementId": fleet,
             "projectId": "project_one", "projectRevision": 1, "resourceAllocationId": "grant_a", "projectOwner": "@owner:example.test",
-            "requester": "@owner:example.test", "definitionDigest": digest, "requestedTokens": 100000}, "definition": definition}
+            "requester": "@owner:example.test", "definitionDigest": digest(definition), "requestedTokens": 100000}, "definition": definition}
         action = call(endpoint, token, "palpo.inbox.submit", request)["action"]
         owner = launch(root / "owner", args.binary, endpoint, "owner"); apps.append(owner)
         owner.click_id("waiting"); owner.wait_text("Littlewhite")
@@ -177,16 +189,48 @@ def main():
         assert replay["id"] == action["id"] and replay["state"] == "approved"
         owner.click_id("latest"); owner.wait_text("agent · approved"); owner.wait_text("Execution · pending")
         owner.capture("owner-approved-awaiting-hagency")
+        owner.click_id("requests"); owner.wait_text("Littlewhite"); owner.wait_text("Execution · pending")
+        owner.wait_text("Allocation confirmation pending"); owner.wait_text("Token consumption not reported yet")
+        owner.capture("owner-agents-pending")
+        owner.click_id("projects"); owner.wait_text("project_one")
+        assert not any(w.get("t") == "Request agent" for w in owner.snap())
+        owner.click_id("requests"); owner.wait_text("Littlewhite")
+        admin.click_id("requests"); admin.wait_text("Your agent requests will appear here")
+        assert not any(w.get("t") == "Littlewhite" for w in admin.snap())
+        admin.capture("admin-no-agent-list-access")
         with sqlite3.connect(root / "admin.sqlite") as db:
             state = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
             assert len(state["rustWorkflows"]["outbox"]) == 1
             command = next(iter(state["rustWorkflows"]["outbox"].values()))["command"]
             assert command["context"]["actor"] == "@coordinator:example.test"
             assert db.execute("SELECT COUNT(*) FROM fleet_delivery WHERE lane='work'").fetchone()[0] == 1
+        # Explicit native-provider fixtures exercise real authenticated update
+        # ingestion and UI metering; they do not execute a Hagency agent.
+        receipt = {"kind": "receipt", "registrationGeneration": 1, "delegationRevision": 1,
+                   "commandId": command["context"]["commandId"], "state": "applied", "agentId": "en_littlewhite",
+                   "commandDigest": digest({"operation": "coordinator_agent_approval", "command": command})}
+        observed = dict(definition, engagementId="en_littlewhite", state="active",
+                        agentMxid=f"@{fleet}_en_littlewhite:example.test", allocatedTokens=100000,
+                        consumedTokens=42, usageObservedAtMs=int(time.time() * 1000), usageEvidence="host_attributed_lower_bound",
+                        usageComplete=False, quotaPaused=False, bound=True, ready=True,
+                        fulfillment={"phase": "complete", "incomplete": False}, observedAt=datetime.now(timezone.utc).isoformat())
+        update = {"v": 2, "generation": 1, "sequence": 1, "heartbeat": True, "statuses": [observed],
+                  "coordinatorUpdates": [{"id": "command_" + receipt["commandId"], "payload": receipt, "digest": digest(receipt)}]}
+        machine_update(endpoint, fleet, update)
+        owner.click_id("refresh"); owner.wait_text("Execution · ready"); owner.wait_text("Consumed: at least 42 tokens")
+        owner.capture("owner-agents-current-usage")
+        observed["observedAt"] = "2020-01-01T00:00:00Z"
+        observed["usageObservedAtMs"] = 1577836800000
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [observed]})
+        owner.click_id("refresh"); owner.wait_text("Usage sample is out of date")
+        assert not any(w.get("t") == "Execution · ready" for w in owner.snap())
+        owner.capture("owner-agents-stale-usage")
         report["checks"] = ["manager cannot approve own agent", "Matrix admin has no implicit agent approval",
             "coordinator approves from the actual OctoScript form", "theme changes preserve draft and request count",
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
-            "resource contribution is absent from the mini app"]
+            "resource contribution is absent from the mini app", "role-scoped Projects and Agents navigation",
+            "agent list distinguishes pending allocation and unknown consumption",
+            "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness"]
         report["passed"] = True
     finally:
         for app in apps:

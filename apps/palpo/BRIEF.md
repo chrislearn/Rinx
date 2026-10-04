@@ -22,6 +22,10 @@ repositories before the bundle calls them. No new service is invented in Splash.
   unsupported operations. Coordinator status is independent of Matrix admin.
 - Agent decisions use the authenticated coordinator and a frozen server request;
   approval is displayed separately from execution and live readiness.
+- The Rust service grants Projects and Agents reads with pagination. Agent
+  cards distinguish pending allocation, unknown consumption and stale reports.
+  Metered usage is a lower bound, not an exact remaining balance. Unimplemented
+  creation controls remain hidden even when read access is available.
 
 ## Data and authority
 
