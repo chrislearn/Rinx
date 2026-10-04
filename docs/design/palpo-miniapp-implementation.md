@@ -6,6 +6,35 @@ OctoScript App Design Flow (0e59346e). The bundle was created with `octo new`;
 the new host services were implemented in their owning repositories before
 the bundle used them. The shared contract starts from App Hub main 2bcb898.
 
+## Full implementation ledger — 2026-10-04
+
+ADR 0010 remains in progress. The role correction is implemented locally; the
+running server was restored to its original image after an unsuccessful rollout.
+No production activation or client restart is claimed by the local checks below.
+Historical contribution tests later in this document describe the earlier model;
+they are not acceptance evidence for the corrected Hagency-originated flow.
+
+| Requirement | Current evidence | Remaining acceptance |
+| --- | --- | --- |
+| One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
+| Hagency owns resource contributions | Rinx forms removed; native registration/contribution calls refused | Hagency contribution UI, authenticated association and bounded delegation publication |
+| Capacity is reserved before a project becomes allocated | Hagency `86099fc`: tested SQLite provider/project/agent reservation accounting | Closed Palpo command/receipt transport, explicit project budget and assigned-admin form |
+| Assigned project admins decide agents and top-ups | Hagency `86099fc`: grant scope, explicit self-approval, atomic debit and durable replay checks | Current-role Palpo decisions, Rinx review UI and full receipt/retry flow |
+| Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
+| Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
+| Usage and lifecycle management | Existing Hagency usage and quota primitives | Scoped fresh/stale/unknown summaries, same-agent top-up and removal UI |
+| Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
+| Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
+| Signup decisions | Requests listed | Approve/reject navigation and role checks |
+| Shared theme and desktop windows | Native theme-preservation and separate-window tests | Complete new forms with current Rinx/OctoScript controls; hosted OctoSense acceptance |
+| Android and OpenHarmony | No device acceptance claimed | Actual build, touch/back/keyboard, background notification and file-picker tests |
+| Shared contract and App Hub release | Companion contract implementation and local provenance | Reviewed contract release, remove vendor patch, authentic publisher/platform evidence and publication |
+
+No catalog item, connection proof, queued command or admin click is sufficient to
+claim reserved capacity, running agent readiness, or complete cleanup. Each UI
+state must follow its owning service's durable receipt. Existing projects and
+agents retain their original owners; migration into grants must be explicit.
+
 ## Implemented
 
 - A built-in Palpo Splash app in `apps/palpo`: member/admin navigation, persistent
@@ -53,6 +82,27 @@ navigation cancellation and refusal handling with admin connection maintenance.
 These are native/macOS checks, not Android or OpenHarmony device acceptance.
 Hagency-originated automatic pairing and assigned-project-admin agent admission
 remain the backend gaps recorded in ADR 0010.
+
+## Hagency reservation foundation — 2026-10-04
+
+Companion Hagency commit `86099fc` adds finite contribution/project grants,
+explicit project-admin policy and revision changes, atomic agent/top-up debits,
+financial replay receipts and grant retirement. It counts provider reservations
+once across projects and agents, including resources sharing a provider seat.
+Expired/revoked grants fence queued or late provisioning and runtime capability
+use. Legacy console approval cannot bypass a grant. Held resources cannot move
+to another account implicitly, and lower ceilings still constrain new decisions.
+
+Evidence: 595 store regressions passed (50 ignored), followed by 46 focused tests
+on the reviewed changes, including 15 grant scenarios. The native Hagency build
+check passes. The expiry test crosses an actual SQLite lock; financial replay is
+checked after restart and removal of the rolling display-history receipt.
+
+This is the accounting foundation. The operator contribution UI, authenticated
+Palpo command/receipt consumer, role synchronization, Rinx approval/top-up screens
+and full live lifecycle still require integration. No workflow support capability
+is advertised by this commit, and no production update or Makepad/mobile result
+is claimed for these backend tests.
 
 ## Validation
 

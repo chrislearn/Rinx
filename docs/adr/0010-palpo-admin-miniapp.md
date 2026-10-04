@@ -11,8 +11,8 @@
   [ADR 0009](0009-shared-reloadable-themes.md).
 - Replaces this proposal's initial choice of a compiled native admin dashboard.
   The first delivery replaces Palpo's web frontend with an OctoScript frontend
-  and reuses the signed-in Rinx identity. Additional agent workflows are a
-  subsequent backend feature track, not prerequisites for frontend replacement.
+  and reuses the signed-in Rinx identity. Full implementation also includes the
+  bounded project grants and agent workflows specified below.
 - The [three-stage workflow design](../design/palpo-miniapp-workflows.md)
   specifies the requested product: Hagency-owned resource contribution,
   project approval, then agent approval/management with a personal My Actions
@@ -51,9 +51,9 @@ pages/actions each may access. Neither an app manifest nor consent changes roles
 Reuse the server logic currently housed in Palpo's `web-admin` service, while
 making its browser frontend optional. All replaced browser interactions must
 have an in-Rinx path. Existing runtime setup requirements remain backend
-requirements; improvements such as one-time pairing and remote Hagency resource
-decisions belong to the extension track below. Frontend parity does not require
-redesigning Hagency, a new identity provider or a new resource delegation model.
+requirements. Frontend parity is a foundation milestone. Full delivery adds the
+bounded resource delegation and project decision model below; automatic one-time
+pairing can replace the retained owner-only file handoff later.
 
 The mini apps render through OctoScript/Makepad and use ADR 0009's shared theme.
 Rust code in Rinx supplies bounded host services and trusted authorization UI;
@@ -97,8 +97,9 @@ contribution is the delegation boundary. Once capacity is allocated to a project
 its **assigned project administrator** approves agents and token increases in
 Palpo. There is no second human decision in Hagency for work inside that grant.
 This supersedes the earlier extension proposal's fleet-operator agent-decision
-flow and its sequence diagram below. Historical source descriptions still
-explain the deployed implementation; they are not the amended product behavior.
+flow. The sequence and acceptance criteria below use assigned project admins.
+Historical source descriptions explain the deployed implementation; they are
+not the amended product behavior.
 
 - The contributor authorizes a bounded resource allocation and its trusted Palpo
   issuer. Project assignment consumes that allocation rather than creating more
@@ -397,15 +398,16 @@ sequenceDiagram
     participant U as User: My Agents in Rinx
     participant R as Rinx host authorization
     participant P as Palpo workflow service
-    participant A as Operator: Operations in Rinx
+    participant A as Assigned project admin in Rinx
     participant H as Hagency runtime
     U->>R: Authorize project and agent-request services
-    U->>P: Create project and submit named-agent request via host
-    P->>H: Deliver bound request
+    Note over U,H: Project grant already accepted by Hagency
+    U->>P: Submit named-agent request in that project via host
     P-->>A: Pending request notification
-    A->>R: Confirm allocation decision within granted fleet scope
+    A->>R: Use granted project decision service
     A->>P: Approve with command ID
-    P->>H: Deliver scoped approval command
+    P->>H: Deliver project-bound request and decision command
+    H->>H: Check current grant and atomically debit its budget
     H-->>P: Allocation and provisioning receipts
     P-->>U: Agent ready after verified project admission
     U->>P: Request more tokens for the same engagement
@@ -414,7 +416,8 @@ sequenceDiagram
     P->>H: Apply idempotent allocation increase
     H-->>P: New allocation and quota-hold state
     P-->>U: Updated budget and runtime status
-    A->>P: Revoke engagement
+    U->>P: Remove own agent
+    P->>P: Check current project and owner authority
     P->>H: Retire and reconcile cleanup
     H-->>P: Runtime and Matrix retirement results
     P-->>U: Revoked with verified cleanup status
@@ -447,9 +450,11 @@ pages against the existing Palpo backend. Validate with two real Rinx accounts:
 
 1. Open the mini app as an existing administrator and as an ordinary user. Neither
    enters another password; the backend reports the correct identity and role.
-2. The administrator lists/registers a fleet and performs an existing permitted
-   management operation. The ordinary user sees only their permitted data and
-   creates a project/submits an agent request using existing backend operations.
+2. The designated administrator lists connected Hagency resources and sees
+   Project approvals. The manager sees only permitted projects/agents and submits
+   a project request. Neither receives resource contribution or fleet registration
+   controls; old native calls are rejected. Other server administrators cannot
+   approve projects merely because they are Matrix administrators.
 3. Reproduce the reviewed web frontend's available actions and results, including
    owner pairing/export, connection checks, identity management and activity.
    Mark each page's parity explicitly; unavailable backend features stay unavailable.
@@ -470,14 +475,21 @@ Add the backend extensions and corresponding pages without changing the login
 model. The acceptance target is two signed-in Rinx identities completing:
 
 1. Authorize the mini apps with no password/token entry in either package.
-2. Submit a contribution request, approve/reject it as administrator, notify its
-   owner, export the JSON in Rinx, import it on Hagency and prove the connection.
-3. Request a project on permitted resources, approve/reject as administrator,
-   activate it under its owner's identity, then request a named agent/allocation.
-4. Approve or reject from Operations; verify that approval provisions the actual
-   agent into the selected project before reporting it ready.
-5. Request additional tokens from My Agents; approve from Operations; preserve
-   the agent identity and apply the increase once, including a lost-response retry.
+2. Initiate resource association from Hagency as its operator. Review the
+   association as the designated Palpo administrator, hand registration secrets
+   only to the authorized owner, and prove the connection. Select explicit
+   contribution limits in Hagency; publication alone reserves no capacity.
+3. Request a project on those resources. Only the designated Palpo administrator
+   can approve/reject it and explicitly assign its project administrators. Wait
+   for Hagency's durable budget reservation before showing Allocated. Preserve
+   the requesting owner, then request a named agent.
+4. Approve/reject as the assigned project administrator. Reject unassigned and
+   cross-project actors and self-approval without an explicit policy. Provision
+   without a Hagency human verdict, and verify actual runtime and project-room
+   membership before showing Ready.
+5. Request additional tokens from My Agents; approve as the assigned project
+   administrator. Preserve agent identity and apply the increase once, including
+   lost replies, restart, expired grants and concurrent requests.
 6. Revoke the engagement; observe both runtime and Matrix cleanup, with honest
    partial/failure states and retry.
 7. Close/reopen or background either client during the flow and recover without
@@ -490,7 +502,7 @@ Repository responsibilities by delivery:
 | First delivery: existing-operation capability schemas, host consent/session handling and dispatch | Shared App Contract and Rinx |
 | First delivery: Matrix-session adapter and reuse of existing actor/role checks and operation handlers | Existing Palpo web-admin backend |
 | First delivery: admin/member pages, existing flow parity, shared themes and platform evidence | Mini-app frontend and Rinx host |
-| Extension: top-up requests, additional scoped reads and resource-operator delegation | Palpo/workflow service |
+| Extension: top-up requests, scoped reads and explicit project-admin assignments | Palpo/workflow service |
 | Extension: outbound control commands, actor validation and richer runtime status | Palpo and Hagency together |
 | Extension: contribution/project approval records, resource grants, Inbox/outbox and notification routes; automatic pairing optional | Palpo, Hagency and mini-app frontend |
 
