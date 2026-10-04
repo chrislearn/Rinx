@@ -21,6 +21,20 @@ class PalpoApp(NativeApp):
     def snap(self):
         return [w for w in super().snap() if w.get('ty') != 'Splash']
 
+    def click_id(self, widget_id):
+        # Long forms retain their real scroll container. A zero rectangle is
+        # offscreen, not a coordinate at which an input can be delivered.
+        self.request('/m', k='scroll', x=300, y=650, dy=-2000, wait=1)
+        for _ in range(16):
+            widgets = [w for w in self.request('/snap', all=1)['s']
+                       if w.get('i') == widget_id and w['r'][2] > 0 and 30 < w['r'][1] < 730]
+            if widgets:
+                x, y, width, height = widgets[0]['r']
+                self.click(x + width / 2, y + height / 2)
+                return
+            self.request('/m', k='scroll', x=300, y=650, dy=220, wait=1)
+        raise AssertionError(f'Could not scroll widget into view: {widget_id}')
+
     def request(self, route, **params):
         # SDK 1f3b1de can fail wait=1 after already applying the input when a
         # hidden Metal frame cannot immediately submit. Never replay that input.
@@ -81,14 +95,20 @@ def launch(root, binary, endpoint, admin=False, narrow=False, session_file=None)
 
 
 def fill(app, label, value):
-    tree = app.request('/snap', all=1)['s']
-    fields = [w for w in tree if w.get('ty') == 'TextInput' and w['r'][2] > 0]
-    (app.root / 'last-fields.json').write_text(json.dumps(tree, indent=2))
-    # Fields have their labels immediately above them; visual order is stable.
-    labels = [w for w in tree if w.get('t') == label and w.get('ty') != 'TextInput']
-    assert labels, (label, app.snap())
-    y = labels[-1]['r'][1]
-    target = min((w for w in fields if w['r'][1] >= y), key=lambda w: w['r'][1])
+    # Start at the top so offscreen labels (zero rects) cannot select a visible
+    # neighboring input. Walk down using the input following the exact label.
+    app.request('/m', k='scroll', x=300, y=650, dy=-2000, wait=1)
+    for _ in range(16):
+        tree = app.request('/snap', all=1)['s']
+        (app.root / 'last-fields.json').write_text(json.dumps(tree, indent=2))
+        labels = [i for i, w in enumerate(tree) if w.get('t') == label and w.get('ty') != 'TextInput']
+        assert labels, (label, app.snap())
+        target = next(w for w in tree[labels[-1] + 1:] if w.get('ty') == 'TextInput')
+        if target['r'][2] > 0 and 160 < target['r'][1] < 720:
+            break
+        app.request('/m', k='scroll', x=300, y=650, dy=220, wait=1)
+    else:
+        raise AssertionError(f'Could not scroll field into view: {label}')
     x, y, width, height = target['r']
     app.click(x + width / 2, y + height / 2)
     app.request('/k', c='KeyA', cmd=1, wait=1)
@@ -120,6 +140,19 @@ def main():
             if server.poll() is not None: raise RuntimeError((root / 'server.log').read_text())
             time.sleep(.1)
         endpoint = f'http://127.0.0.1:{service_port}'
+        # A draft saved by the previous bundle has no administrator-policy
+        # properties. It must remain readable without a Splash missing-key error.
+        legacy_dir = root / 'legacy-admin/profile/app'
+        legacy_dir.mkdir(parents=True)
+        legacy_draft = {'title': 'Approve request', 'service': 'palpo.inbox.decide',
+                        'payload': {'id': 'action_' + 'a' * 32, 'expectedRevision': 1,
+                                    'commandId': 'legacy_decision', 'decision': 'approve', 'reason': 'Saved review'},
+                        'fields': [{'key': 'reason', 'label': 'Decision reason', 'value': 'Saved review'}]}
+        (legacy_dir / 'draft.json').write_text(json.dumps(legacy_draft))
+        legacy = launch(root / 'legacy-admin', args.binary, endpoint, admin=True); apps.append(legacy)
+        legacy.click_id('resume'); legacy.wait_text('Saved review')
+        legacy.capture('legacy-decision-draft')
+        report['checks'].append('legacy approval draft remains readable without inventing administrator assignments')
         owner = launch(root / 'owner', args.binary, endpoint, narrow=True); apps.append(owner)
         owner.capture('owner-inbox-light')
         assert not any(w.get('i') in {'contribute', 'fleets', 'approve', 'register'} for w in owner.snap())
@@ -128,6 +161,11 @@ def main():
         owner.wait_text('Project name')
         fill(owner, 'Project name', 'Native test project')
         fill(owner, 'What will your project do?', 'Shared coding capacity')
+        fill(owner, 'Project token budget', '400000')
+        fill(owner, 'Maximum concurrent agents', '4')
+        fill(owner, 'Combined tokens per day', '40000')
+        fill(owner, 'Allocation duration (hours)', '24')
+        fill(owner, 'What will your project do?', 'Shared coding capacity')
         owner.capture('project-draft')
         owner.request('/k', c='ArrowLeft', shift=1, wait=1)
         owner.request('/k', c='ArrowLeft', shift=1, wait=1)
@@ -135,7 +173,7 @@ def main():
         for theme in ('dark', 'violet', 'light'):
             owner.request('/event', data='palpo:' + theme, wait=1)
             time.sleep(.25)
-            owner.wait_text('Native test project')
+            owner.wait_text('Shared coding capacity')
             after = inspect(owner)
             assert (before['heap'], before['calls']) == (after['heap'], after['calls']), (before, after)
             capture = owner.capture('project-' + theme)
@@ -162,17 +200,27 @@ def main():
             admin = launch(root / 'admin', args.binary, endpoint, admin=True); apps.append(admin)
             admin.wait_text('Native test project'); admin.click_id('review'); admin.wait_text('Approve')
             admin.click_id('approve'); admin.wait_text('Decision reason')
+            fill(admin, 'Project administrators (Matrix IDs, comma separated)', '@other:example.test')
+            assert any(w.get('t') == 'Self-approval: forbidden' for w in admin.snap())
             fill(admin, 'Decision reason', 'Approved for research')
+            admin.capture('project-budget-administrator-policy')
             admin.click_id('submit'); admin.wait_text('No requests in this view')
             admin.capture('designated-admin-project-approvals')
             assert any('Project approvals' in w.get('t', '') for w in admin.snap())
             assert not any(w.get('i') in {'contribute', 'register'} for w in admin.snap())
-            owner.click_id('needs'); owner.wait_text('Native test project'); owner.click_id('review')
+            owner.click_id('waiting'); owner.wait_text('Native test project'); owner.click_id('review')
             assert not any(w.get('i') in {'approve', 'reject'} for w in owner.snap())
-            owner.capture('project-approved-owner-handoff')
+            owner.wait_text('waiting for Hagency to reserve')
+            owner.capture('project-awaiting-reservation')
             report['checks'].append('designated admin approves the managers project; ownership remains with requester')
-            owner.wait_text('Create project'); owner.click_id('continue_work')
-            owner.wait_text('Latest result received.')
+            (root / 'release-reservations').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('Project allocated' in w.get('t', '') for w in owner.snap()):
+                    break
+                time.sleep(1)
+            owner.wait_text('Project allocated')
+            owner.capture('project-reservation-confirmed')
             owner.click_id('projects'); owner.wait_text('Native test project'); owner.click_id('agent')
             owner.wait_text('Use this resource'); owner.click_id('choose'); owner.wait_text('Agent name')
             fill(owner, 'Agent name', 'ResearchBot')
@@ -182,7 +230,7 @@ def main():
             owner.capture('agent-request-pending')
             backend = json.loads((root / 'backend.json').read_text())
             assert backend['projects'] == 1 and backend['requests'] == 1, backend
-            report['checks'].append('project approval, owner activation and named agent request through native forms')
+            report['checks'].append('finite project budget, explicit administrator policy, pending reservation and applied receipt through native forms')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')

@@ -161,6 +161,7 @@ impl PalpoHost {
             lease.check(account)?;
             return Ok(json!({"saved": saved}));
         }
+        normalize_workflow_views(service, &mut result);
         bounded_reply(result)
     }
     async fn post(
@@ -199,6 +200,68 @@ impl PalpoHost {
             bytes.extend_from_slice(&chunk);
         }
         decode_response(status, &bytes)
+    }
+}
+
+// Splash treats absent properties as errors, not null. Older servers may still
+// return the earlier unbudgeted DTOs; make optional display fields explicit and
+// keep agent requests disabled until an accepted allocation is reported.
+fn normalize_workflow_views(service: &str, result: &mut Value) {
+    fn action(row: &mut Value) {
+        if let Some(object) = row.as_object_mut() {
+            object.entry("workflowVersion").or_insert(Value::Null);
+            object.entry("reservations").or_insert(Value::Null);
+        }
+        if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
+            payload.entry("allocations").or_insert(Value::Null);
+        }
+    }
+    if service.starts_with("palpo.inbox.") {
+        if let Some(row) = result.get_mut("action") {
+            action(row);
+        }
+        if let Some(rows) = result.get_mut("actions").and_then(Value::as_array_mut) {
+            for row in rows {
+                action(row);
+            }
+        }
+    }
+    if service == "palpo.projects.list" {
+        if let Some(rows) = result.get_mut("projects").and_then(Value::as_array_mut) {
+            for row in rows {
+                if row.get("allocation").is_none_or(Value::is_null) {
+                    row["allocation"] =
+                        json!({"state":"migration_required","ready":false,"grants":[]});
+                    row["canRequest"] = json!(false);
+                } else if let Some(allocation) =
+                    row.get_mut("allocation").and_then(Value::as_object_mut)
+                {
+                    allocation.entry("grants").or_insert(json!([]));
+                }
+            }
+        }
+    }
+    if service == "palpo.catalog.list" {
+        if let Some(fleets) = result.get_mut("fleets").and_then(Value::as_array_mut) {
+            for fleet in fleets {
+                if let Some(offers) = fleet
+                    .pointer_mut("/capabilities/offers")
+                    .and_then(Value::as_array_mut)
+                {
+                    for offer in offers {
+                        if let Some(resources) =
+                            offer.get_mut("resources").and_then(Value::as_array_mut)
+                        {
+                            for resource in resources {
+                                if let Some(resource) = resource.as_object_mut() {
+                                    resource.entry("contributions").or_insert(json!([]));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -278,6 +341,43 @@ pub async fn request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn legacy_workflow_views_render_without_enabling_unbudgeted_requests() {
+        let mut old = json!({"projects":[{"id":"legacy","canRequest":true}]});
+        normalize_workflow_views("palpo.projects.list", &mut old);
+        assert_eq!(old["projects"][0]["canRequest"], false);
+        assert_eq!(
+            old["projects"][0]["allocation"]["state"],
+            "migration_required"
+        );
+
+        let mut current = json!({"projects":[{"id":"allocated","canRequest":true,
+            "allocation":{"state":"allocated","ready":true,"grants":[{"id":"grant_a"}]}}]});
+        let unchanged = current.clone();
+        normalize_workflow_views("palpo.projects.list", &mut current);
+        assert_eq!(current, unchanged);
+
+        let legacy_action = json!({"id":"action_old","payload":{"name":"Old request"}});
+        let mut list = json!({"actions":[legacy_action.clone()]});
+        let mut detail = json!({"action":legacy_action});
+        normalize_workflow_views("palpo.inbox.list", &mut list);
+        normalize_workflow_views("palpo.inbox.get", &mut detail);
+        assert_eq!(list["actions"][0], detail["action"]);
+        assert_eq!(detail["action"].get("reservations"), Some(&Value::Null));
+        assert_eq!(detail["action"].get("workflowVersion"), Some(&Value::Null));
+        assert_eq!(
+            detail["action"]["payload"].get("allocations"),
+            Some(&Value::Null)
+        );
+
+        let mut catalog =
+            json!({"fleets":[{"capabilities":{"offers":[{"resources":[{"id":"r"}]}]}}]});
+        normalize_workflow_views("palpo.catalog.list", &mut catalog);
+        assert_eq!(
+            catalog["fleets"][0]["capabilities"]["offers"][0]["resources"][0]["contributions"],
+            json!([])
+        );
+    }
     #[test]
     fn inaccessible_configuration_does_not_report_a_missing_adapter() {
         let error = decode_response(

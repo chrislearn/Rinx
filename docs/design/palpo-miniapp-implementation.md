@@ -18,7 +18,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | --- | --- | --- |
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
 | Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
-| Capacity is reserved before a project becomes allocated | Hagency `e911aae`: reservation accounting, atomic commands/receipts and acknowledged contribution pages; Palpo `b45b3fd`: scoped commands, validated snapshots and receipts | Explicit project budget/assigned-admin forms and Inbox reservation integration |
+| Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands and exact receipt projection; backend and native fixture checks | Actual Hagency/Palpo integration, live validation, partial-refusal recovery and explicit legacy migration |
 | Assigned project admins decide agents and top-ups | Hagency `6771862` / Palpo `bb593b6`: scoped commands, current-role execution leases, atomic debit and durable receipts | Assigned-admin Inbox decisions, Rinx review UI and live workflow validation |
 | Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
@@ -26,7 +26,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
 | Signup decisions | Requests listed | Approve/reject navigation and role checks |
-| Shared theme and desktop windows | Native theme-preservation and separate-window tests | Complete new forms with current Rinx/OctoScript controls; hosted OctoSense acceptance |
+| Shared theme and desktop windows | Native theme-preservation and separate-window tests, including finite-budget and assignment forms | Agent/top-up forms; hosted OctoSense acceptance |
 | Android and OpenHarmony | No device acceptance claimed | Actual build, touch/back/keyboard, background notification and file-picker tests |
 | Shared contract and App Hub release | Companion contract implementation and local provenance | Reviewed contract release, remove vendor patch, authentic publisher/platform evidence and publication |
 
@@ -34,6 +34,43 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Finite project approval and reservation — 2026-10-04
+
+The request form selects a current Hagency contribution and asks for a token
+budget, maximum agents, aggregate daily rate and duration. Palpo prepares the
+requester's actual project room before review, using their current Matrix token.
+This is a proposal, not an allocated project. Stable request/room IDs recover
+lost Matrix responses without transferring ownership or creating another room.
+
+The designated administrator explicitly assigns active local project admins and
+chooses the self-approval policy. Palpo rechecks the room's owner, privacy,
+binding, contribution revision and remaining capacity. Human decision, finite
+reservation commands, audit and notices commit together. Queued promises count
+against availability; transport ACKs do not allocate. Only exact applied business
+receipts for all resources enable new agent requests. Refused/partial reservations
+stay unallocated, with held capacity preserved. Existing unbudgeted projects gain
+no implicit grant; an exact historical operation can still resume its own retry.
+
+Validation: all 106 Palpo backend tests pass, including room response loss,
+invalid/stale budgets, missing administrator policy, changed ownership, queue
+rollback, competing approvals, transport rotation, receipt replay and refusal.
+Five Rinx Palpo adapter tests pass, including older-server DTO compatibility.
+Full native Rinx and the instrument example build successfully.
+
+Makepad hidden-window run `df4979918dcd415f8480a9f5c3111e30` passed seven checks
+through the production Splash bundle and native host: manager/admin controls,
+finite-budget submission, explicit assignment, pending versus applied result,
+draft restart, old approval-draft compatibility, theme/focus/selection/undo and
+Matrix-login-preserving disconnect. Captures were inspected. The example's SHA-256
+is `f5b56cf8efc48e52e830e27232082f8de86b7ea84311d726157f091a616d7bc7`.
+
+Matrix and Hagency in this run are explicit local fixtures. The test releases a
+synthetic business receipt after capturing the pending state; it does not prove
+live Hagency reservation or agent admission. Assigned-admin agent/top-up Inbox
+integration remains unfinished, so Hagency still does not advertise the full
+workflow capability. No production activation, visible client restart, mobile
+device acceptance, or full ADR completion is claimed.
 
 ## Implemented
 
@@ -54,7 +91,8 @@ agents retain their original owners; migration into grants must be explicit.
 Palpo shares the browser's existing backend and serial mutation queue. It checks
 current roles and ownership on the server. Strict project approval across all
 frontends is an explicit deployment migration, `PALPO_PROJECT_APPROVAL_REQUIRED=1`;
-existing projects are grandfathered. See Palpo's `web-admin/MINIAPP.md`.
+existing projects and owners remain intact. New agent requests need finite grants;
+exact legacy operation retries remain resumable. See Palpo's `web-admin/MINIAPP.md`.
 
 ## Role correction validated on 2026-10-03
 

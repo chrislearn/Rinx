@@ -33,6 +33,12 @@ fn connection_label(fleet){
 }
 fn action_label(row){
     if row.kind == "project" {
+        if row.workflowVersion == 1 {
+            if row.execution == "preparing" { return "Finish preparing the project room" }
+            if row.execution == "awaiting_reservation" { return "Approved · waiting for Hagency to reserve the budget" }
+            if row.execution == "reservation_refused" { return "Budget reservation refused · review the result" }
+            if row.execution == "done" { return "Project allocated · ready for agent requests" }
+        }
         if row.state == "requested" { return "Waiting for project approval" }
         if row.state == "approved" {
             if row.execution == "done" { return "Project created · request an agent from Projects" }
@@ -120,7 +126,20 @@ fn refresh_page(){
     }
 }
 fn save_form(){ fs.write("draft.json", P.form.to_json()) P.has_draft = true }
-fn edit_field(i, value){ P.form.fields[i].value = value P.form.payload[P.form.fields[i].key] = value save_form() }
+fn has_form_field(key){
+    for i in P.form.fields.len() { if P.form.fields[i].key == key { return true } }
+    return false
+}
+fn edit_field(i, value){
+    let key = P.form.fields[i].key
+    P.form.fields[i].value = value
+    if P.form.service == "palpo.inbox.submit" && (key == "tokens" || key == "maxAgents" || key == "maxRatePerDay") {
+        P.form.payload.allocations[0].limits[key] = value
+    } else if P.form.service == "palpo.inbox.submit" && key == "durationHours" {
+        P.form.payload.allocations[0].durationHours = value
+    } else { P.form.payload[key] = value }
+    save_form()
+}
 fn new_form(title, service, payload, fields){
     if P.busy { return }
     stop_connection_watch()
@@ -142,10 +161,15 @@ fn submit_form(){
         refresh_page()
     })
 }
-fn request_project(fleet, resource){
-    new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [resource.id] name: "" reason: ""}, [
+fn request_project(fleet, resource, contribution){
+    new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [resource.id] name: "" reason: ""
+        allocations: [{contributionId: contribution.id resourceId: resource.id limits: {tokens: "" maxAgents: "" maxRatePerDay: ""} durationHours: ""}]}, [
         {key: "name" label: "Project name" value: ""}
         {key: "reason" label: "What will your project do?" value: ""}
+        {key: "tokens" label: "Project token budget" value: ""}
+        {key: "maxAgents" label: "Maximum concurrent agents" value: ""}
+        {key: "maxRatePerDay" label: "Combined tokens per day" value: ""}
+        {key: "durationHours" label: "Allocation duration (hours)" value: ""}
     ])
 }
 fn review_action(row){
@@ -164,6 +188,14 @@ fn review_action(row){
 }
 fn decision(value){
     let row = P.selected
+    if value == "approve" && row.workflowVersion == 1 {
+        new_form("Approve project budget", "palpo.inbox.decide",
+            {id: row.id expectedRevision: row.revision decision: value reason: "" administrators: "" allowSelfApproval: false}, [
+                {key: "administrators" label: "Project administrators (Matrix IDs, comma separated)" value: ""}
+                {key: "reason" label: "Decision reason" value: ""}
+            ])
+        return
+    }
     new_form(if value == "approve" {"Approve request"} else {"Reject request"}, "palpo.inbox.decide",
         {id: row.id expectedRevision: row.revision decision: value reason: ""}, [{key: "reason" label: "Decision reason" value: ""}])
 }
@@ -303,15 +335,28 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: action_label(row)}
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
+                if row.payload.allocations != nil {
+                    for i in row.payload.allocations.len() {
+                        let allocation = row.payload.allocations[i]
+                        mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Requested budget: " + allocation.limits.tokens + " tokens"}
+                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Up to " + allocation.limits.maxAgents + " agents · " + allocation.limits.maxRatePerDay + " tokens/day · expires " + allocation.expiresAt}
+                    }
+                }
+                if row.reservations != nil {
+                    for i in row.reservations.len() {
+                        let reservation = row.reservations[i]
+                        if reservation.code != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reservation result: " + reservation.code} }
+                    }
+                }
                 if P.approver && row.kind == "project" && row.canDecide {
                     View{width: Fill height: Fit spacing: 8
-                        approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")}
+                        if row.workflowVersion == 1 { approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")} }
                         reject := mod.widgets.RinxButton{text: "Reject" on_click: || decision("reject")}
                     }
                 }
                 if row.canContinue && row.nextAction != "export_and_connect" {
-                    continue_work := mod.widgets.RinxPrimaryButton{text: if row.kind == "project" {"Create project"} else {"Continue approved work"} on_click: || continue_action()}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if row.kind == "project" {"Create the project room, then request an agent from Projects."} else {"Approval is recorded. This step completes the server operation."}}
+                    continue_work := mod.widgets.RinxPrimaryButton{text: if row.nextAction == "prepare_project" {"Retry project preparation"} else {"Continue approved work"} on_click: || continue_action()}
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Preparing a room does not allocate resources. Agents remain disabled until the reservation is confirmed."}
                 }
                 if row.kind == "contribution" && row.state == "approved" && row.execution == "done" {
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: connection_label(P.selected_fleet)}
@@ -328,10 +373,18 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             mod.widgets.PalpoCard{
                 mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
+                if P.form.service == "palpo.inbox.submit" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Submission prepares your private project room for review. Agents can be requested only after the administrator approves and Hagency reserves the budget."}
+                }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: item.label}
                     mod.widgets.RinxInput{width: Fill text: item.value empty_text: item.label on_change: |value| edit_field(i, value)}
+                }
+                if P.form.service == "palpo.inbox.decide" && P.form.payload.decision == "approve" && has_form_field("administrators") {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Assigned administrators decide agent requests and token increases within this budget."}
+                    self_approval := mod.widgets.RinxButton{text: if P.form.payload.allowSelfApproval {"Self-approval: allowed"} else {"Self-approval: forbidden"}
+                        on_click: || { P.form.payload.allowSelfApproval = !P.form.payload.allowSelfApproval save_form() draw_page() }}
                 }
                 submit := mod.widgets.RinxPrimaryButton{text: "Submit" on_click: || submit_current()}
                 cancel := mod.widgets.RinxButton{text: "Back to Inbox" on_click: || open_page("inbox")}
@@ -353,13 +406,23 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.PalpoCard{
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: project.name}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: project.state + " · " + project.ownerMxid}
+                    if project.allocation != nil {
+                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation: " + project.allocation.state}
+                        if project.allocation.grants != nil {
+                            for j in project.allocation.grants.len() {
+                                let grant = project.allocation.grants[j]
+                                mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: grant.limits.tokens + " tokens · " + grant.limits.maxAgents + " agents · " + grant.limits.maxRatePerDay + " tokens/day"}
+                                for k in grant.administratorMxids.len() { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Project administrator: " + grant.administratorMxids[k]} }
+                            }
+                        }
+                    }
                     if project.canRequest { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
                     if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Project setup or membership verification is still pending. Refresh after setup completes."} }
                 }
             }
         }
         if P.page == "resources" || P.page == "agent_resources" {
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Resources published by Hagency. Approval does not reserve token capacity."}
+            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Hagency contributes finite budgets. Project approval requests a reservation; allocation is confirmed only by Hagency's result."}
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No resource catalog is available yet."} }
             for i in P.rows.len() {
                 let fleet = P.rows[i]
@@ -374,7 +437,16 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                                     let resource = offer.resources[k]
                                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: resource.name + " · " + offer.role}
                                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: resource.framework + " · " + resource.model}
-                                    if P.page == "resources" && !P.approver { choose := mod.widgets.RinxPrimaryButton{text: "Request project using this resource" on_click: || request_project(fleet, resource)} }
+                                    if P.page == "resources" && !P.approver {
+                                        if resource.contributions == nil || resource.contributions.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No current finite contribution is available for a new project."} }
+                                        if resource.contributions != nil {
+                                            for c in resource.contributions.len() {
+                                                let contribution = resource.contributions[c]
+                                                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Available: " + contribution.remaining.tokens + " tokens · " + contribution.remaining.maxAgents + " agents · " + contribution.remaining.maxRatePerDay + " tokens/day"}
+                                                choose := mod.widgets.RinxPrimaryButton{text: "Request project using this resource" on_click: || request_project(fleet, resource, contribution)}
+                                            }
+                                        }
+                                    }
                                     if P.page == "agent_resources" { choose := mod.widgets.RinxPrimaryButton{text: "Use this resource" on_click: || request_agent(resource, offer.role)} }
                                 }
                             }

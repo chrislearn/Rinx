@@ -82,22 +82,24 @@ contract below. Do not label a catalog selection as allocated capacity.
 
 | Step | Screen, action and recipient | Backend effect |
 | --- | --- | --- |
-| Submit | Projects → New project; owner chooses a connected fleet, offered resources, project name/purpose and optional existing room | Persist proposed owner, room and resource selection; validate visible resources and current room ownership without activating the project |
-| Review | Designated Palpo administrator → Project approvals | Approve/reject the frozen request and its permitted resources; notify the project owner |
-| Prepare | Owner's open request resumes setup after approval; an offline owner receives “Approved — open to finish setup” | Reuse project creation under the owner's Matrix authority, preserving deterministic room/request IDs |
-| Activate | Project page shows room setup and approval-channel readiness | Verify project binding, owner membership/power and required Hagency identities; mark active only after the required setup is proven |
+| Submit | Projects → New project; owner chooses a current contribution, finite limits, duration and project name/purpose | Persist the exact proposed budget, owner and resource selection; prepare the actual room under the owner's current Matrix authority |
+| Prepare | Owner retries incomplete room preparation with the same request | Preserve deterministic room/request IDs; no grant or agent permission exists at this point |
+| Review | Designated Palpo administrator → Project approvals | Review the frozen request and prepared room, explicitly assign project administrators and self-approval policy, then approve or reject |
+| Reserve | Project page shows “Approved · waiting for Hagency to reserve the budget” | Recheck room binding and capacity; commit decision, reservation commands and notices together; wait for every durable Hagency business receipt |
+| Activate | Project page shows allocation and approval-channel readiness | Verify accepted, current grants and required room setup before allowing an agent request; a delivery ACK alone has no allocation effect |
 | Use | Owner receives “Project ready”; Create agent becomes available | Every agent submission checks the current approved resource grant as well as the existing Matrix membership/room checks |
 
-Proposed stages:
+Project allocation stages:
 
-`pending_admin → approved → awaiting_owner_setup → preparing → active`
+`preparing → pending_admin → approved/awaiting_reservation → allocated`
 
-An already open owner session can continue automatically after approval, so
-`awaiting_owner_setup` may be brief. A backend continuation may use an explicitly
-delegated, still-valid owner session; if unavailable, retain approval and resume
-when the owner returns. Never call today's `createProject(input, admin, adminToken)`
-on their behalf: that function assigns the actor as owner and writes Matrix state
-as that actor. Do not keep an unbounded user token merely to avoid a resumable step.
+Preparing the room before review binds the eventual grant to an actual room, so
+the administrator's decision can atomically enqueue the exact reservation without
+retaining the owner's token. Preparation is not business approval or allocation.
+Lost-response retries preserve the same request and room. Never call
+`createProject(input, admin, adminToken)` on the owner's behalf: that function
+assigns the actor as owner and writes Matrix state as that actor. A refusal stays
+unallocated; accepted partial reservations remain held until explicit recovery.
 
 Add a durable `ProjectResourceGrant` binding approved request, owner, fleet,
 allowed resource IDs/roles and revision. Check it at project activation and each
@@ -108,11 +110,13 @@ an explicit audited migration policy; absent approval must not silently grant
 new resources. Preserve already-running work unless a separate revoke decision
 explicitly targets it.
 
-The current implementation grants resource eligibility only. The amended target
+The development implementation connects explicit project budgets and
+administrator assignments to reservation commands and applied business receipts.
+The deployed legacy grant still represents resource eligibility only. The target
 requires an explicit project budget accepted in Hagency's reservation ledger
 before the project is shown as allocated. The project administrator then approves
 agents and top-ups within that grant; Hagency admits them automatically while
-atomically enforcing aggregate capacity. This needs backend implementation and
+atomically enforcing aggregate capacity. Agent/top-up Inbox integration still needs implementation and
 an explicit migration for existing projects, including `octosense-dev`.
 
 Retain current room constraints: the project channel is invite-only plaintext;
