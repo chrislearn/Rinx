@@ -61,6 +61,8 @@ impl MatchEvent for App {
             self.ui.label(cx, ids!(hint)).set_text(cx, "Live Matrix · isolated Palpo validation backend");
             (session["user_session"]["user_id"].as_str().or_else(|| session["user_session"]["meta"]["user_id"].as_str()).unwrap().to_owned(),
              session["user_session"]["access_token"].as_str().or_else(|| session["user_session"]["tokens"]["access_token"].as_str()).unwrap().to_owned())
+        } else if std::env::args().any(|a| a == "--coordinator") {
+            ("@coordinator:example.test".into(), "coordinator-secret".into())
         } else if std::env::args().any(|a| a == "--admin") {
             ("@admin:example.test".into(), "admin-secret".into())
         } else {

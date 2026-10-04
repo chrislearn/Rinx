@@ -2,7 +2,7 @@ width: Fill height: Fill flow: Down spacing: 12
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
-    mod.palpo = {ready: false busy: false admin: false user: "" page: "inbox" filter: "needs_action"
+    mod.palpo = {ready: false busy: false admin: false coordinator: false services: [] user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
     if fs.exists("draft.json") {
@@ -11,6 +11,7 @@ if !mod.rinx_theme.reloading() {
     }
 }
 let P = mod.palpo
+fn available(service){ for name in P.services { if name == service { return true } } return false }
 // Dynamic render closures resolve the current host prototypes on every reapply.
 mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
     draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
@@ -31,7 +32,7 @@ fn call(service, args, complete){
 }
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
-        P.ready = true P.admin = data.isAdmin P.user = data.userId
+        P.ready = true P.admin = data.isAdmin P.coordinator = data.canApproveProjects == true P.user = data.userId P.services = data.services
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
@@ -90,12 +91,6 @@ fn submit_form(){
         if P.form.service == "palpo.fleets.register" || P.form.service == "palpo.fleets.migrate" || P.form.service == "palpo.agents.rename" || P.form.service == "palpo.agents.register" { P.page = "fleets" }
         refresh_page()
     })
-}
-fn contribute(){
-    new_form("Contribute resources", "palpo.inbox.submit", {kind: "contribution" name: "" reason: ""}, [
-        {key: "name" label: "Resource pool name" value: ""}
-        {key: "reason" label: "What can you contribute?" value: ""}
-    ])
 }
 fn request_project(fleet, resource){
     new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [resource.id] name: "" reason: ""}, [
@@ -191,13 +186,13 @@ View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
 navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
     if P.ready {
         inbox := mod.widgets.RinxButton{text: "Inbox · " + P.pending on_click: || open_page("inbox")}
-        projects := mod.widgets.RinxButton{text: "Projects" on_click: || open_page("projects")}
-        requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")}
-        resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")}
-        fleets := mod.widgets.RinxButton{text: "Fleets" on_click: || open_page("fleets")}
+        if available("palpo.projects.list") { projects := mod.widgets.RinxButton{text: "Projects" on_click: || open_page("projects")} }
+        if available("palpo.requests.list") { requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")} }
+        if available("palpo.catalog.list") { resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")} }
+        if available("palpo.fleets.list") { fleets := mod.widgets.RinxButton{text: "Engagements" on_click: || open_page("fleets")} }
         if P.admin {
-            activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")}
-            accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")}
+            if available("palpo.activity.list") { activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")} }
+            if available("palpo.accounts.list") { accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")} }
         }
     }
 }}
@@ -212,7 +207,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         }
     }
     if P.ready {
-        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user + if P.admin {" · Administrator"} else {" · Project member"}}
+        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user + if P.admin {" · Matrix administrator"} else {if P.coordinator {" · Engagement coordinator"} else {" · Project member"}}}
         if P.page == "inbox" {
             View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
                 needs := mod.widgets.RinxButton{text: "Needs my action" on_click: || inbox_filter("needs_action")}
@@ -222,8 +217,8 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             mod.widgets.PalpoCard{
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Pending actions stay here until they are resolved."}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reading or dismissing a notification does not complete a request."}
-                contribute := mod.widgets.RinxPrimaryButton{text: "Contribute resources" on_click: || contribute()}
-                if P.has_draft { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "The Hagency owner allocates resources to your engagement. Project and agent requests are reviewed here by its coordinator."}
+                if P.has_draft && P.form.payload.kind != "contribution" && available(P.form.service) { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
             }
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No requests in this view. Refresh to check for updates."} }
             for i in P.rows.len() {
@@ -247,6 +242,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.kind + " · " + row.state}
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
+                if row.execution != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
                 if row.canDecide {
                     View{width: Fill height: Fit spacing: 8
                         approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")}
