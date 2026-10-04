@@ -1,5 +1,10 @@
 # ADR 0010 implementation checkpoint
 
+> This records validation of the earlier implementation, not acceptance of
+> [ADR 0011](../adr/0011-hagency-server-engagements.md). Rust workflow migration,
+> multiple server engagements, coordinator-only project approvals, automatic
+> execution of mini-app agent decisions and the hierarchical budget remain open.
+
 The user-facing main build remains separate from this development branch. This
 implementation builds on the shared Rinx theme branch and the latest reviewed
 OctoScript App Design Flow (0e59346e). The bundle was created with `octo new`;

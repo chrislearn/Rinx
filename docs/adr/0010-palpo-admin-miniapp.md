@@ -1,5 +1,11 @@
 # ADR 0010: Palpo and agent administration through Rinx OctoScript mini apps
 
+> **Superseded in part by [ADR 0011](0011-hagency-server-engagements.md).**
+> Its Rust backend migration, Hagency-originated server engagements, coordinator
+> approvals, profile export and allocation rules are the current product decision.
+> This document retains the original source review and shared-login/Inbox design;
+> historical approval tables below are not the current authority specification.
+
 - Date: 2026-10-03
 - Status: Implementation in progress. Shared-login frontend and durable Inbox
   have local native validation; administrator/owner contribution approval and
