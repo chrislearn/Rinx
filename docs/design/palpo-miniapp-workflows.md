@@ -1,5 +1,10 @@
 # Palpo mini-app workflows: contribution, project approval and agents
 
+> **Historical workflow proposal.** [ADR 0011](../adr/0011-hagency-server-engagements.md)
+> supersedes this document's contribution, project/agent approval and allocation
+> flow. Matrix administrators approve server associations; Hagency coordinators
+> approve projects and agents in Rinx. The Inbox/notification concepts remain.
+
 - Date: 2026-10-03
 - Status: Proposed; source reviewed, no implementation or live validation.
 - Refines [ADR 0010](../adr/0010-palpo-admin-miniapp.md).
