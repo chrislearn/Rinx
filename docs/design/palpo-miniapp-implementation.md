@@ -19,14 +19,14 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
 | Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
 | Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands and exact receipt projection; backend and native fixture checks | Actual Hagency/Palpo integration, live validation, partial-refusal recovery and explicit legacy migration |
-| Assigned project admins decide agents and top-ups | Hagency `6771862` / Palpo `bb593b6`: scoped commands, current-role execution leases, atomic debit and durable receipts | Assigned-admin Inbox decisions, Rinx review UI and live workflow validation |
+| Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; backend and Makepad fixture checks | Actual Hagency/Palpo integration and live workflow validation |
 | Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
-| Usage and lifecycle management | Existing Hagency usage and quota primitives | Scoped fresh/stale/unknown summaries, same-agent top-up and removal UI |
+| Usage and lifecycle management | Existing Hagency usage/quota primitives; same-agent top-up forms and confirmed/pending allocation | Scoped fresh/stale/unknown usage summaries, removal UI and verified cleanup |
 | Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
 | Signup decisions | Requests listed | Approve/reject navigation and role checks |
-| Shared theme and desktop windows | Native theme-preservation and separate-window tests, including finite-budget and assignment forms | Agent/top-up forms; hosted OctoSense acceptance |
+| Shared theme and desktop windows | Native theme-preservation and separate-window tests, including budget, assignment, agent and top-up forms | Hosted OctoSense acceptance |
 | Android and OpenHarmony | No device acceptance claimed | Actual build, touch/back/keyboard, background notification and file-picker tests |
 | Shared contract and App Hub release | Companion contract implementation and local provenance | Reviewed contract release, remove vendor patch, authentic publisher/platform evidence and publication |
 
@@ -34,6 +34,51 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Agent decisions and same-agent token increases — 2026-10-04
+
+Finite-grant agent requests now become durable Inbox actions for explicitly
+assigned project administrators. The original Matrix request event is retained;
+the legacy Hagency human-approval queue receives no duplicate request. Project
+owners can inspect the result, and unassigned server admins cannot inspect or
+decide it. Decisions recheck active identity, current assignment/self-approval
+policy, room binding, contribution and remaining capacity, then atomically commit
+the source-bound command, audit and notices. Applied admission does not claim
+runtime readiness. Independently paginated status updates wait for the exact
+decision receipt rather than preventing earlier receipts from being delivered.
+
+The owner's Request more tokens form keeps the original engagement. Its Inbox
+action allows the assigned admin to approve a smaller positive increase or reject
+it. Confirmed tokens and amounts awaiting Hagency's business receipt are shown
+separately. Exact request, decision and receipt retries preserve one increase;
+rejected increases enqueue no remote work. Grant capacity remains held until a
+defined, verified cleanup releases it. Assigned-recipient notifications also
+recheck account and grant authority. Shared consent wording now describes project
+and token requests, rather than asking a manager to contribute resources.
+
+Validation: all 117 Palpo backend tests and five Rinx adapter tests pass. Makepad
+hidden-window run `3b04a89353644c85b2cd4c2cbe4b3265` passed all nine checks,
+including the earlier budget/theme/draft checks, assigned-admin agent approval,
+and a 50,000-token request approved for 40,000, moving the same agent from 80,000
+to 120,000 confirmed tokens. Actual manager/admin screenshots were inspected.
+The test uses the production Splash file and host adapter with local HTTP/SQLite;
+Matrix and Hagency receipts are explicit fixtures, not live lifecycle evidence.
+
+The native report pins both runtime bundle files and the binary, SHA-256
+`a1d24c8e5ba9918f3e0c3be147d5cec00a8c3a8ece98e5feb727f74494f0b4d4`.
+One earlier unoptimized run exceeded Makepad's 64 ms script-entry limit during a
+concurrent build. The passing run kept the same runtime limits. A subsequent
+driver failure came from a fixed click-height cutoff; it now uses the actual
+window height. Failed startups preserve evidence and use activity-guarded cleanup,
+and budget errors fail validation even when Makepad logs them at info level.
+
+The final optimized Rinx and instrument example also build successfully. Release
+smoke run `e2081aca9be54863a33dbd288d5ad151` passed startup, legacy-draft,
+role-control and live theme/focus/selection/undo checks without budget errors;
+example SHA-256 `126dd8d710ab7c7f92421d7c35fdeb58abd461a86c89531ed447ae1b707cd2bf`.
+
+The capability remains disabled in Hagency pending actual cross-service and
+lifecycle acceptance. Production and visible user sessions remain unchanged.
 
 ## Finite project approval and reservation — 2026-10-04
 

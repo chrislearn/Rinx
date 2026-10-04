@@ -136,6 +136,7 @@ impl PalpoHost {
             // the Matrix admin flag is never an implicit project approval grant.
             result["canApproveProjects"] =
                 json!(result["canApproveProjects"].as_bool().unwrap_or(false));
+            result["canReviewAgents"] = json!(result["canReviewAgents"].as_bool().unwrap_or(false));
             result["openAction"] = json!(self.action.as_deref().unwrap_or(""));
         }
         lease.check(account)?;
@@ -208,12 +209,25 @@ impl PalpoHost {
 // keep agent requests disabled until an accepted allocation is reported.
 fn normalize_workflow_views(service: &str, result: &mut Value) {
     fn action(row: &mut Value) {
+        let requester = row.get("ownerMxid").cloned().unwrap_or(Value::Null);
         if let Some(object) = row.as_object_mut() {
+            object.entry("requesterMxid").or_insert(requester);
             object.entry("workflowVersion").or_insert(Value::Null);
             object.entry("reservations").or_insert(Value::Null);
         }
         if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
             payload.entry("allocations").or_insert(Value::Null);
+        }
+    }
+    if service == "palpo.requests.list" {
+        if let Some(rows) = result.get_mut("requests").and_then(Value::as_array_mut) {
+            for row in rows {
+                if let Some(row) = row.as_object_mut() {
+                    row.entry("actionId").or_insert(Value::Null);
+                    row.entry("canRequestTopUp").or_insert(json!(false));
+                    row.entry("allocation").or_insert(Value::Null);
+                }
+            }
         }
     }
     if service.starts_with("palpo.inbox.") {
@@ -377,6 +391,10 @@ mod tests {
             catalog["fleets"][0]["capabilities"]["offers"][0]["resources"][0]["contributions"],
             json!([])
         );
+        let mut legacy_requests = json!({"requests":[{"id":"old_agent","state":"active"}]});
+        normalize_workflow_views("palpo.requests.list", &mut legacy_requests);
+        assert_eq!(legacy_requests["requests"][0]["canRequestTopUp"], false);
+        assert_eq!(legacy_requests["requests"][0].get("allocation"), Some(&Value::Null));
     }
     #[test]
     fn inaccessible_configuration_does_not_report_a_missing_adapter() {

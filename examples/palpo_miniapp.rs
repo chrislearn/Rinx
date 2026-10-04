@@ -63,6 +63,8 @@ impl MatchEvent for App {
              session["user_session"]["access_token"].as_str().or_else(|| session["user_session"]["tokens"]["access_token"].as_str()).unwrap().to_owned())
         } else if std::env::args().any(|a| a == "--admin") {
             ("@admin:example.test".into(), "admin-secret".into())
+        } else if std::env::args().any(|a| a == "--project-admin") {
+            ("@other:example.test".into(), "other-secret".into())
         } else {
             ("@owner:example.test".into(), "owner-secret".into())
         };

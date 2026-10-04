@@ -116,8 +116,9 @@ The deployed legacy grant still represents resource eligibility only. The target
 requires an explicit project budget accepted in Hagency's reservation ledger
 before the project is shown as allocated. The project administrator then approves
 agents and top-ups within that grant; Hagency admits them automatically while
-atomically enforcing aggregate capacity. Agent/top-up Inbox integration still needs implementation and
-an explicit migration for existing projects, including `octosense-dev`.
+atomically enforcing aggregate capacity. Agent/top-up Inbox integration and native
+forms now pass local fixture validation. Actual cross-service acceptance and an
+explicit migration for existing projects, including `octosense-dev`, remain.
 
 Retain current room constraints: the project channel is invite-only plaintext;
 the owner's execution-approval channel is private Megolm with the owner and

@@ -2,7 +2,7 @@ width: Fill height: Fill flow: Down spacing: 12
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
-    mod.palpo = {ready: false busy: false admin: false approver: false user: "" page: "inbox" filter: "needs_action"
+    mod.palpo = {ready: false busy: false admin: false approver: false reviewer: false user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil selected_fleet: nil watch_generation: 0 pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
     if fs.exists("draft.json") {
@@ -32,6 +32,18 @@ fn connection_label(fleet){
     return "Checking connection status…"
 }
 fn action_label(row){
+    if row.kind == "top_up" {
+        if row.execution == "awaiting_hagency" { return "Token increase approved · waiting for Hagency" }
+        if row.execution == "command_refused" { return "Token increase could not be applied · review the result" }
+        if row.execution == "done" { return if row.state == "approved" {"Token increase applied to the same agent"} else {"Token increase rejected"} }
+        return "Token increase · waiting for the assigned project administrator"
+    }
+    if row.kind == "agent" {
+        if row.execution == "awaiting_hagency" { return "Decision recorded · waiting for Hagency" }
+        if row.execution == "command_refused" { return "Hagency could not apply the decision · review the result" }
+        if row.execution == "done" { return if row.state == "approved" {"Approval applied · check agent readiness"} else {"Agent request rejected"} }
+        return "Waiting for the assigned project administrator"
+    }
     if row.kind == "project" {
         if row.workflowVersion == 1 {
             if row.execution == "preparing" { return "Finish preparing the project room" }
@@ -85,7 +97,7 @@ fn call(service, args, complete){
 }
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
-        P.ready = true P.admin = data.isAdmin P.approver = data.canApproveProjects P.user = data.userId
+        P.ready = true P.admin = data.isAdmin P.approver = data.canApproveProjects P.reviewer = data.canReviewAgents P.user = data.userId
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
@@ -188,7 +200,15 @@ fn review_action(row){
 }
 fn decision(value){
     let row = P.selected
-    if value == "approve" && row.workflowVersion == 1 {
+    if value == "approve" && (row.kind == "agent" || row.kind == "top_up") {
+        new_form(if row.kind == "top_up" {"Approve token increase"} else {"Approve agent allocation"}, "palpo.inbox.decide",
+            {id: row.id expectedRevision: row.revision decision: value reason: "" allocatedTokens: row.payload.requestedTokens}, [
+                {key: "allocatedTokens" label: if row.kind == "top_up" {"Approved additional tokens"} else {"Approved tokens"} value: "" + row.payload.requestedTokens}
+                {key: "reason" label: "Decision reason" value: ""}
+            ])
+        return
+    }
+    if value == "approve" && row.kind == "project" && row.workflowVersion == 1 {
         new_form("Approve project budget", "palpo.inbox.decide",
             {id: row.id expectedRevision: row.revision decision: value reason: "" administrators: "" allowSelfApproval: false}, [
                 {key: "administrators" label: "Project administrators (Matrix IDs, comma separated)" value: ""}
@@ -198,6 +218,13 @@ fn decision(value){
     }
     new_form(if value == "approve" {"Approve request"} else {"Reject request"}, "palpo.inbox.decide",
         {id: row.id expectedRevision: row.revision decision: value reason: ""}, [{key: "reason" label: "Decision reason" value: ""}])
+}
+fn request_top_up(row){
+    new_form("Request more tokens", "palpo.inbox.submit",
+        {kind: "top_up" agentRequestId: row.id addTokens: "" reason: ""}, [
+            {key: "addTokens" label: "Additional tokens" value: ""}
+            {key: "reason" label: "Why do you need more tokens?" value: ""}
+        ])
 }
 fn continue_action(){
     call("palpo.inbox.activate", {id: P.selected.id}, fn(data){ P.selected = data.action P.notice = "Latest result received." })
@@ -301,7 +328,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         }
     }
     if P.ready {
-        mod.widgets.RinxLabel{width: Fill text: if P.approver {"Palpo administrator"} else {"Project manager"}}
+        mod.widgets.RinxLabel{width: Fill text: if P.approver {"Palpo administrator"} else if P.reviewer {"Project administrator"} else {"Project manager"}}
         mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user}
         if P.page == "inbox" {
             View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
@@ -334,7 +361,12 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxPageTitle{width: Fill text: row.payload.name}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: action_label(row)}
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.requesterMxid}
+                if row.kind == "agent" || row.kind == "top_up" {
+                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Project: " + row.payload.projectName}
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested: " + row.payload.requestedTokens + " tokens · " + row.payload.ratePerDay + " tokens/day"}
+                    if row.execution == "command_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Result: " + row.result.code} }
+                }
                 if row.payload.allocations != nil {
                     for i in row.payload.allocations.len() {
                         let allocation = row.payload.allocations[i]
@@ -348,7 +380,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         if reservation.code != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reservation result: " + reservation.code} }
                     }
                 }
-                if P.approver && row.kind == "project" && row.canDecide {
+                if row.canDecide {
                     View{width: Fill height: Fit spacing: 8
                         if row.workflowVersion == 1 { approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")} }
                         reject := mod.widgets.RinxButton{text: "Reject" on_click: || decision("reject")}
@@ -365,6 +397,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if row.kind == "project" && row.state == "approved" && row.execution == "done" {
                     projects := mod.widgets.RinxPrimaryButton{text: "Open Projects" on_click: || open_page("projects")}
                 }
+                if (row.kind == "agent" || row.kind == "top_up") && row.ownerMxid == P.user {
+                    agent_status := mod.widgets.RinxButton{text: "Open My agents" on_click: || open_page("requests")}
+                }
                 if row.needsMyAction { snooze := mod.widgets.RinxButton{text: "Remind me in an hour" on_click: || snooze_action()} }
                 latest := mod.widgets.RinxButton{text: "Refresh result" on_click: || review_action(row)}
             }
@@ -373,7 +408,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             mod.widgets.PalpoCard{
                 mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
-                if P.form.service == "palpo.inbox.submit" {
+                if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "project" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Submission prepares your private project room for review. Agents can be requested only after the administrator approves and Hagency reserves the budget."}
                 }
                 for i in P.form.fields.len() {
@@ -457,7 +492,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         }
         if P.page == "requests" {
             mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Agent provisioning and connection readiness are verified by the server."}
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation approval and token increases aren't available in this app yet."}
+            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your assigned project administrator reviews agent allocations in Inbox. Hagency applies the decision within the project budget."}
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No agent requests yet. Open a project to request an agent."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
@@ -465,6 +500,11 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if row.agentDefinition != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.agentDefinition.name} }
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.role + " · " + row.state}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Initial request: " + row.requestedTokens + " tokens"}
+                    if row.allocation != nil {
+                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Confirmed allocation: " + row.allocation.tokens + " tokens · awaiting result: " + row.allocation.pendingTokens}
+                    }
+                    if row.actionId != nil { review := mod.widgets.RinxButton{text: "Open approval" on_click: || review_action({id: row.actionId})} }
+                    if row.canRequestTopUp { top_up := mod.widgets.RinxPrimaryButton{text: "Request more tokens" on_click: || request_top_up(row)} }
                 }
             }
         }

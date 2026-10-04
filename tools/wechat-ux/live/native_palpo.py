@@ -24,10 +24,12 @@ class PalpoApp(NativeApp):
     def click_id(self, widget_id):
         # Long forms retain their real scroll container. A zero rectangle is
         # offscreen, not a coordinate at which an input can be delivered.
+        height = self.request('/s')['w'][0]['sz'][1]
         self.request('/m', k='scroll', x=300, y=650, dy=-2000, wait=1)
         for _ in range(16):
             widgets = [w for w in self.request('/snap', all=1)['s']
-                       if w.get('i') == widget_id and w['r'][2] > 0 and 30 < w['r'][1] < 730]
+                       if w.get('i') == widget_id and w['r'][2] > 0 and w['r'][3] > 0
+                       and 30 < w['r'][1] and w['r'][1] + w['r'][3] <= height - 20]
             if widgets:
                 x, y, width, height = widgets[0]['r']
                 self.click(x + width / 2, y + height / 2)
@@ -58,6 +60,12 @@ class NativeBridgeError(RuntimeError):
     pass
 
 
+def native_errors(app):
+    return [line for line in (app.output / 'native.log').read_text().splitlines()
+            if any(marker in line for marker in ('[E]', 'on_render closure failed', 'callback error',
+                                                  'script time budget exceeded', 'spent its instruction budget',
+                                                  'script body evaluated to nothing'))]
+
 
 def port():
     with socket.socket() as s:
@@ -65,7 +73,7 @@ def port():
         return s.getsockname()[1]
 
 
-def launch(root, binary, endpoint, admin=False, narrow=False, session_file=None):
+def launch(root, binary, endpoint, admin=False, narrow=False, session_file=None, project_admin=False):
     profile = root / 'profile'
     (profile / 'app').mkdir(parents=True, exist_ok=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -77,21 +85,37 @@ def launch(root, binary, endpoint, admin=False, narrow=False, session_file=None)
     env.pop('PALPO_LIVE_SESSION_FILE', None)
     if session_file:
         env['PALPO_LIVE_SESSION_FILE'] = str(session_file.resolve())
-    args = [str(binary.resolve())] + (['--admin'] if admin else []) + (['--narrow'] if narrow else [])
+    args = [str(binary.resolve())] + (['--admin'] if admin else ['--project-admin'] if project_admin else []) + (['--narrow'] if narrow else [])
     app.process = subprocess.Popen(args, env=env, stdout=app.log, stderr=subprocess.STDOUT)
-    for _ in range(120):
-        if app.process.poll() is not None:
-            raise RuntimeError(f'Native fixture exited; see {app.output}')
+    try:
+        for _ in range(120):
+            if app.process.poll() is not None:
+                raise RuntimeError(f'Native fixture exited; see {app.output}')
+            errors = native_errors(app)
+            if errors:
+                raise RuntimeError('\n'.join(errors))
+            try:
+                status = app.request('/s')
+                if status['pid'] != app.process.pid:
+                    app._interrupt('Bridge belongs to a different process; refusing input and cleanup')
+                if status['w']:
+                    app.wait_text('Palpo administrator' if admin else 'Project administrator' if project_admin else 'Project manager', timeout=10)
+                    return app
+            except (OSError, NativeBridgeError):
+                pass
+            time.sleep(.1)
+        raise RuntimeError(f'Native bridge did not draw: {app.output}')
+    except BaseException:
+        # The caller cannot track an app that never returned from launch.
+        # Preserve startup evidence and use the same activity-guarded cleanup.
         try:
-            status = app.request('/s')
-            if status['w']:
-                app.wait_text('Palpo administrator' if admin else 'Project manager', timeout=10)
-                return app
-        except (OSError, NativeBridgeError):
+            app.capture('startup-failure')
+            (app.root / 'final-tree.json').write_text(json.dumps(app.request('/snap', all=1), indent=2))
+        except Exception:
             pass
-        time.sleep(.1)
-    app.stop()
-    raise RuntimeError(f'Native bridge did not draw: {app.output}')
+        finally:
+            app.stop()
+        raise
 
 
 def fill(app, label, value):
@@ -133,7 +157,10 @@ def main():
     log = (root / 'server.log').open('w')
     server = subprocess.Popen([str(args.node), str(args.palpo / 'web-admin/test/miniapp-native-fixture.mjs'), str(service_port), str(root.resolve())], stdout=log, stderr=subprocess.STDOUT)
     apps = []
-    report = {'passed': False, 'evidence': str(root.resolve()), 'checks': [], 'binary_sha256': hashlib.sha256(args.binary.read_bytes()).hexdigest()}
+    report = {'passed': False, 'evidence': str(root.resolve()), 'checks': [],
+              'binary_sha256': hashlib.sha256(args.binary.read_bytes()).hexdigest(),
+              'bundle_sha256': {name: hashlib.sha256((Path('apps/palpo/bundle') / name).read_bytes()).hexdigest()
+                                for name in ('main.splash', 'manifest.json')}}
     try:
         for _ in range(80):
             if 'ready' in (root / 'server.log').read_text(): break
@@ -231,13 +258,58 @@ def main():
             backend = json.loads((root / 'backend.json').read_text())
             assert backend['projects'] == 1 and backend['requests'] == 1, backend
             report['checks'].append('finite project budget, explicit administrator policy, pending reservation and applied receipt through native forms')
+            owner.click_id('review'); owner.wait_text('Waiting for the assigned project administrator')
+            assert not any(w.get('i') in {'approve', 'reject'} for w in owner.snap())
+            assigned = launch(root / 'project-admin', args.binary, endpoint, project_admin=True); apps.append(assigned)
+            assigned.wait_text('ResearchBot'); assigned.click_id('review'); assigned.wait_text('Approve')
+            assigned.capture('assigned-admin-agent-review')
+            assigned.click_id('approve'); assigned.wait_text('Approved tokens')
+            fill(assigned, 'Approved tokens', '80000')
+            fill(assigned, 'Decision reason', 'Approved within the research budget')
+            assigned.capture('assigned-admin-agent-allocation')
+            assigned.click_id('submit'); assigned.wait_text('No requests in this view')
+            owner.click_id('latest'); owner.wait_text('Decision recorded')
+            owner.capture('agent-awaiting-hagency')
+            (root / 'release-agent-decisions').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('Approval applied' in w.get('t', '') for w in owner.snap()): break
+                time.sleep(1)
+            owner.wait_text('Approval applied'); owner.capture('agent-decision-applied')
+            backend = json.loads((root / 'backend.json').read_text())
+            assert backend['requestStates'] == [{'state': 'provisioning', 'usable': False}], backend
+            report['checks'].append('assigned project administrator decides in native Inbox; owner cannot approve; applied fixture receipt does not claim a ready agent')
+            (root / 'release-agent-decisions').unlink()
+            owner.click_id('agent_status'); owner.wait_text('Confirmed allocation: 80000')
+            owner.click_id('top_up'); owner.wait_text('Additional tokens')
+            fill(owner, 'Additional tokens', '50000')
+            fill(owner, 'Why do you need more tokens?', 'Continue research on the same agent')
+            owner.click_id('submit'); owner.wait_text('Token increase')
+            owner.click_id('review'); owner.wait_text('Token increase')
+            assigned.click_id('needs'); assigned.wait_text('Continue research on the same agent')
+            assigned.click_id('review'); assigned.click_id('approve'); assigned.wait_text('Approved additional tokens')
+            fill(assigned, 'Approved additional tokens', '40000')
+            fill(assigned, 'Decision reason', 'Approve the smaller increase')
+            assigned.capture('assigned-admin-token-increase')
+            assigned.click_id('submit'); assigned.wait_text('No requests in this view')
+            owner.click_id('latest'); owner.wait_text('Token increase approved')
+            owner.capture('token-increase-awaiting-hagency')
+            (root / 'release-agent-decisions').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('Token increase applied' in w.get('t', '') for w in owner.snap()): break
+                time.sleep(1)
+            owner.wait_text('Token increase applied'); owner.click_id('agent_status')
+            owner.wait_text('Confirmed allocation: 120000'); owner.capture('same-agent-increased-allocation')
+            backend = json.loads((root / 'backend.json').read_text())
+            assert backend['requests'] == 1 and backend['allocations'] == [{'tokens': 120000, 'pendingTokens': 0}], backend
+            report['checks'].append('owner requests more tokens; assigned administrator approves a smaller increase; one agent receives one applied increase')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')
 
         for app in apps:
-            errors = [line for line in (app.output / 'native.log').read_text().splitlines()
-                      if '[E]' in line or 'on_render closure failed' in line or 'callback error' in line]
+            errors = native_errors(app)
             assert not errors, errors
         report['passed'] = True
     finally:
