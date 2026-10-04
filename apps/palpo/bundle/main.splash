@@ -2,12 +2,15 @@ width: Fill height: Fill flow: Down spacing: 12
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
-    mod.palpo = {ready: false busy: false admin: false user: "" page: "inbox" filter: "needs_action"
+    mod.palpo = {ready: false busy: false admin: false approver: false user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil selected_fleet: nil watch_generation: 0 pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
     if fs.exists("draft.json") {
         let saved = fs.read("draft.json").parse_json()
-        if saved != nil { mod.palpo.form = saved mod.palpo.has_draft = true }
+        if saved != nil {
+            if saved.service == "palpo.fleets.register" || (saved.service == "palpo.inbox.submit" && saved.payload.kind == "contribution") { fs.write("draft.json", "null") }
+            else { mod.palpo.form = saved mod.palpo.has_draft = true }
+        }
     }
 }
 let P = mod.palpo
@@ -76,7 +79,7 @@ fn call(service, args, complete){
 }
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
-        P.ready = true P.admin = data.isAdmin P.user = data.userId
+        P.ready = true P.admin = data.isAdmin P.approver = data.canApproveProjects P.user = data.userId
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
@@ -139,12 +142,6 @@ fn submit_form(){
         refresh_page()
     })
 }
-fn contribute(){
-    new_form("Contribute resources", "palpo.inbox.submit", {kind: "contribution" name: "" reason: ""}, [
-        {key: "name" label: "Resource pool name" value: ""}
-        {key: "reason" label: "What can you contribute?" value: ""}
-    ])
-}
 fn request_project(fleet, resource){
     new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [resource.id] name: "" reason: ""}, [
         {key: "name" label: "Project name" value: ""}
@@ -199,12 +196,6 @@ fn fleet_action(fleet, operation){
     if operation == "queue" { call("palpo.fleets.queue", {fleetId: fleet.id}, fn(data){ P.notice = "Delivery queue: " + data.queue.pending + " pending / " + data.queue.records + " records." }) }
     if operation == "migrate" { new_form("Use outbound delivery", "palpo.fleets.migrate", {fleetId: fleet.id rotate: false}, []) }
 }
-fn register_fleet(){
-    new_form("Register a fleet", "palpo.fleets.register", {name: "" ownerMxid: "" transportMode: "outbound"}, [
-        {key: "name" label: "Fleet name" value: ""}
-        {key: "ownerMxid" label: "Owner Matrix account" value: ""}
-    ])
-}
 fn open_agents(fleet){ stop_connection_watch() P.selected = fleet P.page = "agents" P.rows = [] draw_page() refresh_page() }
 fn register_identity(){
     new_form("Register approved identity", "palpo.agents.register", {fleetId: P.selected.id agentId: "" role: "" displayName: "" approvedRequestId: ""}, [
@@ -256,12 +247,12 @@ View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
 }
 navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
     if P.ready {
-        inbox := mod.widgets.RinxButton{text: "Inbox · " + P.pending on_click: || open_page("inbox")}
-        projects := mod.widgets.RinxButton{text: "Projects" on_click: || open_page("projects")}
-        requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")}
-        resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")}
-        fleets := mod.widgets.RinxButton{text: "Fleets" on_click: || open_page("fleets")}
+        inbox := mod.widgets.RinxButton{text: if P.approver {"Project approvals · " + P.pending} else {"My Inbox · " + P.pending} on_click: || open_page("inbox")}
+        projects := mod.widgets.RinxButton{text: "My projects" on_click: || open_page("projects")}
+        requests := mod.widgets.RinxButton{text: "My agents" on_click: || open_page("requests")}
+        resources := mod.widgets.RinxButton{text: if P.approver {"Published resources"} else {"Request a project"} on_click: || open_page("resources")}
         if P.admin {
+            fleets := mod.widgets.RinxButton{text: "Connected Hagency" on_click: || open_page("fleets")}
             activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")}
             accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")}
         }
@@ -278,7 +269,8 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         }
     }
     if P.ready {
-        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user + if P.admin {" · Administrator"} else {" · Project member"}}
+        mod.widgets.RinxLabel{width: Fill text: if P.approver {"Palpo administrator"} else {"Project manager"}}
+        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user}
         if P.page == "inbox" {
             View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
                 needs := mod.widgets.RinxButton{text: "Needs my action" on_click: || inbox_filter("needs_action")}
@@ -286,9 +278,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 history := mod.widgets.RinxButton{text: "History" on_click: || inbox_filter("history")}
             }
             mod.widgets.PalpoCard{
-                mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Pending actions stay here until they are resolved."}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reading or dismissing a notification does not complete a request."}
-                contribute := mod.widgets.RinxPrimaryButton{text: "Contribute resources" on_click: || contribute()}
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requests stay here until completed. Reading a notification does not complete an action."}
                 if P.has_draft { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
             }
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No requests in this view. Refresh to check for updates."} }
@@ -313,7 +303,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: action_label(row)}
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
-                if row.canDecide {
+                if P.approver && row.kind == "project" && row.canDecide {
                     View{width: Fill height: Fit spacing: 8
                         approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")}
                         reject := mod.widgets.RinxButton{text: "Reject" on_click: || decision("reject")}
@@ -325,12 +315,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 }
                 if row.kind == "contribution" && row.state == "approved" && row.execution == "done" {
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: connection_label(P.selected_fleet)}
-                    if row.ownerMxid == P.user {
-                        export := mod.widgets.RinxPrimaryButton{text: "Save configuration" on_click: || fleet_action({id: row.result.fleetId}, "export")}
-                        if !connection_verified(P.selected_fleet) {
-                            verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action({id: row.result.fleetId}, "connect")}
-                        }
-                    }
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Resource contribution is managed in Hagency. This is a record of the earlier setup."}
                 }
                 if row.kind == "project" && row.state == "approved" && row.execution == "done" {
                     projects := mod.widgets.RinxPrimaryButton{text: "Open Projects" on_click: || open_page("projects")}
@@ -389,7 +374,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                                     let resource = offer.resources[k]
                                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: resource.name + " · " + offer.role}
                                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: resource.framework + " · " + resource.model}
-                                    if P.page == "resources" { choose := mod.widgets.RinxPrimaryButton{text: "Request project here" on_click: || request_project(fleet, resource)} }
+                                    if P.page == "resources" && !P.approver { choose := mod.widgets.RinxPrimaryButton{text: "Request project using this resource" on_click: || request_project(fleet, resource)} }
                                     if P.page == "agent_resources" { choose := mod.widgets.RinxPrimaryButton{text: "Use this resource" on_click: || request_agent(resource, offer.role)} }
                                 }
                             }
@@ -412,7 +397,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             }
         }
         if P.page == "fleets" {
-            if P.admin { register := mod.widgets.RinxPrimaryButton{text: "Register fleet" on_click: || register_fleet()} }
+            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Hagency owns and publishes resources. This page monitors existing connections."}
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No fleets are available to this account."} }
             for i in P.rows.len() {
                 let fleet = P.rows[i]

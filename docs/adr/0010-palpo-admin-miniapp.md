@@ -2,8 +2,8 @@
 
 - Date: 2026-10-03
 - Status: Implementation in progress. Shared-login frontend and durable Inbox
-  have local native validation; administrator/owner contribution approval and
-  Matrix notices also pass against live Palpo. Complete lifecycle and deployment acceptance
+  have local native validation. The earlier Rinx-originated contribution flow
+  is superseded by the role correction below. Complete lifecycle and deployment acceptance
   remain open. See the [implementation checkpoint](../design/palpo-miniapp-implementation.md).
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),
@@ -14,7 +14,7 @@
   and reuses the signed-in Rinx identity. Additional agent workflows are a
   subsequent backend feature track, not prerequisites for frontend replacement.
 - The [three-stage workflow design](../design/palpo-miniapp-workflows.md)
-  specifies the requested product: contribution approval and JSON handoff,
+  specifies the requested product: Hagency-owned resource contribution,
   project approval, then agent approval/management with a personal My Actions
   room inspired by OctoSense Glance, backed by the persistent Palpo Inbox.
   Frontend parity is a foundation milestone; all three stages are the product
@@ -40,8 +40,8 @@ distribution option without changing authentication. The pages and workflows are
 
 | Area | Audience and pages |
 | --- | --- |
-| Palpo Operations | Authorized server administrators and fleet operators: Requests, Projects, Agents, Fleets and Activity; resource approval, assignment, budget decisions and retirement within their granted scope |
-| My Agents | Project owners and authorized members: My projects, My agents, Requests and Approvals; create/request an agent, inspect usage, request more tokens, exercise permitted management actions and use the agent in chat |
+| Palpo Operations | One designated Palpo administrator: Project approvals, connected Hagency resources and server administration. Project creation approval belongs only to this identity. |
+| My Agents | Project managers: My Inbox, My projects and My agents. Request projects against Hagency-published resources and manage authorized agents; no contribution or cross-project approval controls. |
 
 These are product surfaces, not new account systems. For frontend parity, keep
 Palpo's existing server-admin, fleet-owner and project-membership checks. An
@@ -60,6 +60,35 @@ Rust code in Rinx supplies bounded host services and trusted authorization UI;
 it does not implement a second copy of each application page. UI bundles can
 update independently once the host contract is installed. New host capabilities
 still require a compatible Rinx release. A Splash isolate is not an OS process.
+
+## Role correction: one project approver, resources originate in Hagency (2026-10-03)
+
+The Palpo deployment has one designated administrator for **project creation**.
+That account gets a distinct Project approvals option in the mini app. Current
+Matrix server-admin authority is necessary but insufficient: the actor must
+also match the configured `PALPO_PROJECT_APPROVER`. Project managers cannot
+approve their own or other people's project requests. A project room owner or
+an assigned administrator for agent decisions does not acquire this server role.
+No role is inferred from a test display name such as “Owner”.
+
+Hagency owns the resources and initiates their contribution/association from its
+operator setup. Rinx managers only request projects using already published
+resources. Remove Contribute resources and Register fleet from the mini app;
+reject those old native requests at the server as well. Palpo can authorize an
+association with its homeserver, but cannot create Hagency capacity. Existing
+registrations and historical records remain intact. Connection maintenance does
+not create or allocate resources. Automatic Hagency-originated pairing remains
+a separate integration requirement; the current operator import/setup path is
+retained until that contract is implemented.
+
+The test accounts have explicit roles: Rinx E2E Admin is the designated Palpo
+administrator; Rinx E2E Owner is the project manager. Existing projects retain
+their recorded owners, including the earlier admin-owned littlewhite project;
+this correction must not silently transfer projects or agents.
+
+This correction supersedes the earlier member-submitted contribution proposal.
+It does not change the separate assigned-project-admin agent decision model below,
+which still needs its backend grant and automatic admission implementation.
 
 ## Amendment: project administrators decide agent allocations (2026-10-03)
 

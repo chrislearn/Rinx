@@ -132,6 +132,10 @@ impl PalpoHost {
         }
         let mut result = result?;
         if service == "palpo.session.open" {
+            // Older servers lack the designated business role. Fail closed;
+            // the Matrix admin flag is never an implicit project approval grant.
+            result["canApproveProjects"] =
+                json!(result["canApproveProjects"].as_bool().unwrap_or(false));
             result["openAction"] = json!(self.action.as_deref().unwrap_or(""));
         }
         lease.check(account)?;

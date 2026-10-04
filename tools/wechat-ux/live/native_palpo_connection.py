@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(); parser.add_argument('--binary', type=pathlib.Path, required=True)
     args = parser.parse_args(); root = pathlib.Path('target/palpo-connection-validation') / uuid.uuid4().hex
     root.mkdir(parents=True); counts = collections.Counter(); state = {'mode': 'pending', 'reads': 0, 'probing': False}
-    identity = {'version': 1, 'userId': '@owner:example.test', 'isAdmin': False, 'serverName': 'example.test'}
+    identity = {'version': 1, 'userId': '@admin:example.test', 'isAdmin': True, 'canApproveProjects': True, 'serverName': 'example.test'}
     def fleet():
         ready = state['mode'] == 'ready'
         return {'id': 'fixture_fleet', 'name': 'Delayed proof fleet', 'state': 'ready' if ready else 'pending_connection',
@@ -41,8 +41,8 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start(); app = None
     report = {'passed': False, 'checks': [], 'evidence': str(root.resolve())}
     try:
-        app = launch(root/'owner', args.binary, f'http://127.0.0.1:{server.server_port}')
-        app.wait_text('Fleets'); app.click_id('fleets'); app.wait_text('Connection not yet verified'); app.click_id('verify')
+        app = launch(root/'admin', args.binary, f'http://127.0.0.1:{server.server_port}', admin=True)
+        app.wait_text('Connected Hagency'); app.click_id('fleets'); app.wait_text('Connection not yet verified'); app.click_id('verify')
         app.wait_text('Waiting for Hagency to verify')
         assert not any(w.get('t','').startswith('Connection verified') for w in app.snap())
         app.capture('pending-proof'); app.wait_text('Connection verified', timeout=15)
@@ -57,7 +57,7 @@ def main():
         assert not any('Verification' in w.get('t','') for w in app.snap())
         report['checks'].append('navigation cancels pending polling and prevents stale status replacing the next page')
         state.update(mode='error', reads=0, probing=False)
-        app.wait_text('Fleets'); app.click_id('fleets'); app.wait_text('Connection not yet verified'); app.click_id('verify'); app.wait_text('event_delivery_unverified:')
+        app.wait_text('Connected Hagency'); app.click_id('fleets'); app.wait_text('Connection not yet verified'); app.click_id('verify'); app.wait_text('event_delivery_unverified:')
         assert not any(w.get('t','').startswith('Connection verified') for w in app.snap())
         report['checks'].append('server refusal remains an error, never a verified result')
         errors = [line for line in (app.output/'native.log').read_text().splitlines() if '[E]' in line or 'on_render closure failed' in line]

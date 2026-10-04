@@ -1,7 +1,7 @@
 # Palpo mini-app workflows: contribution, project approval and agents
 
 - Date: 2026-10-03
-- Status: Contribution/project foundation implemented; full agent lifecycle pending.
+- Status: Project approval foundation implemented; Hagency-originated pairing and delegated agent lifecycle remain pending.
   The 2026-10-03 [project-admin amendment](../adr/0010-palpo-admin-miniapp.md#amendment-project-administrators-decide-agent-allocations-2026-10-03) governs agent decision authority.
 - Refines [ADR 0010](../adr/0010-palpo-admin-miniapp.md).
 - Palpo source: `3f1ad3ba5c80a7206521b3eb4059a4f1f3786700`.
@@ -25,9 +25,8 @@ separate contract change.
 
 | Role | Responsibility |
 | --- | --- |
-| Applicant/project representative | Requests the association of a resource provider with the homeserver; may also be the contributor |
-| Palpo administrator | Approves/rejects resource association and project requests using existing server-admin authority |
-| Hagency owner/operator | Imports the authorized configuration and delegates bounded resource capacity; no per-agent human approval within that grant |
+| Designated Palpo administrator (one per server) | Approves/rejects project creation; alone receives Project approvals. May authorize a Hagency association with this homeserver. |
+| Hagency owner/operator | Owns and contributes resources from Hagency setup, establishes the authorized connection and delegates bounded capacity. |
 | Assigned project administrator | Approves/rejects that project’s agent requests and top-ups within its accepted resource allocation |
 | Project owner | Requests the project, creates/manages its agents, requests more tokens and handles execution approvals |
 
@@ -40,7 +39,7 @@ owns provisioning and the approval bot. [Fleet service][hagency-fleet]
 
 | Stage | Verified current backend | Addition for the requested workflow |
 | --- | --- | --- |
-| 1: resource contribution | Administrator directly authorizes/installs a fleet; its exact owner downloads the JSON; connection uses a real Matrix probe | Member-submitted contribution request, admin decision, owner notification and an Inbox |
+| 1: resource contribution | Administrator directly authorizes/installs a fleet; its exact owner downloads the JSON; connection uses a real Matrix probe | Hagency-originated association/pairing; no member contribution submission in Rinx |
 | 2: project creation | Owner directly creates/registers a project and encrypted approval room; no separate admin decision | Project request, admin approval/rejection, project-to-resource grant and server-enforced activation gate |
 | 3: agent creation | Owner submits a named-agent request; Hagency operator approves in its console; Palpo verifies fulfillment and room admission | Assigned project-admin approval in the mini app, budgeted grant, automatic Hagency admission and persistent notifications |
 | 3: ongoing management | Hagency has usage, allocation increase and retirement operations | User top-up requests, scoped usage projection, owner-authorized release, execution receipts and cleanup status |
@@ -52,51 +51,39 @@ or identify the versions deployed at the user's server. The existing interactive
 account-signup approval is a useful implementation precedent, but is a different
 workflow. [Account worker][palpo-accounts]
 
-## 1. Contribute resources and connect Hagency
+## 1. Contribute resources from Hagency and establish the connection
 
-| Step | Screen, action and recipient | Backend effect |
+Only Hagency owns and contributes compute/model capacity. The operator selects
+the resources and target Palpo server in **Hagency setup**. A Palpo administrator
+can authorize the server association, but an ordinary Rinx user cannot create a
+contribution, register a fleet, or manufacture capacity by requesting it.
+
+| Step | Surface and authority | Effect |
 | --- | --- | --- |
-| Submit | Resources → Connect/contribute Hagency; applicant selects the target homeserver, names the contribution and identifies its local Matrix owner | Save a contribution request with a stable operation ID; notify current Palpo approvers |
-| Review | Admin Inbox → Resource association; show applicant, intended owner, server, purpose and connection mode | Approve/reject the exact request revision; record actor and reason |
-| Install | Approved request shows registration progress | Reuse `Service.create/install` to allocate the fleet namespace and install its App Service; preserve existing policy checks and retry identities |
-| Deliver | Hagency owner's Inbox: “Approved — download configuration”; applicant also gets the decision, without credential access | After installation succeeds, enable owner-only `credentials` retrieval; persist notification delivery separately |
-| Import | Owner downloads JSON using Rinx's save/export UI and loads it on the Hagency server | Reuse Hagency's existing parser/importer; no credentials in the mini-app script, chat event or notification payload |
-| Verify | Owner opens the resource page → Verify connection; foreground can resume an already-authorized verification | Reuse `Workflow.connect`: exact reception/probe evidence and current registration generation must verify |
-| Complete | Owner/applicant receive “Connected”; admins see a ready contribution | Show observed roles/resources from Hagency's authenticated publication |
+| Contribute | Hagency operator setup | Choose owned resources, limits and target homeserver. |
+| Associate | Palpo administrator accepts the provider association | Establish the trusted registration/channel, without inventing resource capacity. |
+| Connect | Hagency operator completes the existing authorized setup/import | Hagency connects and publishes its capabilities. Configuration remains secret. |
+| Verify | Palpo observes the exact Matrix probe and current registration | Connected Hagency in the admin mini app shows Connection verified. |
+| Use | Project manager → Request a project | Select already published resources and submit a project request to the designated administrator. |
 
-Proposed business stages:
+**Implementation boundary:** existing registration, owner-only configuration
+retrieval, Hagency console import and Matrix connection proof exist. A complete
+Hagency-originated association/pairing request API still needs a shared contract.
+Removing Rinx contribution controls does not itself implement automatic pairing.
+Keep the established operator setup path available during that work. Historical
+Rinx contribution records are readable, but no longer ask project managers to
+contribute resources; existing connections are preserved.
 
-`pending_admin → approved → installing → awaiting_import → verifying → connected`
-
-Rejection/cancellation end a pending request. Installation/probe failures retain
-the same request and expose Retry. Track approval, installation, credential
-delivery and connection as separate facts: downloaded JSON does not prove import,
-and a heartbeat does not prove the required Matrix probe succeeded. Do not claim
-to observe file import if no authenticated runtime evidence distinguishes it.
-
-The JSON format stays compatible with the existing owner download. Rinx's trusted
-host fetches the credential response and passes it to the native save/export
-mechanism; the mini app receives only a file-operation result and redacted
-metadata. On mobile use a private temporary file and explicit OS export action.
-Opening the notification never downloads or shares credentials automatically.
-Repeat authorized downloads recover the same current version; a stale card after
-revocation cannot retrieve credentials. The requester cannot download another
-person's fleet configuration merely because they submitted its association.
-
-Existing Hagency supports both console import and the offline command
-`hagency registration --state-dir <state> import --file <download.json> --homeserver <url>`.
-The offline command requires the service to be stopped; the console import can
-activate transport in a running service. This is the operator's explicit file
-installation step requested in the product flow, not a required Palpo browser
-visit. One-time automatic pairing is optional future work. [CLI import][hagency-import],
-[running import][hagency-live-import]
+An offered resource or verified connection is not a reserved token allocation.
+Bounded capacity and aggregate accounting are required by the agent delegation
+contract below. Do not label a catalog selection as allocated capacity.
 
 ## 2. Request and activate a project on contributed resources
 
 | Step | Screen, action and recipient | Backend effect |
 | --- | --- | --- |
 | Submit | Projects → New project; owner chooses a connected fleet, offered resources, project name/purpose and optional existing room | Persist proposed owner, room and resource selection; validate visible resources and current room ownership without activating the project |
-| Review | Admin Inbox → Project request | Approve/reject the frozen request and its permitted resources; notify the project owner |
+| Review | Designated Palpo administrator → Project approvals | Approve/reject the frozen request and its permitted resources; notify the project owner |
 | Prepare | Owner's open request resumes setup after approval; an offline owner receives “Approved — open to finish setup” | Reuse project creation under the owner's Matrix authority, preserving deterministic room/request IDs |
 | Activate | Project page shows room setup and approval-channel readiness | Verify project binding, owner membership/power and required Hagency identities; mark active only after the required setup is proven |
 | Use | Owner receives “Project ready”; Create agent becomes available | Every agent submission checks the current approved resource grant as well as the existing Matrix membership/room checks |
@@ -204,7 +191,7 @@ Inside Rinx this room opens an action board inspired by OctoSense Glance:
 
 Show cards with the app/source, project/resource, requester, current status,
 age/due time and the available actions. Examples: a project card with Review /
-Approve / Reject; an approved contribution with Download configuration / Verify
+Approve / Reject for the designated project administrator; historical contribution records with connection status
 connection; an agent card with requested tokens and Review allocation.
 These actions are rendered by the installed Palpo mini app's trusted card UI,
 within its current account-bound permissions. Small decisions can complete in
@@ -427,7 +414,7 @@ These are proposed service groups, not existing endpoint names:
 | --- | --- |
 | `palpo.session.*` | Reuse Rinx login; app-scoped session and existing role checks |
 | `palpo.inbox.*`, `palpo.workflows.get` | Recipient-filtered records, read state, cursor and allowed actions |
-| `palpo.contributions.submit/decide` | Stage 1 request/decision; reuse fleet installation |
+| Hagency association contract (pending) | Stage 1 originates in Hagency; no Rinx member contribution service |
 | `palpo.fleets.export_config/verify` | Owner-only host file export and real connection proof |
 | `palpo.project_requests.submit/decide/activate` | Stage 2 approval and owner-authenticated project setup |
 | `palpo.agents.request/get/release` | Existing request admission, scoped runtime status and owner release |

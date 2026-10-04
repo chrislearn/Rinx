@@ -9,7 +9,7 @@ the bundle used them. The shared contract starts from App Hub main 2bcb898.
 ## Implemented
 
 - A built-in Palpo Splash app in `apps/palpo`: member/admin navigation, persistent
-  drafts, Inbox views and pagination, contribution/project requests, decisions,
+  drafts, Inbox views and pagination, project requests and designated-admin decisions,
   owner activation, named-agent requests, fleet and Matrix-identity operations.
 - Shared Rinx semantic colors, fonts, controls and live theme reapply. Theme
   changes preserve the script heap, forms, focus, selection, undo and request IDs.
@@ -27,6 +27,33 @@ current roles and ownership on the server. Strict project approval across all
 frontends is an explicit deployment migration, `PALPO_PROJECT_APPROVAL_REQUIRED=1`;
 existing projects are grandfathered. See Palpo's `web-admin/MINIAPP.md`.
 
+## Role correction validated on 2026-10-03
+
+Project creation approval now belongs to one configured Palpo administrator.
+The mini app presents Project approvals to that account and My Inbox / My projects /
+My agents / Request a project to managers. Rinx no longer submits contributions
+or registers fleets; older native calls are rejected by Palpo. Historical
+contribution records and connected resources are preserved. An older Palpo server
+without `canApproveProjects` does not implicitly grant approval UI to a Matrix admin.
+
+Palpo `f895acdd20` adds the role check, including queued decisions and notification
+recipients. Deployment requires `PALPO_PROJECT_APPROVAL_REQUIRED=1` so existing
+browser/API routes cannot bypass approval for new projects. Existing projects
+remain owned by their original requester; this does not transfer littlewhite.
+
+Validation: 85 backend tests (14 mini-app workflow/role cases), 323 Rinx library
+tests passed (2 ignored), full native build, and Makepad hidden-window run
+`e1e1bc6c37c64f199a81d0917417eb89`. The native run covers distinct manager/admin
+controls, project approval and owner activation, named-agent submission, draft
+recovery, theme/focus/selection/undo preservation and disconnect. Real captures
+were inspected at 430px manager width and desktop admin width. Connection
+regression `85f0e3372cbd4630a79851e66f1c7afa` passes pending-proof polling,
+navigation cancellation and refusal handling with admin connection maintenance.
+
+These are native/macOS checks, not Android or OpenHarmony device acceptance.
+Hagency-originated automatic pairing and assigned-project-admin agent admission
+remain the backend gaps recorded in ADR 0010.
+
 ## Validation
 
 The native fixture uses the production Splash file and Rinx HTTP adapter with
@@ -43,8 +70,7 @@ python3 tools/wechat-ux/live/native_palpo.py \
 ```
 
 Reports, input traces, widget trees and screenshots are written under
-`target/palpo-validation/<run>/`. The native scenario covers contribution
-approval, owner handoff visibility, project approval and owner activation,
+`target/palpo-validation/<run>/`. The native scenario covers manager/admin UI separation, project approval and owner activation,
 named-agent submission, draft recovery after process restart, light/dark/custom
 themes, selection/undo, and disconnect without Matrix logout. Screenshots were
 inspected. A Makepad hidden-window frame-confirmation failure is handled by

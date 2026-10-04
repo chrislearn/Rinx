@@ -9,7 +9,6 @@
     "palpo.requests.list",
     "palpo.requests.create",
     "palpo.fleets.list",
-    "palpo.fleets.register",
     "palpo.fleets.install",
     "palpo.fleets.set_state",
     "palpo.fleets.migrate",
@@ -32,7 +31,7 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "6ae35ace0ffa9fab47e555e1aff3393e97bfeaa85ae27d12c8f19f109cb09ab8"
+    "bundle_blake3": "2c27208a38f176fdc885b8739add2dd169d7d55d6fee9ef041adc398153a57a4"
   },
   "name": "Palpo",
   "requires": [
