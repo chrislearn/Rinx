@@ -18,8 +18,8 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | --- | --- | --- |
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
 | Hagency owns resource contributions | Rinx forms removed; native registration/contribution calls refused | Hagency contribution UI, authenticated association and bounded delegation publication |
-| Capacity is reserved before a project becomes allocated | Hagency `86099fc`: tested SQLite provider/project/agent reservation accounting | Closed Palpo command/receipt transport, explicit project budget and assigned-admin form |
-| Assigned project admins decide agents and top-ups | Hagency `86099fc`: grant scope, explicit self-approval, atomic debit and durable replay checks | Current-role Palpo decisions, Rinx review UI and full receipt/retry flow |
+| Capacity is reserved before a project becomes allocated | Hagency `6771862`: SQLite reservation accounting and atomic command/receipt execution; Palpo `bb593b6`: authenticated commands and receipt validation | Contribution snapshots, explicit project budget/assigned-admin forms and Inbox reservation integration |
+| Assigned project admins decide agents and top-ups | Hagency `6771862` / Palpo `bb593b6`: scoped commands, current-role execution leases, atomic debit and durable receipts | Assigned-admin Inbox decisions, Rinx review UI and live workflow validation |
 | Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
 | Usage and lifecycle management | Existing Hagency usage and quota primitives | Scoped fresh/stale/unknown summaries, same-agent top-up and removal UI |
@@ -103,6 +103,37 @@ Palpo command/receipt consumer, role synchronization, Rinx approval/top-up scree
 and full live lifecycle still require integration. No workflow support capability
 is advertised by this commit, and no production update or Makepad/mobile result
 is claimed for these backend tests.
+
+## Authenticated command/receipt transport — 2026-10-04
+
+Hagency `6771862` and Palpo `bb593b6` add seven closed operations for project
+reservation/assignment, agent approval/rejection, top-up and project/agent
+revocation. Palpo's enqueue API requires the human decision's SQLite transaction;
+Inbox still needs to invoke it. A fixed authenticated machine route returns a
+short lease after reading the current Matrix actor and assigned role. Hagency
+checks that lease after acquiring its writer lock and refreshes it after slow
+Matrix observations. This bounds the distributed authorization window; it does
+not claim instantaneous revocation of a previously issued lease.
+
+Admission, budget debit, provision effect and immutable business receipt commit
+together. Transport custody ACKs do not allocate a project. Lost-response/restart
+retries preserve the original publication bytes and acknowledge only included
+receipts. Replayed historical receipts cannot restore an older assignment or
+revoked grant. Statuses use durable workflow evidence and acknowledged pages
+scoped to the current fleet registration; later agents are no longer omitted by
+a fixed first-100 scan.
+
+Evidence: 667 Rust core/store/Palpo tests passed (74 existing ignored); final
+strict wire-corpus test and native executable check passed. Palpo's full suite
+passed 93 tests, then 23 focused tests passed after the final transaction guard.
+The shared corpus pins all seven command digests and receipt shapes in Rust/Node.
+See Hagency `docs/reviews/2026-10-04-palpo-project-grants.md`.
+
+This remains a development backend. Contribution controls/snapshots, explicit
+project budget/administrator forms and assigned-admin Inbox command/result
+projection must be connected before advertising support. No production update,
+visible client restart or new Makepad/device acceptance is claimed. Full ADR
+0010 remains active, including the broader acceptance ledger above.
 
 ## Validation
 
