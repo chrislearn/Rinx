@@ -17,8 +17,8 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Requirement | Current evidence | Remaining acceptance |
 | --- | --- | --- |
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
-| Hagency owns resource contributions | Rinx forms removed; native registration/contribution calls refused | Hagency contribution UI, authenticated association and bounded delegation publication |
-| Capacity is reserved before a project becomes allocated | Hagency `6771862`: SQLite reservation accounting and atomic command/receipt execution; Palpo `bb593b6`: authenticated commands and receipt validation | Contribution snapshots, explicit project budget/assigned-admin forms and Inbox reservation integration |
+| Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
+| Capacity is reserved before a project becomes allocated | Hagency `e911aae`: reservation accounting, atomic commands/receipts and acknowledged contribution pages; Palpo `b45b3fd`: scoped commands, validated snapshots and receipts | Explicit project budget/assigned-admin forms and Inbox reservation integration |
 | Assigned project admins decide agents and top-ups | Hagency `6771862` / Palpo `bb593b6`: scoped commands, current-role execution leases, atomic debit and durable receipts | Assigned-admin Inbox decisions, Rinx review UI and live workflow validation |
 | Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
@@ -134,6 +134,32 @@ project budget/administrator forms and assigned-admin Inbox command/result
 projection must be connected before advertising support. No production update,
 visible client restart or new Makepad/device acceptance is claimed. Full ADR
 0010 remains active, including the broader acceptance ledger above.
+
+## Operator contribution controls and publication — 2026-10-04
+
+Hagency `e911aae` adds finite contribution creation/revocation on its own resource
+page for an already connected Palpo registration. It checks the original console
+session, resource revision, current registration and account. Saved exact requests
+recover from response loss/reload without reserving twice. Revocation leaves
+capacity held through cleanup. Rinx still has no resource-contribution form.
+
+Sixteen-row contribution pages travel through frozen outbound updates. A lost
+acknowledgement/restart resends the original bytes before advancing its cursor.
+Pages exclude foreign fleets and old registrations. Palpo `b45b3fd` commits
+validated snapshots with the update, refuses changed budgets/decreasing held
+reservations/retired-state restoration, and fences old accepted project grants
+after registration rotation. An empty page is not a refund or deletion.
+
+Validation: 26 focused SQLite store tests, eight TLS catalog tests, four actual
+HTTP/browser contribution tests and all 98 Palpo backend tests passed. Production
+console assets built; desktop and 430px captures were inspected. The browser walk
+uses an isolated real SQLite store and drops a committed response before reload
+and exact retry. This is Hagency browser evidence, not a new Makepad/device run.
+
+Remaining: Hagency-originated association, Palpo/Rinx project budgets and explicit
+administrator forms, assigned-admin Inbox commands/results, full live lifecycle
+and the broader gates above. No workflow capability, production activation or
+visible session restart is claimed by this checkpoint.
 
 ## Validation
 
