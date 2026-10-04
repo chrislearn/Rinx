@@ -61,6 +61,65 @@ it does not implement a second copy of each application page. UI bundles can
 update independently once the host contract is installed. New host capabilities
 still require a compatible Rinx release. A Splash isolate is not an OS process.
 
+## Amendment: project administrators decide agent allocations (2026-10-03)
+
+The product owner clarified during the live `octosense-dev` test that resource
+contribution is the delegation boundary. Once capacity is allocated to a project,
+its **assigned project administrator** approves agents and token increases in
+Palpo. There is no second human decision in Hagency for work inside that grant.
+This supersedes the earlier extension proposal's fleet-operator agent-decision
+flow and its sequence diagram below. Historical source descriptions still
+explain the deployed implementation; they are not the amended product behavior.
+
+- The contributor authorizes a bounded resource allocation and its trusted Palpo
+  issuer. Project assignment consumes that allocation rather than creating more
+  capacity. A published resource or connection proof alone is not an allocation.
+- Palpo stores explicit project-administrator assignments. Project ownership,
+  room membership, Matrix power level, mini-app consent and server-admin status
+  do not silently confer this business role. The server administrator can manage
+  assignments; each agent decision records the assigned administrator as actor.
+- The project manager submits an agent definition, resource and requested budget.
+  The assigned administrator receives the durable Inbox action and approves or
+  rejects its exact revision. Self-approval requires an explicit project policy;
+  the implementation must not infer it from one user holding both roles.
+- A grant binds issuer/server, fleet, project, allowed resources, aggregate token
+  budget, concurrency/rate limits where offered, revision, expiry and revocation.
+  Hagency must durably accept the reservation before Palpo labels it allocated.
+  Capacity accounting must not reserve the same tokens again when assigning an
+  agent from that reservation. Never infer unlimited capacity from omitted fields.
+- Palpo commits a decision and an outbound command together. Hagency authenticates
+  the machine channel, checks the grant/revision and exact project/room/request
+  binding, atomically debits the remaining grant, and provisions the agent. It
+  returns an idempotent receipt. This is machine enforcement of the Palpo decision,
+  not a Hagency approval queue. Replays cannot debit or provision twice.
+- Over-budget, expired or revoked grants produce a precise refusal/pending reason
+  in Palpo. Increasing the project allocation follows the allocation authority's
+  workflow in Rinx. Do not silently fall back to human Hagency approval.
+- Execution/tool approvals remain separate owner-authorized safety decisions.
+  Ready requires verified fulfillment, the actual agent's Matrix membership and
+  usable runtime status. A project approval or command acknowledgement is not Ready.
+
+**Current gap:** the deployed `ProjectResourceGrant` stores the approved action ID
+and resource IDs only. It has no reserved budget, project-admin role assignment,
+agent-decision Inbox record or automatic delegated admission command. Hagency's
+current request worker explicitly admits requests as pending a console verdict.
+Changing a label, relocating that verdict button, or approving everything on
+receipt would not implement this decision. Existing projects require an explicit
+allocation/role migration; no implicit unlimited grant or automatic approval of
+old pending requests.
+
+Implement in this order: (1) shared grant/role/command contract and migration;
+(2) Hagency reservation accounting, automatic admission and receipts;
+(3) Palpo project roles, approval Inbox/outbox and reconciliation;
+(4) Rinx project-admin/manager pages and authoritative progress/room navigation.
+Advertise the versioned capability before enabling the new flow. Acceptance must
+use two isolated Rinx sessions, reject unassigned/cross-project approvers, prove
+concurrent requests cannot overdraw a grant, replay commands across restarts,
+exercise revocation races and verify the provisioned agent joins and responds in
+the project's room without a Hagency console approval. Test grants must carry
+explicit operator-selected limits; production allocations are not changed by
+this ADR edit.
+
 ## Source baseline
 
 | Repository | Reviewed source |
