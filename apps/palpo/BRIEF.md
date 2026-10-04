@@ -26,6 +26,9 @@ repositories before the bundle calls them. No new service is invented in Splash.
   cards distinguish pending allocation, unknown consumption and stale reports.
   Metered usage is a lower bound, not an exact remaining balance. Unimplemented
   creation controls remain hidden even when read access is available.
+- Owners can request additional tokens from a current agent allocation. The
+  coordinator reviews the exact amount in Inbox. Tokens remain unchanged until
+  Hagency reports the applied top-up; stable request IDs survive retries.
 
 ## Data and authority
 

@@ -98,6 +98,11 @@ fn request_project(fleet, resource){
         {key: "reason" label: "What will your project do?" value: ""}
     ])
 }
+fn request_tokens(row){
+    new_form("Request more tokens", "palpo.inbox.submit", {kind: "token_top_up" agentActionId: row.id expectedAllocatedTokens: row.allocatedTokens requestedAdditionalTokens: "10000"}, [
+        {key: "requestedAdditionalTokens" label: "Additional tokens" value: "10000"}
+    ])
+}
 fn review_action(row){
     call("palpo.inbox.get", {id: row.id}, fn(data){
         P.selected = data.action P.page = "action"
@@ -340,6 +345,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         if row.usage.consumedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
                     }
                     if row.agentMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.agentMxid} }
+                    if row.canRequestTopUp == true { more_tokens := mod.widgets.RinxButton{text: "Request more tokens" on_click: || request_tokens(row)} }
                     if available("palpo.inbox.get") { agent_result := mod.widgets.RinxButton{text: "Open latest result" on_click: || review_action(row)} }
                 }
             }

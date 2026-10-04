@@ -17,6 +17,12 @@ explicitly unreported; reported consumption is a lower bound with freshness,
 never an invented remaining balance. Stale readiness becomes unknown. Matrix
 administrators do not inherit access to other users' agent lists.
 
+The agent owner can request additional tokens from a current allocation. Rust
+binds the form to that agent, project and resource grant; the coordinator reviews
+the exact increase in Inbox. Hagency execution is still required before the
+displayed allocation increases. A retry returns the original request after the
+allocation has changed. Stale provider observations hide the top-up action.
+
 The production OctoScript form sends a decision intent and stable command ID.
 Rust Palpo constructs the authority envelope from its authenticated Matrix
 session and frozen request. Retrying cannot create another Hagency delivery.
@@ -44,6 +50,12 @@ adding Projects/Agents navigation, pending allocation/unknown usage, current
 lower-bound usage, and stale observations. Provider updates are explicit fixtures
 sent through the real authenticated machine HTTP route. The pending, current and
 stale agent cards were visually inspected. Four Rust Palpo host tests also pass.
+
+Run `ef8d10a573c5479a868109c266b2d5b2` passed all fourteen checks. It adds
+native owner top-up submission, native coordinator approval, and replay after
+an authenticated provider fixture reports execution. The form, approval and
+120,000-token result captures were inspected. This proves the UI/HTTP path;
+the provider fixture does not reserve resources or execute a real Hagency agent.
 
 Real captures were inspected: the narrow owner result, desktop coordinator dark
 form and administrator Inbox. Runtime logs had no Splash evaluation/callback

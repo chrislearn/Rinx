@@ -219,18 +219,50 @@ def main():
         machine_update(endpoint, fleet, update)
         owner.click_id("refresh"); owner.wait_text("Execution · ready"); owner.wait_text("Consumed: at least 42 tokens")
         owner.capture("owner-agents-current-usage")
+        owner.click_id("more_tokens"); owner.wait_text("Additional tokens")
+        fill(owner, "Additional tokens", "20000")
+        top_up_draft = json.loads((owner.root / "profile/app/draft.json").read_text())
+        owner.capture("owner-request-more-tokens")
+        owner.click_id("submit"); owner.wait_text("More tokens · Littlewhite")
+        coordinator.click_id("refresh"); coordinator.wait_text("More tokens · Littlewhite")
+        coordinator.click_id("review"); coordinator.wait_text("Request 20000 additional tokens")
+        coordinator.click_id("approve"); coordinator.wait_text("Decision reason")
+        fill(coordinator, "Decision reason", "Additional capacity approved")
+        coordinator.capture("coordinator-top-up-approval")
+        coordinator.click_id("submit"); coordinator.wait_text("No requests in this view")
+        with sqlite3.connect(root / "admin.sqlite") as db:
+            state = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+            assert db.execute("SELECT COUNT(*) FROM fleet_delivery WHERE lane='work'").fetchone()[0] == 2
+            top_up = next(r for r in state["rustWorkflows"]["outbox"].values() if r["id"] != command["context"]["commandId"])
+            top_up_command = top_up["command"]
+            assert top_up_command["request"]["agentAllocationId"] == "en_littlewhite"
+            assert top_up_command["request"]["expectedAllocatedTokens"] == 100000
+            assert top_up_command["additionalTokens"] == 20000
+            assert top_up_command["context"]["actor"] == "@coordinator:example.test"
+        top_up_receipt = dict(receipt, commandId=top_up_command["context"]["commandId"],
+                              commandDigest=digest({"operation": "coordinator_token_top_up", "command": top_up_command}))
+        observed["allocatedTokens"] = 120000
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [observed],
+            "coordinatorUpdates": [{"id": "command_" + top_up_receipt["commandId"], "payload": top_up_receipt, "digest": digest(top_up_receipt)}]})
+        retried = call(endpoint, token, "palpo.inbox.submit", top_up_draft["payload"])["action"]
+        assert retried["id"] == top_up["actionId"] and retried["execution"] == "done"
+        owner.click_id("requests"); owner.wait_text("Allocated: 120000 tokens")
+        owner.capture("owner-top-up-applied")
         observed["observedAt"] = "2020-01-01T00:00:00Z"
         observed["usageObservedAtMs"] = 1577836800000
-        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [observed]})
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 3, "heartbeat": True, "statuses": [observed]})
         owner.click_id("refresh"); owner.wait_text("Usage sample is out of date")
         assert not any(w.get("t") == "Execution · ready" for w in owner.snap())
+        assert not any(w.get("t") == "Request more tokens" for w in owner.snap())
         owner.capture("owner-agents-stale-usage")
         report["checks"] = ["manager cannot approve own agent", "Matrix admin has no implicit agent approval",
             "coordinator approves from the actual OctoScript form", "theme changes preserve draft and request count",
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
             "resource contribution is absent from the mini app", "role-scoped Projects and Agents navigation",
             "agent list distinguishes pending allocation and unknown consumption",
-            "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness"]
+            "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness",
+            "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
+            "top-up retry after provider execution returns the original result"]
         report["passed"] = True
     finally:
         for app in apps:
