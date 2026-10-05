@@ -234,6 +234,12 @@ impl PalpoHost {
                 return Err("Palpo returned a different agent request".into());
             }
         }
+        if matches!(service, "palpo.notifications.get" | "palpo.notifications.set") {
+            let object = result.as_object_mut().ok_or("Palpo returned invalid notification settings")?;
+            // A suggestion for the settings form, never silently saved as the
+            // user's cross-device preference. Unsupported hosts show UTC.
+            object.insert("deviceTimeZone".into(), json!(iana_time_zone::get_timezone().ok()));
+        }
         normalize_workflow_views(service, &mut result);
         bounded_reply(result)
     }
@@ -299,6 +305,7 @@ fn normalize_workflow_views(service: &str, result: &mut Value) {
             object.entry("canRetryReservation").or_insert(json!(false));
             object.entry("canReleaseReservation").or_insert(json!(false));
             object.entry("canRetry").or_insert(json!(false));
+            object.entry("reminderStatus").or_insert(Value::Null);
         }
         if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
             payload.entry("allocations").or_insert(Value::Null);

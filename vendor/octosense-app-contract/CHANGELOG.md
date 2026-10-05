@@ -5,6 +5,10 @@ within `1.x` it only grows.
 
 ## 1.2.0 (pending release)
 
+- Separate `palpo.notifications.get` / `palpo.notifications.set` grants cover
+  the current account's server-side reminders and quiet hours. Inbox/read-only
+  grants do not imply the ability to change notification preferences.
+
 - `palpo.requests.open` requires `palpo-agent-navigation-v1` and resolves a ready
   agent's project room through the current account. The bundle supplies a request
   ID, never a room or URL; the host checks the account and joined room again.

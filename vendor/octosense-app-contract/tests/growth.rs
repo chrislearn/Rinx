@@ -196,3 +196,14 @@ fn agent_navigation_needs_an_explicit_grant_and_required_host_feature() {
     let explicit = parse(&manifest_with(r#""requires":["palpo-agent-navigation-v1"],"capabilities":["palpo.requests.open"]"#)).unwrap();
     assert!(resolve(&explicit, &limits).unwrap().allows("palpo.requests.open"));
 }
+
+#[test]
+fn notification_read_access_does_not_grant_settings_changes() {
+    let limits = HostLimits::system().with_require_signature(false);
+    let read = parse(&manifest_with(r#""capabilities":["palpo.notifications.get"]"#)).unwrap();
+    let policy = resolve(&read, &limits).unwrap();
+    assert!(policy.allows("palpo.notifications.get"));
+    assert!(!policy.allows("palpo.notifications.set"));
+    let write = parse(&manifest_with(r#""capabilities":["palpo.notifications.set"]"#)).unwrap();
+    assert!(resolve(&write, &limits).unwrap().allows("palpo.notifications.set"));
+}

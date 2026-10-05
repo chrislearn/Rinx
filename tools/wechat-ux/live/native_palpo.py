@@ -37,6 +37,18 @@ class PalpoApp(NativeApp):
             self.request('/m', k='scroll', x=300, y=650, dy=220, wait=1)
         raise AssertionError(f'Could not scroll widget into view: {widget_id}')
 
+    def scroll_to_text(self, text):
+        height = self.request('/s')['w'][0]['sz'][1]
+        self.request('/m', k='scroll', x=300, y=650, dy=-2000, wait=1)
+        for _ in range(16):
+            if any(text in w.get('t', '') and w.get('ty') != 'Splash'
+                   and w['r'][2] > 0 and w['r'][3] > 0
+                   and 30 < w['r'][1] and w['r'][1] + w['r'][3] <= height - 20
+                   for w in self.request('/snap', all=1)['s']):
+                return
+            self.request('/m', k='scroll', x=300, y=650, dy=220, wait=1)
+        raise AssertionError(f'Could not scroll text into view: {text}')
+
     def request(self, route, **params):
         # SDK 1f3b1de can fail wait=1 after already applying the input when a
         # hidden Metal frame cannot immediately submit. Never replay that input.
@@ -48,7 +60,18 @@ class PalpoApp(NativeApp):
             result = super().request(route, **params)
             if barrier:
                 time.sleep(.05)
-                super().request('/g')
+                for attempt in range(5):
+                    try:
+                        super().request('/g')
+                        break
+                    except urllib.error.HTTPError as error:
+                        detail = error.read().decode('utf-8', errors='replace')
+                        self.trace.append({'frame_barrier_retry': attempt, 'status': error.code, 'detail': detail})
+                        if error.code != 404 or 'grab frame could not be submitted' not in detail or attempt == 4:
+                            raise NativeBridgeError(f'/g: HTTP {error.code}: {detail}') from error
+                        # Retry only the read-only frame barrier. The input above
+                        # already succeeded and must never be replayed.
+                        time.sleep(.1)
             return result
         except urllib.error.HTTPError as error:
             detail = error.read().decode('utf-8', errors='replace')
@@ -370,7 +393,7 @@ def main():
                 admin.wait_text(f'Recovery {mode} project'); admin.click_id('review')
                 admin.wait_text('Budget reservation refused')
                 admin.wait_text('Recovery analysis resource')
-                admin.wait_text('The contribution cannot currently cover this budget.')
+                admin.scroll_to_text('The contribution cannot currently cover this budget.')
                 admin.capture(f'partial-reservation-{mode}')
                 admin.click_id('retry_reservation' if mode == 'retry' else 'release_reservation')
                 fill(admin, 'Recovery reason', 'Recover the partial allocation')
@@ -398,6 +421,23 @@ def main():
             assert not any(w.get('i') in {'retry_reservation', 'release_reservation'} for w in owner.snap())
             owner.click_id('new_project'); owner.wait_text('Hagency contributes finite budgets')
             owner.capture('released-project-owner-returns-to-resources')
+            owner.click_id('inbox'); owner.click_id('notifications'); owner.wait_text('Saved for this Matrix account across devices')
+            owner.click_id('reminders_enabled'); owner.wait_text('Reminders: Off')
+            fill(owner, 'Reminder 1 (minutes after action starts)', '120')
+            owner.click_id('quiet_hours'); owner.wait_text('Quiet hours start (HH:MM)')
+            fill(owner, 'Quiet hours start (HH:MM)', '22:00')
+            fill(owner, 'Quiet hours end (HH:MM)', '07:30')
+            fill(owner, 'Time zone', 'UTC')
+            owner.capture('notification-quiet-hours')
+            owner.click_id('save_notifications'); owner.wait_text('Notification settings saved for your account')
+            time.sleep(.2)
+            prefs = json.loads((root / 'backend.json').read_text())['notificationPreferences']
+            assert prefs['@owner:example.test'] == {'revision': 1, 'enabled': True, 'remindersEnabled': False,
+                'reminderMinutes': [120, 1440, 2880], 'quietHours': {'start': '22:00', 'end': '07:30', 'timeZone': 'UTC'}}, prefs
+            assert prefs['@admin:example.test']['revision'] == 0 and prefs['@admin:example.test']['remindersEnabled'], prefs
+            owner.click_id('inbox'); owner.click_id('notifications'); owner.wait_text('Reminders: Off')
+            owner.scroll_to_text('07:30'); owner.capture('notification-settings-saved')
+            report['checks'].append('native reminder cadence and quiet hours persist for the current account; another account remains unchanged')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')

@@ -376,11 +376,13 @@ behavior we must implement; Matrix delivers the resulting messages and push
 notifications but does not decide whether a business action remains unfinished.
 Run the reminder scheduler on the server, independently of any Rinx instance.
 
-For ordinary contribution/project/allocation requests, propose configurable
+For ordinary project/allocation requests, use configurable
 defaults: notify immediately, then remind at 1 hour, 24 hours and 48 hours after
 the action became pending. After three reminders keep the action visible as
 overdue; any escalation goes only to explicitly configured, currently authorized
-recipients. This cadence is a proposal, not existing behavior. Workflow deadlines
+recipients. These defaults, account preferences, quiet hours and overdue coalescing are now
+implemented on the development branches; see the implementation checkpoint
+for validation and deployment status. Workflow deadlines
 take precedence: expiry stops reminders and follows the defined expiry outcome;
 there is no automatic approval/rejection merely because a reminder was ignored.
 

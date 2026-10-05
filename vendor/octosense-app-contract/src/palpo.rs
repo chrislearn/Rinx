@@ -33,6 +33,8 @@ pub const SERVICES: &[&str] = &[
     "palpo.inbox.activate",
     "palpo.inbox.seen",
     "palpo.inbox.snooze",
+    "palpo.notifications.get",
+    "palpo.notifications.set",
 ];
 
 pub fn words(service: &str) -> Option<&'static str> {
@@ -68,6 +70,8 @@ pub fn words(service: &str) -> Option<&'static str> {
         "palpo.inbox.recover" => "Retry a failed project reservation or release its never-used allocation as the designated administrator",
         "palpo.inbox.activate" => "Continue an approved project as its owner",
         "palpo.inbox.seen" => "Mark a notification seen without completing its action",
+        "palpo.notifications.get" => "Read your Palpo notification preferences",
+        "palpo.notifications.set" => "Change your Palpo reminders and quiet hours",
         "palpo.inbox.snooze" => "Snooze reminders for an action you can take",
         _ => return None,
     })

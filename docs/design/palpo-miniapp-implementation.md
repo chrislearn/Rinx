@@ -23,7 +23,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
 | Named agent appears and works in its project room | Existing provisioning, earlier live agent setup and ready-agent navigation with native fixture coverage | Corrected grant-based end-to-end approval through actual room readiness |
 | Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
-| Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
+| Durable actions and notifications | Inbox/outbox, private notices, stale-card checks; durable per-account preferences, quiet hours, snooze and coalesced reminder delivery | Cancel/resubmit/expiry parity, Glance board, live delivery and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
 | Signup decisions | Authorized original-event navigation, current-role/source verification, account-bound invitation continuation | Full native timeline and real Matrix approve/reject acceptance |
 | Shared theme and desktop windows | Native theme-preservation and separate-window tests, including budget, assignment, agent and top-up forms | Hosted OctoSense acceptance |
@@ -34,6 +34,51 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Account notification preferences and quiet hours — 2026-10-04
+
+Inbox now opens Notification settings inside the same themed mini app. Users can
+turn workflow notifications or reminders off, edit the reminder offsets, and
+save quiet hours with an explicit timezone. The host suggests its detected IANA
+timezone without silently saving it. Server-side preferences belong only to the
+current account; explicit read/write grants from App Hub `8ff0654` keep read
+access separate from settings changes. Revision checks prevent another device's
+edits being overwritten; exact retries after a lost response remain idempotent.
+
+Quiet hours follow local clock changes, including both daylight-saving boundaries,
+and are rechecked after asynchronous room verification. Disabled recipients do
+not starve enabled users in a delivery batch. A delivered message coalesces the
+cadence points missed during downtime, snooze, quiet hours or retries. Toggling
+settings does not restart a completed schedule. The server stores the exact
+message envelope before delivery, so response-loss retries preserve their Matrix
+transaction, room and content. Action-required messages mention their recipient;
+informational messages stay quiet. Neither includes configuration secrets.
+
+Inbox cards show overdue reminder schedules and snooze status independently of
+workflow completion. Reading, disabling notifications and reaching the last
+reminder leave the action pending. Explicit snooze works after the default
+schedule ends, subject to notification preferences. Workflow expiry and the My
+Actions room board remain separate outstanding requirements.
+
+Backend validation passes **141 tests**, followed by **21 targeted checks** after
+the final notification lookup optimization. The shared contract passes **30
+tests**; seven Rinx Palpo adapter tests and the optimized release build pass.
+The actual Hagency worker/Palpo HTTP integration passes both selected tests
+again at backend `9d769b27d4125888f98137bf6d6168ef12ca1d7a`.
+
+Final Makepad run `cb3cf6ae115f4446ad54be6567588212` passes **15 checks**, including
+editing and saving cadence/quiet hours, reopening the settings, and verifying
+that the other account remains unchanged. Both quiet-hour captures were inspected.
+The existing role, project, agent, top-up, removal, recovery, signup, theme, draft
+and disconnect cases also pass. Example SHA-256:
+`ea30ec35a5f8a764bb1bf5760e909d9078ba4efe5dc470930c986c96476ba633`.
+The report pins both bundle files. The harness scrolls long content into view
+and retries only the SDK's explicit transient read-only frame-capture failure;
+inputs and submissions are never replayed by that retry.
+
+These are local HTTP/Matrix fixtures and hidden macOS Makepad windows. Production
+and visible user sessions remain unchanged; no mobile OS notification delivery
+or complete ADR acceptance is claimed.
 
 ## Open a ready agent's project room — 2026-10-04
 
