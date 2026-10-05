@@ -19,40 +19,16 @@ from native_palpo_coordinator import HTTP, call, launch, post, port, fill
 def save_dialog(app, destination=None):
     """Operate only the owned Rinx process's AppKit panel, never another app."""
     app.click_id('export', modal=True)
-    script = '''
-on run argv
-    tell application "System Events"
-        tell (first application process whose unix id is (item 1 of argv as integer))
-            set frontmost to true
-            repeat 100 times
-                if exists button "Cancel" of window 1 then exit repeat
-                delay 0.1
-            end repeat
-            if not (exists button "Cancel" of window 1) then
-                error "Owned save panel closed before automation could inspect it"
-            end if
-            if (count of argv) = 1 then
-                click button "Cancel" of window 1
-            else
-                keystroke "g" using {command down, shift down}
-                delay 0.5
-                keystroke (item 2 of argv)
-                delay 0.3
-                key code 36
-                delay 0.6
-                click button "Save" of window 1
-            end if
-            return "done"
-        end tell
-    end tell
-end run
-'''
-    result = subprocess.run(['osascript', '-', str(app.process.pid)] + ([str(destination)] if destination else []),
-                            input=script, text=True, capture_output=True, timeout=25)
+    helper = Path(__file__).with_name('native_save_panel.swift')
+    executable = app.output / 'native-save-panel'
+    subprocess.run(['swiftc', str(helper), '-o', str(executable)], check=True, capture_output=True, timeout=60)
+    capture = app.output / ('native-save-panel-save.png' if destination else 'native-save-panel-cancel.png')
+    result = subprocess.run([str(executable), str(app.process.pid), str(capture)] + ([str(destination)] if destination else []),
+                            text=True, capture_output=True, timeout=25)
     if result.returncode:
         raise AssertionError(result.stderr.strip())
     if result.stdout.strip() != 'done':
-        raise AssertionError('System save panel automation did not finish')
+        raise AssertionError('System save panel automation did not finish: ' + result.stdout[:2000])
     app.wait_text('Configuration saved' if destination else 'Save cancelled')
 
 

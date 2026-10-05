@@ -271,3 +271,16 @@ them. Desktop automation is paused pending clarification about interaction with
 the test dialogs; failed runs do not count as acceptance. One isolated fixture
 profile saved to Documents during that attempt was verified against its test
 database and removed; existing user profiles were left untouched.
+
+
+Native credential export acceptance completed in run
+`fab3aeaa83224af4a8ba65825b4f7fed` (19 checks). The owned AppKit Save panel
+was captured and driven through Accessibility by PID; Cancel writes no file,
+Save selects an explicit destination and writes mode 0600, and the resulting
+profile imports into native Hagency and passes the authenticated probe. Export
+bytes are absent from Splash, its jail and logs. The same run covers credential
+pause/resume, rotation, stale-profile refusal, restart and two independent
+same-server engagements. Panel and saved/cancelled screen captures were visually
+inspected. All three executable hashes remained unchanged during acceptance.
+Matrix remains an isolated HTTP fixture; this does not claim live agent chat or
+mobile device acceptance.
