@@ -252,3 +252,22 @@ caught missing optional fields for older project projections; the Rust DTO now
 supplies explicit null/false defaults and association views do not read a
 project-only property. Evidence uses Rust Palpo plus provider/Matrix fixtures,
 not a live provider deployment.
+
+### Private configuration file custody (2026-10-05)
+
+The host now selects a desktop destination before writing any credential bytes.
+It creates a private temporary file (0600 on Unix), syncs it, rechecks the
+account lease, then atomically replaces the selected regular file. Existing
+public permissions and hard links cannot expose the new credentials; symlink
+destinations are refused. Cancel returns only `saved:false`. macOS uses the
+same native panel/main-run-loop pattern as Makepad's document dialogs.
+Mobile continues to use its native document provider.
+
+Two focused tests pass for private replacement/hard-link isolation and lease
+revocation before commit. The association harness has `--native-export` to drive
+Cancel, Save, direct Hagency import and credential-leak checks. This new native
+acceptance has **not passed**: panels closed before the harness could inspect
+them. Desktop automation is paused pending clarification about interaction with
+the test dialogs; failed runs do not count as acceptance. One isolated fixture
+profile saved to Documents during that attempt was verified against its test
+database and removed; existing user profiles were left untouched.

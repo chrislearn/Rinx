@@ -10,6 +10,7 @@ import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import plistlib
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -118,7 +119,7 @@ def machine_update(endpoint, fleet, body):
         return json.load(response)
 
 
-def launch(root, binary, endpoint, role, board=False):
+def launch(root, binary, endpoint, role, board=False, visible=False):
     profile = root / "profile"
     (profile / "app").mkdir(parents=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -128,6 +129,21 @@ def launch(root, binary, endpoint, role, board=False):
                MAKEPAD_NO_FOCUS="1", MAKEPAD_REMOTE=str(app.port), PALPO_FIXTURE_URL=endpoint)
     env.pop("PALPO_LIVE_SESSION_FILE", None)
     env.pop("MAKEPAD_FOCUS", None)
+    if visible:
+        env.pop("MAKEPAD_HIDE_WINDOWS", None)
+        env.pop("MAKEPAD_NO_FOCUS", None)
+        env['MAKEPAD_FOCUS'] = '1'
+        # AppKit's document panel service needs a real application identity.
+        # Keep the tested executable unchanged inside an isolated native bundle.
+        contents = root / "Palpo Acceptance.app" / "Contents"
+        executable = contents / "MacOS" / "palpo_miniapp"
+        executable.parent.mkdir(parents=True)
+        os.link(binary.resolve(), executable)
+        (contents / "Info.plist").write_bytes(plistlib.dumps({
+            "CFBundleIdentifier": "im.rinx.palpo-acceptance", "CFBundleName": "Palpo Acceptance",
+            "CFBundleExecutable": "palpo_miniapp", "CFBundlePackageType": "APPL",
+        }))
+        binary = executable
     args = [str(binary.resolve())] + (["--narrow"] if role == "owner" else ["--" + role])
     app.process = subprocess.Popen(args, env=env, stdout=app.log, stderr=subprocess.STDOUT)
     try:

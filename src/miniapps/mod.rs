@@ -47,6 +47,7 @@ mod consent;
 mod library;
 mod package;
 pub mod palpo;
+mod private_export;
 pub mod presentation;
 mod sandbox;
 pub mod ui;

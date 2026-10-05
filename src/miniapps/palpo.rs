@@ -265,20 +265,7 @@ impl PalpoHost {
                 serde_json::to_vec_pretty(&result).map_err(|_| "Invalid fleet configuration")?;
             // Credentials go directly to a native save dialog, never into an
             // isolate result, clipboard, chat, app jail, or diagnostic log.
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            robius_file_picker::FileDialog::new()
-                .set_file_name("hagency-registration.json")
-                .save_data(bytes, move |result| {
-                    let _ = tx.send(
-                        result
-                            .map(|file| file.is_some())
-                            .map_err(|_| "Could not save configuration".to_string()),
-                    );
-                })
-                .map_err(|_| "Could not open the system save dialog")?;
-            let saved = rx
-                .await
-                .map_err(|_| "Configuration save was interrupted")??;
+            let saved = super::private_export::save(bytes, lease.clone(), account.to_owned()).await?;
             lease.check(account)?;
             return Ok(json!({"saved": saved}));
         }

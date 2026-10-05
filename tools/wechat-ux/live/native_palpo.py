@@ -17,7 +17,7 @@ class PalpoApp(NativeApp):
     def snap(self):
         return [w for w in super().snap() if w.get('ty') != 'Splash']
 
-    def click_id(self, widget_id):
+    def click_id(self, widget_id, modal=False):
         window_width, window_height = self.request('/s')['w'][0]['sz']
         def target():
             return next((w for w in self.request('/snap', all=1)['s']
@@ -35,7 +35,10 @@ class PalpoApp(NativeApp):
         if found is None:
             raise AssertionError(f'Could not scroll widget into view: {widget_id}')
         x, y, width, height = found['r']
-        self.click(x + width / 2, y + height / 2)
+        if modal:
+            self.request('/click', x=x + width / 2, y=y + height / 2, wait=0)
+        else:
+            self.click(x + width / 2, y + height / 2)
 
     def request(self, route, **params):
         # SDK 1f3b1de can fail wait=1 after already applying the input when a

@@ -16,6 +16,46 @@ import uuid
 from native_palpo_coordinator import HTTP, call, launch, post, port, fill
 
 
+def save_dialog(app, destination=None):
+    """Operate only the owned Rinx process's AppKit panel, never another app."""
+    app.click_id('export', modal=True)
+    script = '''
+on run argv
+    tell application "System Events"
+        tell (first application process whose unix id is (item 1 of argv as integer))
+            set frontmost to true
+            repeat 100 times
+                if exists button "Cancel" of window 1 then exit repeat
+                delay 0.1
+            end repeat
+            if not (exists button "Cancel" of window 1) then
+                error "Owned save panel closed before automation could inspect it"
+            end if
+            if (count of argv) = 1 then
+                click button "Cancel" of window 1
+            else
+                keystroke "g" using {command down, shift down}
+                delay 0.5
+                keystroke (item 2 of argv)
+                delay 0.3
+                key code 36
+                delay 0.6
+                click button "Save" of window 1
+            end if
+            return "done"
+        end tell
+    end tell
+end run
+'''
+    result = subprocess.run(['osascript', '-', str(app.process.pid)] + ([str(destination)] if destination else []),
+                            input=script, text=True, capture_output=True, timeout=25)
+    if result.returncode:
+        raise AssertionError(result.stderr.strip())
+    if result.stdout.strip() != 'done':
+        raise AssertionError('System save panel automation did not finish')
+    app.wait_text('Configuration saved' if destination else 'Save cancelled')
+
+
 class Matrix(BaseHTTPRequestHandler):
     registrations = {}
     rooms = {}
@@ -141,6 +181,7 @@ def main():
     parser.add_argument("--hagency", type=Path, required=True)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--credential-controls", action="store_true")
+    parser.add_argument("--native-export", action="store_true")
     args = parser.parse_args()
     root = Path("target/palpo-association-validation") / uuid.uuid4().hex
     root.mkdir(parents=True)
@@ -190,14 +231,28 @@ def main():
                       "services": ["palpo.fleets.export", "palpo.fleets.list", "palpo.fleets.connect"]})["sessionToken"]
         profile = call(endpoint, session, "palpo.fleets.export", {"fleetId": requested["fleetId"]})
         saved = state / "approved-profile.json"
-        saved.write_text(json.dumps(profile)); saved.chmod(0o600)
+        owner = launch(root / "owner", args.binary, endpoint, "owner", visible=args.native_export); apps.append(owner)
+        owner.click_id("fleets"); owner.wait_text("Native Hagency association")
+        if args.native_export:
+            save_dialog(owner)
+            assert not saved.exists()
+            owner.capture('owner-export-cancelled')
+            save_dialog(owner, saved)
+            assert json.loads(saved.read_text()) == profile
+            assert saved.stat().st_mode & 0o777 == 0o600
+            owner.capture('owner-native-export-saved')
+            for secret in [profile['registration']['as_token'], profile['registration']['hs_token'], profile['transport']['token']]:
+                assert secret not in json.dumps(owner.snap())
+                for path in (root / 'owner').rglob('*'):
+                    if path.is_file():
+                        assert secret.encode() not in path.read_bytes(), 'Credential escaped into Rinx profile/evidence'
+        else:
+            saved.write_text(json.dumps(profile)); saved.chmod(0o600)
         subprocess.run([str(hagency), "registration", "--state-dir", str(state), "import", "--file", str(saved), "--homeserver", matrix_origin],
                        check=True, capture_output=True, text=True)
         runtime_log = (root / "hagency.log").open("w")
         processes.append(subprocess.Popen([str(hagency), "serve", "--state-dir", str(state), "--listen", f"127.0.0.1:{port()}", "--palpo-transport"],
                          stdout=runtime_log, stderr=subprocess.STDOUT))
-        owner = launch(root / "owner", args.binary, endpoint, "owner"); apps.append(owner)
-        owner.click_id("fleets"); owner.wait_text("Native Hagency association")
         owner.click_id("verify"); owner.wait_text("Connection probe sent")
         for _ in range(150):
             fleets = call(endpoint, session, "palpo.fleets.list", {})["fleets"]
@@ -214,6 +269,9 @@ def main():
             "actual Rinx administrator approves association", "explicitly authorized owner retrieves engagement-scoped profile",
             "native Hagency imports its matching pending association", "actual Rinx owner initiates probe",
             "native Hagency consumes relayed Matrix event and work before verification", "Rinx shows proof time and current runtime connectivity"]
+        if args.native_export:
+            report['checks'] += ['native Save cancellation writes no profile', 'native Save produces owner-only credentials importable by Hagency',
+                'native export returns no credential bytes to Splash, the app jail or logs']
         if args.credential_controls:
             def wait_verified(ids):
                 for _ in range(200):
