@@ -255,6 +255,38 @@ def main():
         assert not any(w.get("t") == "Execution · ready" for w in owner.snap())
         assert not any(w.get("t") == "Request more tokens" for w in owner.snap())
         owner.capture("owner-agents-stale-usage")
+        refused_request = json.loads(json.dumps(request))
+        refused_request["request"]["id"] = "b" * 40
+        refused_request["definition"]["requestId"] = "b" * 40
+        refused_request["definition"]["agentDefinition"]["name"] = "CapacityRefused"
+        refused_request["request"]["definitionDigest"] = digest(refused_request["definition"])
+        refused_action = call(endpoint, token, "palpo.inbox.submit", refused_request)["action"]
+        coordinator.click_id("refresh"); coordinator.wait_text("CapacityRefused")
+        coordinator.click_id("review"); coordinator.wait_text("Approve")
+        coordinator.click_id("approve"); coordinator.wait_text("Decision reason")
+        fill(coordinator, "Decision reason", "Review the remaining capacity")
+        coordinator.click_id("submit"); coordinator.wait_text("No requests in this view")
+        with sqlite3.connect(root / "admin.sqlite") as db:
+            state = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+            refused_command = next(r["command"] for r in state["rustWorkflows"]["outbox"].values() if r["actionId"] == refused_action["id"])
+        refusal = {"kind": "receipt", "registrationGeneration": 1, "delegationRevision": 1,
+            "commandId": refused_command["context"]["commandId"], "state": "refused", "reason": "insufficient_capacity",
+            "commandDigest": digest({"operation": "coordinator_agent_approval", "command": refused_command})}
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 4, "heartbeat": True,
+            "coordinatorUpdates": [{"id": "command_" + refusal["commandId"], "payload": refusal, "digest": digest(refusal)}]})
+        owner.click_id("refresh")
+        for _ in range(5):
+            if any(w.get("t") == "CapacityRefused" for w in owner.snap()):
+                break
+            owner.request('/m', k='scroll', x=210, y=500, dy=220, wait=1)
+        owner.wait_text("CapacityRefused")
+        owner.wait_text("Allocation refused")
+        for _ in range(5):
+            if any(w.get("t") == "Not enough capacity remains in this allocation." for w in owner.snap()):
+                break
+            owner.request('/m', k='scroll', x=210, y=500, dy=100, wait=1)
+        owner.wait_text("Not enough capacity remains in this allocation.")
+        owner.capture("owner-agent-allocation-refused")
         report["checks"] = ["manager cannot approve own agent", "Matrix admin has no implicit agent approval",
             "coordinator approves from the actual OctoScript form", "theme changes preserve draft and request count",
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
@@ -262,7 +294,8 @@ def main():
             "agent list distinguishes pending allocation and unknown consumption",
             "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness",
             "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
-            "top-up retry after provider execution returns the original result"]
+            "top-up retry after provider execution returns the original result",
+            "owner sees a terminal provider refusal without losing the approved decision"]
         report["passed"] = True
     finally:
         for app in apps:

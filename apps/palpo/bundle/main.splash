@@ -12,6 +12,14 @@ if !mod.rinx_theme.reloading() {
 }
 let P = mod.palpo
 fn available(service){ for name in P.services { if name == service { return true } } return false }
+fn refusal_text(reason){
+    if reason == "insufficient_capacity" { return "Not enough capacity remains in this allocation." }
+    if reason == "authority_changed" { return "The coordinator authorization changed or expired." }
+    if reason == "project_unavailable" { return "The project is no longer available for this request." }
+    if reason == "resource_unavailable" { return "The requested resource is unavailable." }
+    if reason == "request_conflict" { return "This request conflicts with a recorded decision." }
+    return "Hagency could not validate this request. Review its project and room settings."
+}
 // Dynamic render closures resolve the current host prototypes on every reapply.
 mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
     draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
@@ -251,7 +259,8 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.kind + " · " + row.state}
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
-                if row.execution != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                 if row.kind == "association" {
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + row.payload.coordinatorMxid}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Runtime · " + row.payload.runtimeId}
@@ -269,7 +278,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     continue_work := mod.widgets.RinxPrimaryButton{text: "Continue approved work" on_click: || continue_action()}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
                 }
-                if row.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action({id: row.result.fleetId}, "connect")} }
+                if row.kind == "association" && row.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action({id: row.result.fleetId}, "connect")} }
                 if row.nextAction == "export_and_connect" && row.canContinue {
                     export := mod.widgets.RinxPrimaryButton{text: "Save configuration" on_click: || fleet_action({id: row.result.fleetId}, "export")}
 
@@ -346,9 +355,10 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if row.agentDefinition != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.agentDefinition.name} }
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.role + " · " + row.state}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Initial request: " + row.requestedTokens + " tokens"}
-                    if row.execution != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                    if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                    if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                     if row.allocatedTokens != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocated: " + row.allocatedTokens + " tokens"} }
-                    if row.allocatedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
+                    if row.allocatedTokens == nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
                     if row.usage != nil {
                         if row.usage.consumedTokens != nil {
                             mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Consumed: at least " + row.usage.consumedTokens + " tokens"}

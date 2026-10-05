@@ -128,3 +128,21 @@ receipt. All eight checks passed; both screenshots were inspected at
 This covers native connection proof, not agent execution, live Matrix or a native
 save-dialog interaction: the harness retrieves the authorized profile through
 the API and writes its private import file.
+
+## Delivered refusals and current delegation
+
+The agent list now retains the coordinator's approval and shows Hagency's
+terminal allocation refusal separately, with a readable reason and no pending
+allocation claim. Association-only buttons are guarded on non-association
+records. The native scenario drives a second approval and its authenticated
+capacity refusal, then scrolls the narrow owner list to inspect that result.
+All fifteen checks passed and the refusal screenshot was reviewed:
+`target/palpo-coordinator-validation/7c195bb18a92451a9b0385a806c090cb/report.json`.
+
+The paired Hagency console now edits the single engagement resource ledger
+from both Resources and Server engagements, and displays delivered agent
+approvals before Matrix admission. It also records owner delegation revisions,
+with suspension/revocation, explicit export recipients and durable publication.
+Palpo applies those revisions to current approval/export authority and notices.
+These validations remain isolated fixture evidence, not production cutover or
+device acceptance.
