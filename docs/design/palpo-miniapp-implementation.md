@@ -18,8 +18,8 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | --- | --- | --- |
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
 | Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
-| Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands, exact receipt projection and partial-refusal retry/unused release; backend and native fixture checks | Actual Hagency/Palpo integration and recovery acceptance, live validation and explicit legacy migration |
-| Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; backend and Makepad fixture checks | Actual Hagency/Palpo integration and live workflow validation |
+| Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands, exact receipt projection and partial recovery; native UI fixtures plus actual Palpo HTTP/Rust worker integration | Full runtime/Matrix and live acceptance; explicit legacy migration |
+| Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; actual Palpo HTTP/Rust worker decisions and replay | Actual model execution, live Matrix room readiness and full native workflow acceptance |
 | Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
 | Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
@@ -34,6 +34,32 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Actual Palpo HTTP / Hagency worker integration — 2026-10-04
+
+Hagency `c506b58` runs its production command consumer and status publisher
+against the actual Palpo HTTP/session/workflow/SQLite modules at `06b888e`.
+Contributions, reservations, admission/rejection, token increases, revocation and
+unused release use Hagency's real ledger and business receipts. This bridges the
+previous split between native UI tests with fake Hagency results and Rust tests
+with fake Palpo responses.
+
+The final opt-in run passes both selected worker tests. Eleven commands produce
+nine applied receipts and two current-authority refusals. Transport ACKs do not
+allocate capacity. A dropped committed publication response followed by a
+Hagency store restart replays identical bytes without extra sequence advancement
+or notices. Duplicate admission/top-up deliveries preserve one engagement and one
+increase from 80,000 to 120,000 tokens. Partial retry and unused release leave
+1,600,000 cumulatively reserved tokens and 400,000 verified unused release, with
+no pending delivery or legacy Hagency human-approval request.
+
+Real status publication preserves unknown usage and never reports a ready agent
+without provisioning. Removal before provisioning uses durable no-cleanup/no-
+identity evidence; it does not assert Matrix deactivation. The peer explicitly
+fixtures Matrix rooms/identities and opts into the withheld workflow capability.
+No model process or real Matrix homeserver runs in this test. Full runtime/Matrix
+acceptance and the broader ledger remain open; production is unchanged. The
+command and pinned source checks are in Hagency's project-grants review document.
 
 ## Failed project allocation recovery — 2026-10-04
 
