@@ -22,6 +22,8 @@ fn refusal_text(reason){
     return "Hagency could not validate this request. Review its project and room settings."
 }
 fn control_text(control){
+    if control.execution == "rename_pending" { return "Name saved · waiting for Matrix verification" }
+    if control.execution == "rename_failed" { return "Matrix could not verify the new name. Hagency will retry." }
     if control.execution == "control_pending" { return "Waiting for Hagency to receive your " + control.operation + " request." }
     if control.execution == "control_refused" { return "The operation was refused. " + refusal_text(control.reason) }
     if control.execution == "retiring" { return "Removing agent · runtime and Matrix cleanup pending" }
@@ -156,6 +158,11 @@ fn request_project(fleet, resource){
 fn control_agent(row, operation){
     new_form(if operation == "retire" {"Remove agent"} else {if operation == "retry_cleanup" {"Retry cleanup"} else {if operation == "stop" {"Pause agent"} else {"Resume agent"}}},
         "palpo.agents.control", {agentActionId: row.id operation: operation kind: "agent_control"}, [])
+}
+fn rename_agent(row){
+    new_form("Rename agent", "palpo.agents.control", {agentActionId: row.id operation: "rename" kind: "agent_control" displayName: row.agentDefinition.name}, [
+        {key: "displayName" label: "Display name" value: row.agentDefinition.name}
+    ])
 }
 fn request_tokens(row){
     new_form("Request more tokens", "palpo.inbox.submit", {kind: "token_top_up" agentActionId: row.id expectedAllocatedTokens: row.allocatedTokens requestedAdditionalTokens: "10000"}, [
@@ -476,6 +483,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if row.canRequestTopUp == true { more_tokens := mod.widgets.RinxButton{text: "Request more tokens" on_click: || request_tokens(row)} }
                     if available("palpo.agents.control") {
                         if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
+                        if row.canRename { rename_agent := mod.widgets.RinxButton{text: "Rename agent" on_click: || rename_agent(row)} }
                         if row.canPause { pause_agent := mod.widgets.RinxButton{text: "Pause agent" on_click: || control_agent(row,"stop")} }
                         if row.canResume { resume_agent := mod.widgets.RinxButton{text: "Resume agent" on_click: || control_agent(row,"start")} }
                         if row.canRetire { remove_agent := mod.widgets.RinxButton{text: "Remove agent" on_click: || control_agent(row,"retire")} }

@@ -63,7 +63,7 @@ pub fn words(service: &str) -> Option<&'static str> {
         "palpo.agents.register" => "Register a Matrix identity for an approved agent",
         "palpo.agents.rename" => "Rename a managed Matrix identity",
         "palpo.agents.retire" => "Retire a managed Matrix identity",
-        "palpo.agents.control" => "Pause, resume or remove agents within your project permissions",
+        "palpo.agents.control" => "Rename, pause, resume or remove agents within your project permissions",
         "palpo.activity.list" => "Read the Palpo administrator audit history",
         "palpo.accounts.list" => "Read pending account signup requests",
         "palpo.accounts.open" => "Open an authorized signup request in Rinx's trusted approval room",

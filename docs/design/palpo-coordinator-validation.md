@@ -230,3 +230,13 @@ gate during an overlapping build; it is not counted as passing evidence.
 This uses actual Rinx, Rust Palpo and Hagency processes with a Matrix HTTP
 fixture. Profile retrieval uses the authorized API, so native save-dialog and
 real Matrix/agent/device acceptance remain separate gates.
+
+### Scoped Matrix display-name changes (2026-10-05)
+
+Native run `db6e9f0cfe45422c801846e432a3bdda` passed 21 checks. The actual
+Rinx form submits a frozen rename command, shows Matrix verification pending,
+and displays the confirmed name after an authenticated observation. Chat remains
+usable while only a label update is pending. Captures `owner-rename-pending.png`
+and `owner-rename-verified.png` were inspected. This run uses the Rust Palpo
+process and a provider fixture; Hagency store and HTTPS-client tests separately
+cover real rename execution and read-back. It is not live-provider acceptance.

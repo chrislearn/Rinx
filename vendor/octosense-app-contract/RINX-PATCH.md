@@ -20,3 +20,7 @@ App Hub `6180376`, including the closed native signup/agent navigation targets
 and verified My Actions room feature gates. Native integration was adapted from
 Rinx `a9aaa2f0`, `8d2ffbd4` and `ee3836bb`; the superseded Node workflow-view
 normalizer is intentionally not used with the ADR 0011 Rust projections.
+
+Scoped rename consent now matches App Hub `a93073d`; the same lifecycle grant
+is checked for the project owner/resource owner/current coordinator. Runtime
+`coordinatorAgentProfileV1` negotiation is required before displaying rename.

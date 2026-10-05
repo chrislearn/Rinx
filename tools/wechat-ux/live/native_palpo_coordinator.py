@@ -193,7 +193,7 @@ def main():
         state["fleets"][fleet] = {"id": fleet, "state": "ready", "installation": "installed",
             "representativeMxid": f"@{fleet}_representative:example.test", "registrationGeneration": 1,
             "transport": {"mode": "outbound", "generation": 1, "sequence": 0, "token": "fixture-machine"},
-            "capabilities": {"coordinatorApprovalV1": True, "coordinatorAgentControlV1": True}}
+            "capabilities": {"coordinatorApprovalV1": True, "coordinatorAgentControlV1": True, "coordinatorAgentProfileV1": True}}
         db.execute("UPDATE state SET body=? WHERE id=1", [json.dumps(state)])
     log = (root / "backend.log").open("w")
     server = subprocess.Popen([str(args.backend.resolve())], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -369,7 +369,7 @@ def main():
         observed.update(observedAt=datetime.now(timezone.utc).isoformat(), usageObservedAtMs=int(time.time() * 1000),
             lifecycle={"runtimeState": "active", "paused": False, "cleanup": "not_required", "cleanupEffect": None})
         machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed]})
-        for operation, widget_id, title in [("stop", "pause_agent", "Pause agent"), ("start", "resume_agent", "Resume agent"), ("retire", "remove_agent", "Remove agent")]:
+        for operation, widget_id, title in [("rename", "rename_agent", "Rename agent"), ("stop", "pause_agent", "Pause agent"), ("start", "resume_agent", "Resume agent"), ("retire", "remove_agent", "Remove agent")]:
             owner.click_id("refresh")
             owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
             for _ in range(18):
@@ -377,6 +377,8 @@ def main():
                     break
                 owner.request('/m', k='scroll', x=210, y=420, dy=140, wait=1)
             owner.click_id(widget_id); owner.wait_text(title)
+            if operation == "rename":
+                fill(owner, "Display name", "Friendly little white")
             owner.capture("owner-control-" + operation)
             control_draft = json.loads((owner.root / "profile/app/draft.json").read_text())
             owner.click_id("submit")
@@ -396,6 +398,23 @@ def main():
             sequence += 1
             machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed],
                 "coordinatorUpdates": [{"id": "command_" + control_receipt["commandId"], "payload": control_receipt, "digest": digest(control_receipt)}]})
+            if operation == "rename":
+                owner.click_id("refresh")
+                owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
+                for _ in range(18):
+                    if any(w.get("t") == "Name saved · waiting for Matrix verification" for w in owner.snap()):
+                        break
+                    owner.request('/m', k='scroll', x=210, y=420, dy=140, wait=1)
+                owner.wait_text("Name saved · waiting for Matrix verification")
+                owner.capture("owner-rename-pending")
+                assert control["command"]["displayName"] == "Friendly little white"
+                observed["lifecycle"]["matrixProfile"] = {"desiredName": "Friendly little white", "observedName": "Friendly little white", "state": "verified"}
+                sequence += 1
+                machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed]})
+                owner.click_id("refresh")
+                owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
+                owner.wait_text("Friendly little white")
+                owner.capture("owner-rename-verified")
         observed.update(state="ended", ready=False, bound=False)
         observed["lifecycle"].update(runtimeState="revoked", cleanup="complete", cleanupEffect="complete", settlement={"state": "awaiting_final_usage"})
         sequence += 1
@@ -436,7 +455,7 @@ def main():
             "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
             "top-up retry after provider execution returns the original result",
             "owner sees a terminal provider refusal without losing the approved decision",
-            "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
+            "scoped rename waits for Matrix observation", "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
             "retired history remains visible with usage settlement separate",
             "native notification preferences persist after reopening", "notification settings stay isolated per Matrix account"]
         report["passed"] = True
