@@ -127,19 +127,21 @@ fn edit_field(i, value){ P.form.fields[i].value = value P.form.payload[P.form.fi
 fn new_form(title, service, payload, fields){
     call("palpo.intent.new", {}, fn(data){
         if service == "palpo.inbox.decide" || service == "palpo.agents.control" { payload.commandId = data.requestId }
-        if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" { payload.requestId = data.requestId }
+        if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" || service == "palpo.fleets.set_state" { payload.requestId = data.requestId }
         P.form = {title: title service: service payload: payload fields: fields}
         P.page = "form" save_form()
     })
 }
 fn submit_form(){
     call(P.form.service, P.form.payload, fn(data){
+        let previous_filter = P.filter
         fs.write("draft.json", "null") P.has_draft = false
         P.notice = "Saved. The server will keep this request when you close the app."
         P.page = "inbox" P.filter = "waiting" P.selected = nil P.rows = [] P.offset = 0
         if P.form.service == "palpo.inbox.decide" { P.filter = "needs_action" }
         if P.form.service == "palpo.requests.create" || P.form.service == "palpo.agents.control" { P.page = "requests" }
-        if P.form.service == "palpo.fleets.register" || P.form.service == "palpo.fleets.migrate" || P.form.service == "palpo.agents.rename" || P.form.service == "palpo.agents.register" { P.page = "fleets" }
+        if P.form.service == "palpo.fleets.register" || P.form.service == "palpo.fleets.migrate" || P.form.service == "palpo.fleets.set_state" || P.form.service == "palpo.agents.rename" || P.form.service == "palpo.agents.register" { P.page = "fleets" }
+        if P.page != "inbox" { P.filter = previous_filter }
         refresh_page()
     })
 }
@@ -186,10 +188,18 @@ fn fleet_action(fleet, operation){
     if operation == "connect" { call("palpo.fleets.connect", {fleetId: fleet.id}, fn(data){ P.notice = "Connection probe sent. Refresh engagements for the runtime result." }) }
     if operation == "install" { call("palpo.fleets.install", {fleetId: fleet.id}, fn(data){ refresh_page() }) }
     if operation == "pause" || operation == "resume" || operation == "revoke" {
-        P.selected = fleet P.form = {title: operation service: "palpo.fleets.set_state" payload: {fleetId: fleet.id action: operation} fields: []} P.page = "confirm" draw_page()
+        new_form(operation + " Matrix access", "palpo.fleets.set_state", {fleetId: fleet.id action: operation}, [])
     }
     if operation == "queue" { call("palpo.fleets.queue", {fleetId: fleet.id}, fn(data){ P.notice = "Delivery queue: " + data.queue.pending + " pending / " + data.queue.records + " records." }) }
-    if operation == "migrate" { new_form("Use outbound delivery", "palpo.fleets.migrate", {fleetId: fleet.id rotate: false}, []) }
+    if operation == "migrate" { new_form("Renew connection credentials", "palpo.fleets.migrate", {fleetId: fleet.id rotate: true}, []) }
+}
+fn retry_fleet_change(fleet){
+    let change = fleet.pendingCredentialChange
+    let payload = {fleetId: fleet.id requestId: change.requestId}
+    let service = "palpo.fleets.set_state"
+    if change.kind == "rotation" { service = "palpo.fleets.migrate" payload.rotate = change.rotate } else { payload.action = change.action }
+    P.form = {title: "Retry connection change" service: service payload: payload fields: []}
+    P.has_draft = true save_form() P.page = "form" draw_page()
 }
 fn register_fleet(){
     new_form("Register a fleet", "palpo.fleets.register", {name: "" ownerMxid: "" transportMode: "outbound"}, [
@@ -380,6 +390,12 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if P.form.service == "palpo.agents.control" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retire" {"Remove this agent from the runtime and its Matrix rooms. Chat history stays available. Completion waits for verified cleanup; unknown usage keeps its reservation."} else {"This change is sent to the agent's Hagency runtime. Its latest result stays in My agents."}}
                 }
+                if P.form.service == "palpo.fleets.set_state" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "This changes the engagement's Matrix credentials. Revocation is final. Existing allocations and history remain; stopping a remote runtime requires separate confirmation. Resume requires a new connection check."}
+                }
+                if P.form.service == "palpo.fleets.migrate" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Save the updated configuration, import it into the same Hagency engagement and verify its connection. Other engagements keep their own credentials. Pending deliveries and agent allocations are retained."}
+                }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: item.label}
@@ -488,10 +504,17 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if fleet.lastVerifiedAt != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Last verified · " + fleet.lastVerifiedAt} }
                     if fleet.connectivity != nil { mod.widgets.RinxHint{text: "Runtime · " + fleet.connectivity} }
                     if fleet.lastError != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: fleet.lastError} }
+                    if fleet.localTaskStop == "unconfirmed" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Remote runtime stop has not been confirmed."} }
                     View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
                         if fleet.canExport == true && available("palpo.fleets.export") { export := mod.widgets.RinxButton{text: "Save configuration" on_click: || fleet_action(fleet, "export")} }
                         if fleet.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action(fleet, "connect")} }
                         if fleet.canInstall == true && available("palpo.fleets.install") { install := mod.widgets.RinxButton{text: "Retry setup" on_click: || fleet_action(fleet, "install")} }
+                        if fleet.canPause == true && available("palpo.fleets.set_state") { pause_fleet := mod.widgets.RinxButton{text: "Pause Matrix access" on_click: || fleet_action(fleet, "pause")} }
+                        if fleet.canResume == true && available("palpo.fleets.set_state") { resume_fleet := mod.widgets.RinxButton{text: "Resume Matrix access" on_click: || fleet_action(fleet, "resume")} }
+                        if fleet.canRevoke == true && available("palpo.fleets.set_state") { revoke_fleet := mod.widgets.RinxButton{text: "Revoke Matrix access" on_click: || fleet_action(fleet, "revoke")} }
+                        if fleet.canRotate == true && available("palpo.fleets.migrate") { rotate_fleet := mod.widgets.RinxButton{text: "Renew credentials" on_click: || fleet_action(fleet, "migrate")} }
+                        if fleet.canInspectQueue == true && available("palpo.fleets.queue") { queue := mod.widgets.RinxButton{text: "Delivery queue" on_click: || fleet_action(fleet, "queue")} }
+                        if fleet.pendingCredentialChange != nil { retry_fleet := mod.widgets.RinxButton{text: "Retry connection change" on_click: || retry_fleet_change(fleet)} }
                     }
                 }
             }

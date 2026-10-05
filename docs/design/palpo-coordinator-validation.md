@@ -209,3 +209,24 @@ uses the real Rust worker and native Palpo adapter with an isolated Matrix HTTP
 fixture. It verifies the source-event handoff, not a live Matrix SDK room join.
 The Rust suite separately covers eight signup scenarios, including lost replies,
 restart, private-room changes, stale/forged verdicts and revocation during UIAA.
+
+## Credential controls and independent profiles
+
+Administrators can pause, resume, revoke and renew an engagement's Matrix or
+transport credentials through native forms. Pending changes retain their exact
+intent after a lost reply. Owners see the resulting association state and
+notices; a resumed or rotated connection requires a new authenticated probe.
+Credential revocation does not assert that an offline runtime stopped.
+
+The combined native run passed all 16 checks at
+`target/palpo-association-validation/7a2dc86faa514493888fba9425eefc35/report.json`.
+The paused and two-engagement screenshots were inspected. The run pins all three
+executables before and after acceptance. One native Hagency process imports two
+profiles for the same homeserver, retains both proofs after restart, rejects an
+old credential generation, and preserves the first profile when adding the second.
+An earlier run completed its functional checks but failed the executable-hash
+gate during an overlapping build; it is not counted as passing evidence.
+
+This uses actual Rinx, Rust Palpo and Hagency processes with a Matrix HTTP
+fixture. Profile retrieval uses the authorized API, so native save-dialog and
+real Matrix/agent/device acceptance remain separate gates.

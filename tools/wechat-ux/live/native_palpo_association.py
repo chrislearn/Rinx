@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Real native Rinx, Rust Palpo and Hagency association/probe; Matrix HTTP fixture."""
 import argparse
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -49,6 +50,8 @@ class Matrix(BaseHTTPRequestHandler):
         user = next((f"@{name}:example.test" for name in ("owner", "coordinator", "admin") if token == name + "-secret"), None)
         registration = next((v for v in self.registrations.values() if v["as_token"] == token), None)
         if registration:
+            if registration.get("disabled"):
+                return self.reply({"errcode": "M_UNKNOWN_TOKEN"}, 401)
             user = parse_qs(uri.query).get("user_id", [f'@{registration["sender_localpart"]}:example.test'])[0]
         if not user:
             return self.reply({"errcode": "M_UNKNOWN_TOKEN"}, 401)
@@ -66,6 +69,14 @@ class Matrix(BaseHTTPRequestHandler):
                     return self.reply({})
                 return self.reply({"appservices": [{"id": key} for key in self.registrations]})
             value = self.registrations.get(path[4])
+            if value and len(path) == 6:
+                if path[5] in ("disable", "enable") and self.command == "POST":
+                    value["disabled"] = path[5] == "disable"
+                    return self.reply({})
+                if path[5] == "url" and self.command == "PUT":
+                    assert value["url"] == body["expected_url"]
+                    value["url"] = body["url"]
+                    return self.reply({})
             return self.reply(value or {"errcode": "M_NOT_FOUND"}, 200 if value else 404)
         if path[:4] == ["_palpo", "admin", "v2", "users"]:
             identity = path[4]
@@ -129,6 +140,7 @@ def main():
     parser.add_argument("--backend", type=Path, required=True)
     parser.add_argument("--hagency", type=Path, required=True)
     parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--credential-controls", action="store_true")
     args = parser.parse_args()
     root = Path("target/palpo-association-validation") / uuid.uuid4().hex
     root.mkdir(parents=True)
@@ -148,6 +160,8 @@ def main():
     processes = [subprocess.Popen([str(backend)], env=env, stdout=log, stderr=subprocess.STDOUT)]
     apps = []
     report = {"passed": False, "scope": "Actual Rinx, Rust Palpo and native Hagency processes; isolated Matrix HTTP fixture", "checks": []}
+    artifacts = {'rinx': args.binary, 'palpo': backend, 'hagency': hagency}
+    report['binaries'] = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in artifacts.items()}
     try:
         for _ in range(100):
             try:
@@ -173,7 +187,7 @@ def main():
         fill(admin, "Decision reason", "Authorize this runtime association")
         admin.click_id("submit"); admin.wait_text("No requests in this view")
         session = post(endpoint, "session", "owner-secret", {"appId": "im.palpo.operations", "bundleDigest": "c"*64,
-                      "services": ["palpo.fleets.export", "palpo.fleets.list"]})["sessionToken"]
+                      "services": ["palpo.fleets.export", "palpo.fleets.list", "palpo.fleets.connect"]})["sessionToken"]
         profile = call(endpoint, session, "palpo.fleets.export", {"fleetId": requested["fleetId"]})
         saved = state / "approved-profile.json"
         saved.write_text(json.dumps(profile)); saved.chmod(0o600)
@@ -200,7 +214,76 @@ def main():
             "actual Rinx administrator approves association", "explicitly authorized owner retrieves engagement-scoped profile",
             "native Hagency imports its matching pending association", "actual Rinx owner initiates probe",
             "native Hagency consumes relayed Matrix event and work before verification", "Rinx shows proof time and current runtime connectivity"]
+        if args.credential_controls:
+            def wait_verified(ids):
+                for _ in range(200):
+                    rows = call(endpoint, session, "palpo.fleets.list", {})["fleets"]
+                    if all(any(row['id'] == identity and row['connectionVerified'] and row['connectivity'] == 'online' for row in rows) for identity in ids):
+                        return rows
+                    if processes[-1].poll() is not None:
+                        raise RuntimeError('Hagency exited during credential recovery')
+                    time.sleep(.2)
+                raise AssertionError('Current generation was not verified: ' + json.dumps(rows))
+
+            admin.click_id('fleets'); admin.wait_text('Native Hagency association')
+            admin.click_id('pause_fleet'); admin.wait_text('pause Matrix access'); admin.click_id('submit')
+            admin.wait_text('paused · @owner:example.test'); admin.capture('admin-credentials-paused')
+            assert Matrix.registrations[requested['fleetId']]['disabled'] is True
+            admin.click_id('resume_fleet'); admin.wait_text('resume Matrix access'); admin.click_id('submit')
+            admin.wait_text('Renew credentials')
+            assert not call(endpoint, session, 'palpo.fleets.list', {})['fleets'][0]['connectionVerified']
+            admin.click_id('rotate_fleet'); admin.wait_text('Renew connection credentials'); admin.click_id('submit')
+            admin.wait_text('Save configuration')
+            renewed = call(endpoint, session, 'palpo.fleets.export', {'fleetId': requested['fleetId']})
+            assert renewed['transport']['generation'] == profile['transport']['generation'] + 1
+            assert renewed['transport']['token'] != profile['transport']['token']
+            assert renewed['registration'] == profile['registration']
+            running = processes.pop(); running.terminate(); running.wait(timeout=15)
+            saved.write_text(json.dumps(renewed))
+            subprocess.run([str(hagency), 'registration', '--state-dir', str(state), 'import', '--file', str(saved), '--homeserver', matrix_origin], check=True, capture_output=True, text=True)
+            stale = state / 'previous-profile.json'; stale.write_text(json.dumps(profile)); stale.chmod(0o600)
+            rejected = subprocess.run([str(hagency), 'registration', '--state-dir', str(state), 'import', '--file', str(stale), '--homeserver', matrix_origin], capture_output=True, text=True)
+            assert rejected.returncode != 0, 'Old transport profile overwrote the rotated generation'
+            processes.append(subprocess.Popen([str(hagency), 'serve', '--state-dir', str(state), '--listen', f'127.0.0.1:{port()}', '--palpo-transport'], stdout=runtime_log, stderr=subprocess.STDOUT))
+            owner.click_id('refresh'); owner.wait_text('Verify connection'); owner.click_id('verify'); owner.wait_text('Connection probe sent')
+            wait_verified([requested['fleetId']])
+            owner.click_id('refresh'); owner.wait_text('Connection verified'); owner.capture('owner-rotated-profile-verified')
+            report['checks'] += ['native administrator pauses and resumes Matrix credentials', 'resume requires a fresh connection proof',
+                'native administrator rotates only this transport credential', 'native Hagency reimports the new generation and verifies after restart',
+                'an old imported profile cannot restore previous credentials']
+
+            second_command = command.copy()
+            second_command[second_command.index('--request-id') + 1] = 'native_association_second'
+            second_command[second_command.index('--name') + 1] = 'Independent second engagement'
+            second = json.loads(subprocess.run(second_command, check=True, capture_output=True, text=True).stdout)
+            admin.click_id('inbox'); admin.wait_text('Independent second engagement'); admin.click_id('review')
+            admin.wait_text('Coordinator · @coordinator:example.test'); admin.click_id('approve'); admin.wait_text('Decision reason')
+            fill(admin, 'Decision reason', 'Authorize the independent second engagement')
+            admin.click_id('submit'); admin.wait_text('No requests in this view')
+            second_profile = call(endpoint, session, 'palpo.fleets.export', {'fleetId': second['fleetId']})
+            assert second_profile['transport']['token'] != renewed['transport']['token']
+            second_file = state / 'second-profile.json'; second_file.write_text(json.dumps(second_profile)); second_file.chmod(0o600)
+            running = processes.pop(); running.terminate(); running.wait(timeout=15)
+            subprocess.run([str(hagency), 'registration', '--state-dir', str(state), 'import', '--file', str(second_file), '--homeserver', matrix_origin], check=True, capture_output=True, text=True)
+            processes.append(subprocess.Popen([str(hagency), 'serve', '--state-dir', str(state), '--listen', f'127.0.0.1:{port()}', '--palpo-transport'], stdout=runtime_log, stderr=subprocess.STDOUT))
+            call(endpoint, session, 'palpo.fleets.connect', {'fleetId': second['fleetId']})
+            wait_verified([requested['fleetId'], second['fleetId']])
+            owner.click_id('refresh'); owner.wait_text('Independent second engagement'); owner.capture('owner-two-same-server-engagements')
+            same_first = call(endpoint, session, 'palpo.fleets.export', {'fleetId': requested['fleetId']})
+            assert same_first['transport'] == renewed['transport']
+            report['checks'] += ['one native runtime imports two independent profiles for the same Matrix server',
+                'both profiles retain authenticated proof and current connectivity after restart', 'importing the second profile preserves the first transport identity']
+        assert report['binaries'] == {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in artifacts.items()}, 'A tested executable changed during acceptance'
         report["passed"] = True
+    except Exception as error:
+        report['error'] = str(error)
+        for index, app in enumerate(apps):
+            try:
+                app.capture('failed-acceptance')
+                (root / f'failed-app-{index}.json').write_text(json.dumps(app.snap(), indent=2))
+            except Exception:
+                pass
+        raise
     finally:
         for app in apps:
             app.stop()
