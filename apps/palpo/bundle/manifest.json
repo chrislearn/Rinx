@@ -29,11 +29,13 @@
     "palpo.inbox.decide",
     "palpo.inbox.activate",
     "palpo.inbox.seen",
-    "palpo.inbox.snooze"
+    "palpo.inbox.snooze",
+    "palpo.notifications.get",
+    "palpo.notifications.set"
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "e9526d75bc8d1dae7a799da7fae8a94172228675e964232937eb37cf8a77c219"
+    "bundle_blake3": "691a0b8d3b74470e77650fac4887b4843f2b59f6678ed0f9bb0a24ce7ae4086a"
   },
   "name": "Palpo",
   "requires": [

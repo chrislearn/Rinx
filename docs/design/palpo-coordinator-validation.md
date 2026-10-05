@@ -162,3 +162,18 @@ It drives real native forms and Rust Palpo with authenticated provider fixtures;
 the retired-history screenshot was inspected. An earlier hidden-window run
 missed the initial Waiting input before reaching the lifecycle flow; failed runs
 remain recorded. This evidence does not claim live executor termination.
+
+## Account notification preferences
+
+Notifications now exposes account-scoped delivery/reminder switches, reminder
+times and quiet hours, with the native device time zone as an optional suggestion.
+The Rust service retains revisioned settings and checks daylight-saving wall
+time. Disabled delivery does not decide a pending action; overdue reminders are
+combined into one delivery when service resumes.
+
+The native run passed twenty checks at
+`target/palpo-coordinator-validation/a66cfbd69adb479aa3dfa58e65d9f7ac/report.json`.
+The settings screenshot was inspected. This run saves the coordinator's settings,
+reopens them and verifies that the owner's settings remain independent. The
+startup harness now waits for the initial Inbox HTTP request to settle before
+clicking Waiting, fixing the previously recorded missed input while busy.

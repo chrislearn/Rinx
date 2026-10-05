@@ -93,6 +93,14 @@ def launch(root, binary, endpoint, role):
                 pass
             time.sleep(.1)
         app.wait_text("Pending actions stay here", timeout=45)
+        # The Inbox shell draws before its initial HTTP result. Input while the
+        # bundle is busy is intentionally ignored; wait for that first result.
+        for _ in range(150):
+            if inspect(app)["pending"] == 0 and not any(w.get("i") == "status" and w.get("t") == "Working…" for w in app.snap()):
+                break
+            time.sleep(.1)
+        else:
+            raise AssertionError("Initial Inbox request did not settle")
         return app
     except Exception:
         app.stop()
@@ -336,6 +344,25 @@ def main():
             owner.request('/m', k='scroll', x=210, y=420, dy=100, wait=1)
         owner.wait_text("Agent removed · cleanup verified. Usage settlement is tracked separately.")
         owner.capture("owner-agent-retired")
+        coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: On")
+        coordinator.click_id("notifications_enabled"); coordinator.wait_text("Action notifications: Off")
+        coordinator.click_id("reminders_enabled"); coordinator.wait_text("Reminders: Off")
+        for _ in range(16):
+            if any(w.get("i") == "save_notifications" for w in coordinator.snap()):
+                break
+            coordinator.request('/m', k='scroll', x=400, y=420, dy=100, wait=1)
+        coordinator.click_id("save_notifications")
+        coordinator.wait_text("Notification settings saved for your account")
+        coordinator.request('/m', k='scroll', x=400, y=420, dy=-2000, wait=1)
+        coordinator.wait_text("Action notifications: Off"); coordinator.capture("coordinator-notifications-disabled")
+        coordinator.click_id("inbox"); coordinator.wait_text("Pending actions stay here")
+        coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: Off")
+        owner.click_id("notifications"); owner.wait_text("Action notifications: On")
+        with sqlite3.connect(root / "admin.sqlite") as db:
+            stored = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+            preferences = stored["actionInbox"]["preferences"]["@coordinator:example.test"]
+            assert preferences["revision"] == 1 and preferences["value"]["enabled"] is False
+            assert preferences["value"]["remindersEnabled"] is False
         report["checks"] = ["manager cannot approve own agent", "Matrix admin has no implicit agent approval",
             "coordinator approves from the actual OctoScript form", "theme changes preserve draft and request count",
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
@@ -346,7 +373,8 @@ def main():
             "top-up retry after provider execution returns the original result",
             "owner sees a terminal provider refusal without losing the approved decision",
             "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
-            "retired history remains visible with usage settlement separate"]
+            "retired history remains visible with usage settlement separate",
+            "native notification preferences persist after reopening", "notification settings stay isolated per Matrix account"]
         report["passed"] = True
     except Exception:
         for app in apps:

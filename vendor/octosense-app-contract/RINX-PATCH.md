@@ -10,3 +10,7 @@ require at least version 1.2 so build, admission and packaging agree.
 The additive `palpo.agents.control` grant and consent text match companion App
 Hub commit `6180376` on `fix/palpo-project-consent`. It authorizes bounded
 project-scoped lifecycle intents; the backend still checks current authority.
+
+The notification read/settings grants match App Hub commit `8ff0654`. The native
+host supplies a device time-zone suggestion; only an explicit settings save
+changes the account preference.

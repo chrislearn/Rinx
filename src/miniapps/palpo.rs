@@ -134,6 +134,10 @@ impl PalpoHost {
         if service == "palpo.session.open" {
             result["openAction"] = json!(self.action.as_deref().unwrap_or(""));
         }
+        if matches!(service, "palpo.notifications.get" | "palpo.notifications.set") {
+            result.as_object_mut().ok_or("Invalid notification preferences")?
+                .insert("deviceTimeZone".into(), json!(iana_time_zone::get_timezone().ok()));
+        }
         lease.check(account)?;
         if service == "palpo.fleets.export" {
             let bytes =

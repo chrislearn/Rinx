@@ -4,6 +4,7 @@ show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 if !mod.rinx_theme.reloading() {
     mod.palpo = {ready: false busy: false admin: false coordinator: false owner: false services: [] user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
+        notification_settings: nil device_time_zone: nil quiet_enabled: false quiet_start: "22:00" quiet_end: "08:00" quiet_zone: "UTC"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
     if fs.exists("draft.json") {
         let saved = fs.read("draft.json").parse_json()
@@ -66,6 +67,9 @@ fn refresh_page(){
     if P.page == "inbox" {
         call("palpo.inbox.list", {view: P.filter offset: P.offset limit: 50}, fn(data){ P.rows = data.actions P.pending = data.pendingCount P.total = data.total })
     }
+    if P.page == "notifications" {
+        call("palpo.notifications.get", {}, fn(data){ apply_notification_settings(data) })
+    }
     if P.page == "projects" {
         call("palpo.projects.list", {offset: P.offset limit: 50}, fn(data){ P.rows = data.projects P.total = data.total })
     }
@@ -87,6 +91,26 @@ fn refresh_page(){
     if P.page == "agents" {
         call("palpo.agents.list", {fleetId: P.selected.id}, fn(data){ P.rows = data.agents })
     }
+}
+fn apply_notification_settings(data){
+    P.notification_settings = data
+    P.device_time_zone = data.deviceTimeZone
+    P.quiet_enabled = data.quietHours != nil
+    if P.quiet_enabled {
+        P.quiet_start = data.quietHours.start P.quiet_end = data.quietHours.end P.quiet_zone = data.quietHours.timeZone
+    } else {
+        P.quiet_start = "22:00" P.quiet_end = "08:00"
+        P.quiet_zone = if P.device_time_zone != nil {P.device_time_zone} else {"UTC"}
+    }
+}
+fn save_notification_settings(){
+    let prefs = P.notification_settings
+    let quiet = nil
+    if P.quiet_enabled { quiet = {start: P.quiet_start end: P.quiet_end timeZone: P.quiet_zone} }
+    call("palpo.notifications.set", {expectedRevision: prefs.revision enabled: prefs.enabled remindersEnabled: prefs.remindersEnabled
+        reminderMinutes: prefs.reminderMinutes quietHours: quiet}, fn(data){
+        apply_notification_settings(data) P.notice = "Notification settings saved for your account. Pending actions stay in your Inbox."
+    })
 }
 fn save_form(){ fs.write("draft.json", P.form.to_json()) P.has_draft = true }
 fn edit_field(i, value){ P.form.fields[i].value = value P.form.payload[P.form.fields[i].key] = value save_form() }
@@ -220,6 +244,7 @@ navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing:
         if available("palpo.requests.list") { requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")} }
         if available("palpo.catalog.list") { resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")} }
         if available("palpo.fleets.list") { fleets := mod.widgets.RinxButton{text: "Engagements" on_click: || open_page("fleets")} }
+        if available("palpo.notifications.get") && available("palpo.notifications.set") { notifications := mod.widgets.RinxButton{text: "Notifications" on_click: || open_page("notifications")} }
         if P.admin {
             if available("palpo.activity.list") { activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")} }
             if available("palpo.accounts.list") { accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")} }
@@ -301,6 +326,40 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 }
                 if row.needsMyAction { snooze := mod.widgets.RinxButton{text: "Remind me in an hour" on_click: || snooze_action()} }
                 latest := mod.widgets.RinxButton{text: "Refresh result" on_click: || review_action(row)}
+            }
+        }
+        if P.page == "notifications" && P.notification_settings != nil {
+            let prefs = P.notification_settings
+            mod.widgets.PalpoCard{
+                mod.widgets.RinxPageTitle{width: Fill text: "Notifications"}
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Saved for this Matrix account across devices. Pending actions stay in your Inbox even when notifications are off."}
+                notifications_enabled := mod.widgets.RinxButton{text: if prefs.enabled {"Action notifications: On"} else {"Action notifications: Off"}
+                    on_click: || {prefs.enabled = !prefs.enabled draw_page()}}
+                reminders_enabled := mod.widgets.RinxButton{text: if prefs.remindersEnabled {"Reminders: On"} else {"Reminders: Off"}
+                    on_click: || {prefs.remindersEnabled = !prefs.remindersEnabled draw_page()}}
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reminders are timed from when an action starts. Reading it does not finish it. Missed reminders are combined into one."}
+                for i in prefs.reminderMinutes.len() {
+                    let label = "Reminder " + (i + 1) + " (minutes after action starts)"
+                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: label}
+                    mod.widgets.RinxInput{width: Fill text: "" + prefs.reminderMinutes[i] empty_text: label
+                        on_change: |value| { prefs.reminderMinutes[i] = value }}
+                }
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Use increasing times between 15 minutes and 7 days. After the last reminder, the action remains pending."}
+                quiet_hours := mod.widgets.RinxButton{text: if P.quiet_enabled {"Quiet hours: On"} else {"Quiet hours: Off"}
+                    on_click: || {P.quiet_enabled = !P.quiet_enabled draw_page()}}
+                if P.quiet_enabled {
+                    mod.widgets.RinxLabel{width: Fill text: "Quiet hours start (HH:MM)"}
+                    mod.widgets.RinxInput{width: Fill text: P.quiet_start empty_text: "Quiet hours start (HH:MM)" on_change: |value| {P.quiet_start = value}}
+                    mod.widgets.RinxLabel{width: Fill text: "Quiet hours end (HH:MM)"}
+                    mod.widgets.RinxInput{width: Fill text: P.quiet_end empty_text: "Quiet hours end (HH:MM)" on_change: |value| {P.quiet_end = value}}
+                    mod.widgets.RinxLabel{width: Fill text: "Time zone"}
+                    mod.widgets.RinxInput{width: Fill text: P.quiet_zone empty_text: "Time zone" on_change: |value| {P.quiet_zone = value}}
+                    if P.device_time_zone != nil {
+                        device_zone := mod.widgets.RinxButton{text: "Use this device's time zone" on_click: || {P.quiet_zone = P.device_time_zone draw_page()}}
+                    }
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Use a time zone such as America/Los_Angeles. Quiet hours follow daylight saving time and postpone all Palpo notifications."}
+                }
+                save_notifications := mod.widgets.RinxPrimaryButton{text: "Save notification settings" on_click: || save_notification_settings()}
             }
         }
         if P.page == "form" {

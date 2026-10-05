@@ -134,6 +134,8 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     "palpo.inbox.activate",
     "palpo.inbox.seen",
     "palpo.inbox.snooze",
+    "palpo.notifications.get",
+    "palpo.notifications.set",
     "matrix.account_info",
     "matrix.device",
     "matrix.dm_find",
