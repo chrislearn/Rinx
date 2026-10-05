@@ -32,17 +32,20 @@
     "palpo.inbox.seen",
     "palpo.inbox.snooze",
     "palpo.notifications.get",
-    "palpo.notifications.set"
+    "palpo.notifications.set",
+    "palpo.actions.room.get",
+    "palpo.actions.room.ensure"
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "e27952ed1522391168f77604935f030acc8252174bcea9e7cd75a072efea1c72"
+    "bundle_blake3": "357542cab6df3aaf6c7801b70b51cf40952e85320c8d84343fa4f9cc4b7e6d62"
   },
   "name": "Palpo",
   "requires": [
     "palpo-admin-v1",
     "palpo-account-navigation-v1",
-    "palpo-agent-navigation-v1"
+    "palpo-agent-navigation-v1",
+    "palpo-actions-room-v1"
   ],
   "schema": 1,
   "version": "0.1.0"

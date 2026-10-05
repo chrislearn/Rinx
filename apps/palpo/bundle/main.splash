@@ -2,7 +2,7 @@ width: Fill height: Fill flow: Down spacing: 12
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
-    mod.palpo = {ready: false busy: false admin: false approver: false reviewer: false user: "" page: "inbox" filter: "needs_action"
+    mod.palpo = {board_generation: 0 room_board: false ready: false busy: false admin: false approver: false reviewer: false user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil selected_fleet: nil watch_generation: 0 pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         notification_settings: nil device_time_zone: nil quiet_enabled: false quiet_start: "22:00" quiet_end: "08:00" quiet_zone: "UTC"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
@@ -19,7 +19,7 @@ let P = mod.palpo
 mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
     draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
 
-fn draw_page(){ ui.content.render() ui.navigation.render() ui.status.set_text(P.notice) }
+fn draw_page(){ ui.navigation.set_visible(!P.room_board) ui.status.set_visible(P.notice != "") ui.page_title.set_text(if P.room_board {"My Actions · " + P.pending} else {"Palpo"}) ui.content.render() ui.navigation.render() ui.status.set_text(P.notice) }
 fn connection_verified(fleet){
     return fleet != nil && fleet.state == "ready" && fleet.readiness != nil && fleet.readiness.eventDelivery == "verified" && fleet.readiness.verifiedAt != nil
 }
@@ -110,7 +110,7 @@ fn call(service, args, complete){
     P.busy = true
     P.request_count = P.request_count + 1
     P.notice = "Working…"
-    ui.status.set_text(P.notice)
+    ui.status.set_visible(true) ui.status.set_text(P.notice)
     host.request(service, args, fn(r){
         P.busy = false
         if r.is_ok { P.notice = "" complete(r.data) }
@@ -118,9 +118,20 @@ fn call(service, args, complete){
         draw_page()
     })
 }
+fn watch_board(generation){
+    if !P.ready || !P.room_board || generation != P.board_generation { return }
+    start_timeout(30.0, || {
+        if !P.ready || !P.room_board || generation != P.board_generation { return }
+        if P.page == "inbox" && !P.busy { refresh_page() }
+        watch_board(generation)
+    })
+}
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
+        P.room_board = data.roomBoard
         P.ready = true P.admin = data.isAdmin P.approver = data.canApproveProjects P.reviewer = data.canReviewAgents P.user = data.userId
+        P.board_generation = P.board_generation + 1
+        if P.room_board { watch_board(P.board_generation) }
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
@@ -357,12 +368,12 @@ if !mod.rinx_theme.reloading() { start_timeout(0.05, || connect_app()) }
 if mod.rinx_theme.reloading() { start_timeout(0.05, || {ui.content.render_style() ui.navigation.render_style()}) }
 
 View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
-    mod.widgets.RinxPageTitle{width: Fill text: "Palpo"}
+    page_title := mod.widgets.RinxPageTitle{width: Fill text: if P.room_board {"My Actions · " + P.pending} else {"Palpo"}}
     refresh := mod.widgets.RinxButton{text: "Refresh" on_click: || refresh_page()}
     disconnect := mod.widgets.RinxButton{text: "Disconnect" on_click: || call("palpo.session.disconnect", {}, fn(data){ stop_connection_watch() P.ready = false P.notice = "Palpo disconnected. Rinx remains signed in." })}
 }
-navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
-    if P.ready {
+navigation := View{visible: !P.room_board width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
+    if P.ready && !P.room_board {
         inbox := mod.widgets.RinxButton{text: if P.approver {"Project approvals · " + P.pending} else {"My Inbox · " + P.pending} on_click: || open_page("inbox")}
         projects := mod.widgets.RinxButton{text: "My projects" on_click: || open_page("projects")}
         requests := mod.widgets.RinxButton{text: "My agents" on_click: || open_page("requests")}
@@ -374,7 +385,7 @@ navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing:
         }
     }
 }}
-status := mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.notice}
+status := mod.widgets.RinxHint{visible: P.notice != "" width: Fill flow: Flow.Right{wrap: true} text: P.notice}
 content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render: || {
     if !P.ready {
         mod.widgets.PalpoCard{
@@ -394,7 +405,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 history := mod.widgets.RinxButton{text: "History" on_click: || inbox_filter("history")}
             }
             mod.widgets.PalpoCard{
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requests stay here until completed. Reading a notification does not complete an action."}
+                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Pending work stays here until completed."}
                 notifications := mod.widgets.RinxButton{text: "Notification settings" on_click: || open_page("notifications")}
                 if P.has_draft { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
             }
@@ -403,6 +414,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 let row = P.rows[i]
                 mod.widgets.PalpoCard{
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.name}
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Palpo · " + row.requesterMxid}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: action_label(row)}
                     if row.reminderStatus != nil && row.reminderStatus.overdue {
                         mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Overdue · this action still needs your attention."}
@@ -415,6 +427,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if P.offset > 0 { previous := mod.widgets.RinxButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
                 if P.offset + 50 < P.total { next := mod.widgets.RinxButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
             }
+            if !P.room_board { actions_room := mod.widgets.RinxButton{text: "Open My Actions room" on_click: || call("palpo.actions.room.ensure", {}, fn(data){ P.notice = "Opening My Actions in Rinx." })} }
         }
         if P.page == "action" {
             let row = P.selected

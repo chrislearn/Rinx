@@ -173,6 +173,7 @@ def main():
     parser.add_argument('--node', type=Path, required=True)
     parser.add_argument('--binary', type=Path, default=Path('target/fast/examples/palpo_miniapp'))
     parser.add_argument('--smoke', action='store_true')
+    parser.add_argument('--board-binary', type=Path)
     args = parser.parse_args()
     root = Path('target/palpo-validation') / uuid.uuid4().hex
     root.mkdir(parents=True)
@@ -247,6 +248,24 @@ def main():
             assert json.loads((owner.root / 'profile/app/draft.json').read_text()) == draft_before
             report['checks'].append('draft and idempotency key survive process restart')
             owner.click_id('submit'); owner.wait_text('Open latest result')
+            if args.board_binary:
+                report['board_binary_sha256'] = hashlib.sha256(args.board_binary.read_bytes()).hexdigest()
+                board = launch(root / 'board', args.board_binary, endpoint, admin=True); apps.append(board)
+                board.wait_text('Native test project'); board.wait_text('History')
+                assert not any(w.get('i') in {'projects', 'resources', 'actions_room'} for w in board.snap())
+                board.capture('action-board-light')
+                board.click_id('review'); board.wait_text('Approve')
+                board.capture('action-board-latest-result')
+                board.click_id('toggle'); board.wait_text('Ordinary chat timeline fallback')
+                board.capture('action-board-history')
+                board.click_id('toggle'); board.wait_text('Native test project')
+                board.click_id('dark'); board.wait_text('Native test project')
+                board.capture('action-board-dark')
+                board.click_id('switch_account'); board.wait_text('Ordinary chat timeline fallback')
+                assert not any(w.get('i') in {'review', 'approve', 'toggle'} for w in board.snap())
+                board.capture('action-board-account-switch')
+                assert not native_errors(board), native_errors(board)
+                report['checks'].append('actual ActionRoomBoard and MiniAppsPanel load the trusted bundle with a local SDK account, open latest details, return to chat fallback, survive theme reload and revoke on account switch; no live Matrix timeline claimed')
             admin = launch(root / 'admin', args.binary, endpoint, admin=True); apps.append(admin)
             admin.wait_text('Native test project'); admin.click_id('review'); admin.wait_text('Approve')
             admin.click_id('approve'); admin.wait_text('Decision reason')
@@ -424,7 +443,7 @@ def main():
             owner.click_id('inbox'); owner.click_id('notifications'); owner.wait_text('Saved for this Matrix account across devices')
             owner.click_id('reminders_enabled'); owner.wait_text('Reminders: Off')
             fill(owner, 'Reminder 1 (minutes after action starts)', '120')
-            owner.click_id('quiet_hours'); owner.wait_text('Quiet hours start (HH:MM)')
+            owner.click_id('quiet_hours'); owner.scroll_to_text('Quiet hours start (HH:MM)')
             fill(owner, 'Quiet hours start (HH:MM)', '22:00')
             fill(owner, 'Quiet hours end (HH:MM)', '07:30')
             fill(owner, 'Time zone', 'UTC')
@@ -435,7 +454,7 @@ def main():
             assert prefs['@owner:example.test'] == {'revision': 1, 'enabled': True, 'remindersEnabled': False,
                 'reminderMinutes': [120, 1440, 2880], 'quietHours': {'start': '22:00', 'end': '07:30', 'timeZone': 'UTC'}}, prefs
             assert prefs['@admin:example.test']['revision'] == 0 and prefs['@admin:example.test']['remindersEnabled'], prefs
-            owner.click_id('inbox'); owner.click_id('notifications'); owner.wait_text('Reminders: Off')
+            owner.click_id('inbox'); owner.click_id('notifications'); owner.scroll_to_text('Reminders: Off')
             owner.scroll_to_text('07:30'); owner.capture('notification-settings-saved')
             report['checks'].append('native reminder cadence and quiet hours persist for the current account; another account remains unchanged')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')

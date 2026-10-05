@@ -5,6 +5,11 @@ within `1.x` it only grows.
 
 ## 1.2.0 (pending release)
 
+- `palpo.actions.room.get` verifies the current account's private room without
+  creating or joining it. Separate `palpo.actions.room.ensure` explicitly sets up
+  and opens it, requiring `palpo-actions-room-v1`. Hosts verify the closed
+  account/bot/server/room/purpose reply before navigation or mounting the board;
+  room names and Matrix event content do not grant this authority.
 - Separate `palpo.notifications.get` / `palpo.notifications.set` grants cover
   the current account's server-side reminders and quiet hours. Inbox/read-only
   grants do not imply the ability to change notification preferences.

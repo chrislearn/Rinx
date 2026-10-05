@@ -41,6 +41,7 @@ pub async fn matrix_request(
 }
 
 
+pub mod action_room;
 mod catalog_worker;
 mod consent;
 mod library;
@@ -72,5 +73,6 @@ pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
     });
     library::script_mod(vm);
     ui::script_mod(vm);
+    action_room::script_mod(vm);
     window::script_mod(vm);
 }

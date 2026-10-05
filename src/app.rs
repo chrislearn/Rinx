@@ -559,6 +559,15 @@ impl MatchEvent for App {
                     }
                     continue;
                 }
+                if let MiniAppsAction::OpenActionsRoom(target) = action {
+                    if current_user_id().as_ref() == Some(&target.account) {
+                        self.cancel_signup_navigation();
+                        self.close_mini_apps(cx);
+                        cx.action(NavigationBarAction::GoToHome);
+                        self.navigate_to_room(cx, None, &BasicRoomDetails::RoomId(RoomNameId::empty(target.room_id.clone())));
+                    }
+                    continue;
+                }
                 if let MiniAppsAction::OpenAgentChat(target) = action {
                     let account = current_user_id();
                     let state = cx.get_global::<RoomsListRef>().get_room_state(&target.room_id);

@@ -244,6 +244,11 @@ pub fn resolve(manifest: &AppManifest, limits: &HostLimits) -> Result<AppPolicy,
         return Err("palpo.requests.open requires palpo-agent-navigation-v1".into());
     }
 
+    if capabilities.contains("palpo.actions.room.ensure")
+        && !manifest.requires.iter().any(|f| f == "palpo-actions-room-v1") {
+        return Err("palpo.actions.room.ensure requires palpo-actions-room-v1".into());
+    }
+
     let mut hosts = BTreeSet::new();
     for host in &manifest.network.hosts {
         check_host(host)?;

@@ -60,13 +60,40 @@ impl AgentChatTarget {
     }
 }
 
+/// Closed server reply for a private action room. Matrix content is only a hint.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActionsRoomTarget {
+    v: u8,
+    revision: u64,
+    purpose: String,
+    pub account: ruma::OwnedUserId,
+    pub room_id: ruma::OwnedRoomId,
+    bot_mxid: ruma::OwnedUserId,
+    server_name: String,
+}
+impl ActionsRoomTarget {
+    pub fn from_reply(value: &Value, account: &str) -> Result<Self, String> {
+        let target: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "Palpo returned an invalid My Actions room")?;
+        if target.v != 1 || target.revision == 0 || target.purpose != "my_actions" || target.account.as_str() != account
+            || target.server_name != target.account.server_name().as_str()
+            || target.bot_mxid.server_name() != target.account.server_name()
+            || target.bot_mxid == target.account {
+            return Err("Palpo returned a different account or action room authority".into());
+        }
+        Ok(target)
+    }
+}
+
 #[derive(Clone, Copy)]
-pub enum PalpoNavigation { Signup, AgentChat }
+pub enum PalpoNavigation { Signup, AgentChat, ActionsRoom }
 impl PalpoNavigation {
     pub fn for_service(service: &str) -> Option<Self> {
         match service {
             "palpo.accounts.open" => Some(Self::Signup),
             "palpo.requests.open" => Some(Self::AgentChat),
+            "palpo.actions.room.ensure" => Some(Self::ActionsRoom),
             _ => None,
         }
     }
@@ -85,6 +112,7 @@ struct Session {
 pub struct PalpoHost {
     digest: String,
     action: Option<String>,
+    board: Option<ActionsRoomTarget>,
     session: Arc<Mutex<Option<Session>>>,
     client: reqwest::Client,
 }
@@ -96,6 +124,7 @@ impl PalpoHost {
         Ok(Self {
             digest,
             action: None,
+            board: None,
             session: Default::default(),
             client: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -106,6 +135,10 @@ impl PalpoHost {
     }
     pub fn with_action(mut self, action: Option<String>) -> Self {
         self.action = action.filter(|id| valid_action(id));
+        self
+    }
+    pub fn with_board(mut self, board: Option<ActionsRoomTarget>) -> Self {
+        self.board = board;
         self
     }
     /// Production callers derive all four context values from the active SDK
@@ -175,6 +208,17 @@ impl PalpoHost {
             });
         }
         lease.authorize(account, service, None)?;
+        if let Some(board) = &self.board {
+            // Every operation from an embedded board requires its current room
+            // binding. Business authorization is still checked by the operation.
+            lease.authorize(account, "palpo.actions.room.get", None)?;
+            let checked = self.post(&endpoint, "call", &session.as_ref().unwrap().token,
+                &json!({"service":"palpo.actions.room.get", "args":{"roomId":board.room_id}})).await?;
+            if ActionsRoomTarget::from_reply(&checked["room"], account)? != *board {
+                return Err("My Actions room changed. Reopen the room or use the Inbox.".into());
+            }
+            lease.check(account)?;
+        }
         let result = self
             .post(
                 &endpoint,
@@ -204,6 +248,16 @@ impl PalpoHost {
                 json!(result["canApproveProjects"].as_bool().unwrap_or(false));
             result["canReviewAgents"] = json!(result["canReviewAgents"].as_bool().unwrap_or(false));
             result["openAction"] = json!(self.action.as_deref().unwrap_or(""));
+            result["roomBoard"] = json!(self.board.is_some());
+        }
+        if service == "palpo.actions.room.ensure" {
+            ActionsRoomTarget::from_reply(&result, account)?;
+        }
+        if service == "palpo.actions.room.get" && !result["room"].is_null() {
+            let target = ActionsRoomTarget::from_reply(&result["room"], account)?;
+            if args["roomId"].as_str().is_some_and(|room| room != target.room_id.as_str()) {
+                return Err("Palpo returned a different My Actions room".into());
+            }
         }
         lease.check(account)?;
         if service == "palpo.fleets.export" {
@@ -470,6 +524,20 @@ pub async fn request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn action_room_target_is_closed_and_bound_to_account_bot_server_and_revision() {
+        let value = json!({"v":1,"revision":1,"purpose":"my_actions","account":"@owner:example.test",
+            "roomId":"!actions:example.test","botMxid":"@bot:example.test","serverName":"example.test"});
+        let actor = "@owner:example.test";
+        assert!(ActionsRoomTarget::from_reply(&value, actor).is_ok());
+        assert!(ActionsRoomTarget::from_reply(&value, "@other:example.test").is_err());
+        for (key, invalid) in [("v", json!(2)), ("revision", json!(0)), ("purpose", json!("chat")),
+            ("serverName", json!("evil.test")), ("botMxid", json!(actor)), ("botMxid", json!("@bot:evil.test")),
+            ("roomId", json!("https://evil.test")), ("url", json!("https://evil.test"))] {
+            let mut altered = value.clone(); altered[key] = invalid;
+            assert!(ActionsRoomTarget::from_reply(&altered, actor).is_err(), "accepted {key}");
+        }
+    }
     #[test]
     fn signup_navigation_is_closed_and_bound_to_the_current_account() {
         let value = json!({"v":1,"requestId":"a".repeat(32),"account":"@admin:example.test",

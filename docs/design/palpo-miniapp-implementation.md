@@ -23,7 +23,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
 | Named agent appears and works in its project room | Existing provisioning, earlier live agent setup and ready-agent navigation with native fixture coverage | Corrected grant-based end-to-end approval through actual room readiness |
 | Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
-| Durable actions and notifications | Inbox/outbox, private notices, stale-card checks; durable per-account preferences, quiet hours, snooze and coalesced reminder delivery | Cancel/resubmit/expiry parity, Glance board, live delivery and OS entry |
+| Durable actions and notifications | Inbox/outbox, private notices, stale-card checks; durable per-account preferences, quiet hours, snooze, coalesced reminder delivery and a verified native room board | Cancel/resubmit/expiry parity, room-list pending badge/default pin, richer age/deadline metadata, live delivery and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
 | Signup decisions | Authorized original-event navigation, current-role/source verification, account-bound invitation continuation | Full native timeline and real Matrix approve/reject acceptance |
 | Shared theme and desktop windows | Native theme-preservation and separate-window tests, including budget, assignment, agent and top-up forms | Hosted OctoSense acceptance |
@@ -34,6 +34,59 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Verified My Actions room board — 2026-10-04
+
+Opening a joined, server-verified My Actions room mounts the installed Palpo
+bundle in `ActionRoomBoard` / `MiniAppsPanel`. Needs my action, Waiting and
+History use the same authorized paginated Inbox as the separate app window.
+There is no message-derived task database and no execution of room-supplied
+Splash. The normal RoomScreen timeline remains behind the Chat history toggle;
+returning to the board revokes the previous app instance and fetches fresh work.
+A board polls its binding and, while showing the Inbox, current records every
+30 seconds. Its count is a pending-work count, separate from Matrix reads.
+
+The exact `palpo.actions.room.get` grant is read-only. The separate
+`palpo.actions.room.ensure` grant, requiring `palpo-actions-room-v1`, explicitly
+sets up, joins and navigates to the current account's room. The server checks
+bot identity, private membership, power levels, purpose and a saved revision.
+Leaving stops delivery. Explicit setup can replace an invalid room; revisioned
+aliases recover a lost create response without making another valid room or
+losing pending work. Frozen notification envelopes cannot keep targeting the
+abandoned binding. App Hub companion `d9c790d` owns these additive grants; older
+Inbox read permissions do not acquire room setup authority.
+
+Rinx probes only after the current account consented to the exact installed
+bundle digest. Every board operation revalidates its server binding, and account
+changes revoke queued requests and discard the board. Theme reload retains the
+active view. The board does not overwrite the assistant's separate foreground
+app context. Regular mini-app navigation keeps the existing desktop window.
+
+Validation: **148 backend tests**, **31 contract tests** (also rerun at
+App Hub `6180376`), eight Palpo adapter tests and the native board lifecycle
+unit check pass. The ordinary optimized Rinx release build passes without
+the instrument-only feature. Hagency's two selected integration checks pass against Palpo
+`8ccc7b0e52f723e2c931946c9350a02a0824decd`, including the actual HTTP/SQLite
+worker receipt and restart path. The final Makepad run
+`938208777f8149b3b842f3bb78890d7f` passes **16 checks**. The light, dark and
+chat-fallback captures were inspected. Its report records both example hashes
+and the exact production bundle digests. It explicitly verifies that History
+remains visible, pending detail opens, theme reload survives and account switch
+removes the board. Normal history-search navigation and the room-info button
+return to the ordinary timeline instead of being swallowed by the board.
+
+The initial instrument failures exposed a dynamic Size scope error and a
+fixture widget-ID collision; both were fixed. Long quiet-hour forms are tested
+by scrolling to their real widgets. A separate run hit the existing hidden-window
+script startup budget; the successful full run did not bypass that budget or
+replay input. This evidence supersedes the unsuccessful runs.
+
+The instrument-only `palpo_action_room` example mounts the actual native board
+and panel with a fixed local SDK account, the actual HTTP adapter and production
+bundle. Its ordinary timeline is an explicit fixture label, so these checks do
+not prove a live Matrix timeline, OS notification delivery or a mobile build.
+The feature is absent from ordinary Rinx builds. Production and visible user
+sessions remain unchanged.
 
 ## Account notification preferences and quiet hours — 2026-10-04
 
@@ -57,8 +110,8 @@ informational messages stay quiet. Neither includes configuration secrets.
 Inbox cards show overdue reminder schedules and snooze status independently of
 workflow completion. Reading, disabling notifications and reaching the last
 reminder leave the action pending. Explicit snooze works after the default
-schedule ends, subject to notification preferences. Workflow expiry and the My
-Actions room board remain separate outstanding requirements.
+schedule ends, subject to notification preferences. Workflow expiry remains outstanding. The later room-board checkpoint above
+adds a native projection without changing reminder completion semantics.
 
 Backend validation passes **141 tests**, followed by **21 targeted checks** after
 the final notification lookup optimization. The shared contract passes **30
@@ -503,8 +556,9 @@ current acceptance checklist. Signup navigation is implemented; actual native
 timeline/verdict acceptance, configuration saving/import and full account-
 switch/revocation integration remain. Earlier live contribution checks below
 used the superseded Rinx-originated model and do not validate Hagency-originated
-association. My Actions uses private Matrix notices and links; the Glance-style
-board, pinning, quiet hours and OS-notification mini-app entry remain.
+association. My Actions now has a verified native room board, private notices
+and quiet hours. Room-list pending badges/default pinning, richer age/deadline
+metadata and OS-notification mini-app entry remain.
 
 Delegated decisions, top-ups, scoped usage/lifecycle projection and verified
 retirement now have local backend and native fixture coverage. Actual

@@ -16,14 +16,14 @@ fn manifest_with(body: &str) -> String {
 fn palpo_extension_preserves_schema_and_declares_its_host_feature() {
     assert_eq!(SCHEMA, 1);
     assert_eq!(SCHEMA_MINOR, 0);
-    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1", "palpo-account-navigation-v1", "palpo-agent-navigation-v1"]);
+    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1", "palpo-account-navigation-v1", "palpo-agent-navigation-v1", "palpo-actions-room-v1"]);
 }
 
 #[test]
 fn palpo_uses_exact_service_grants() {
     let services = serde_json::to_string(octosense_app_contract::palpo::SERVICES).unwrap();
     let manifest = parse(&manifest_with(&format!(
-        r#""requires":["palpo-admin-v1","palpo-account-navigation-v1","palpo-agent-navigation-v1"],"capabilities":{services}"#
+        r#""requires":["palpo-admin-v1","palpo-account-navigation-v1","palpo-agent-navigation-v1", "palpo-actions-room-v1"],"capabilities":{services}"#
     ))).unwrap();
     let limits = HostLimits::system().with_require_signature(false);
     let resolved = resolve(&manifest, &limits).unwrap();
@@ -206,4 +206,15 @@ fn notification_read_access_does_not_grant_settings_changes() {
     assert!(!policy.allows("palpo.notifications.set"));
     let write = parse(&manifest_with(r#""capabilities":["palpo.notifications.set"]"#)).unwrap();
     assert!(resolve(&write, &limits).unwrap().allows("palpo.notifications.set"));
+}
+
+#[test]
+fn actions_room_setup_is_explicit_and_does_not_follow_from_inbox_read() {
+    let limits = HostLimits::system().with_require_signature(false);
+    let read = parse(&manifest_with(r#""capabilities":["palpo.inbox.list","palpo.actions.room.get"]"#)).unwrap();
+    assert!(!resolve(&read, &limits).unwrap().allows("palpo.actions.room.ensure"));
+    let missing = parse(&manifest_with(r#""capabilities":["palpo.actions.room.ensure"]"#)).unwrap();
+    assert!(resolve(&missing, &limits).unwrap_err().contains("palpo-actions-room-v1"));
+    let explicit = parse(&manifest_with(r#""requires":["palpo-actions-room-v1"],"capabilities":["palpo.actions.room.ensure"]"#)).unwrap();
+    assert!(resolve(&explicit, &limits).unwrap().allows("palpo.actions.room.ensure"));
 }
