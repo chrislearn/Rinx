@@ -58,6 +58,9 @@ fn action_label(row){
             if row.execution == "preparing" { return "Finish preparing the project room" }
             if row.execution == "awaiting_reservation" { return "Approved · waiting for Hagency to reserve the budget" }
             if row.execution == "reservation_refused" { return "Budget reservation refused · review the result" }
+            if row.execution == "releasing_reservations" { return "Releasing unused reservations · waiting for Hagency" }
+            if row.execution == "release_refused" { return "Unused release refused · reservations remain held" }
+            if row.execution == "released" { return "Failed allocation closed · unused reservations released" }
             if row.execution == "done" { return "Project allocated · ready for agent requests" }
         }
         if row.state == "requested" { return "Waiting for project approval" }
@@ -67,6 +70,16 @@ fn action_label(row){
         }
     }
     return row.kind + " · " + row.state
+}
+fn reservation_result(code){
+    if code == "insufficient_capacity" { return "The contribution cannot currently cover this budget." }
+    if code == "authority" { return "Administrator permission changed. Review access before retrying." }
+    if code == "expired" || code == "grant_expired" { return "The approved reservation expired." }
+    if code == "grant_revoked" { return "The contribution or project was revoked." }
+    if code == "conflict" { return "The reviewed allocation changed or has already funded an agent." }
+    if code == "resource_unavailable" { return "The selected resource is unavailable." }
+    if code == "not_found" { return "Hagency could not find the reviewed allocation." }
+    return "Hagency could not apply this operation. Review the latest allocation before retrying."
 }
 fn stop_connection_watch(){ P.watch_generation = P.watch_generation + 1 }
 fn read_connection(id, generation, remaining){
@@ -165,7 +178,7 @@ fn new_form(title, service, payload, fields){
     if P.busy { return }
     stop_connection_watch()
     call("palpo.intent.new", {}, fn(data){
-        if service == "palpo.inbox.decide" { payload.commandId = data.requestId }
+        if service == "palpo.inbox.decide" || service == "palpo.inbox.recover" { payload.commandId = data.requestId }
         if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" { payload.requestId = data.requestId }
         P.form = {title: title service: service payload: payload fields: fields}
         P.page = "form" save_form()
@@ -192,6 +205,12 @@ fn request_project(fleet, resource, contribution){
         {key: "maxRatePerDay" label: "Combined tokens per day" value: ""}
         {key: "durationHours" label: "Allocation duration (hours)" value: ""}
     ])
+}
+fn recover_project(operation){
+    let row = P.selected
+    new_form(if operation == "retry" {"Retry the approved project budget"} else {"Release the failed allocation"}, "palpo.inbox.recover",
+        {id: row.id expectedRevision: row.revision operation: operation reason: ""},
+        [{key: "reason" label: "Recovery reason" value: ""}])
 }
 fn review_action(row){
     call("palpo.inbox.get", {id: row.id}, fn(data){
@@ -384,6 +403,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if row.payload.allocations != nil {
                     for i in row.payload.allocations.len() {
                         let allocation = row.payload.allocations[i]
+                        mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: allocation.resourceName}
                         mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Requested budget: " + allocation.limits.tokens + " tokens"}
                         mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Up to " + allocation.limits.maxAgents + " agents · " + allocation.limits.maxRatePerDay + " tokens/day · expires " + allocation.expiresAt}
                     }
@@ -391,8 +411,24 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if row.reservations != nil {
                     for i in row.reservations.len() {
                         let reservation = row.reservations[i]
-                        if reservation.code != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reservation result: " + reservation.code} }
+                        if reservation.code != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: reservation.resourceName + ": " + reservation_result(reservation.code)} }
                     }
+                }
+                if row.releases != nil {
+                    for i in row.releases.len() {
+                        let release = row.releases[i]
+                        if release.code != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: release.resourceName + ": " + reservation_result(release.code)} }
+                    }
+                }
+                if row.canRetryReservation {
+                    retry_reservation := mod.widgets.RinxPrimaryButton{text: "Retry refused reservations" on_click: || recover_project("retry")}
+                }
+                if row.canReleaseReservation {
+                    release_reservation := mod.widgets.RinxButton{text: "Release failed allocation" on_click: || recover_project("release")}
+                }
+                if row.kind == "project" && row.execution == "released" && row.ownerMxid == P.user {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your project room and history are preserved. Select current resources to submit a new project request."}
+                    new_project := mod.widgets.RinxPrimaryButton{text: "Request a new project" on_click: || open_page("resources")}
                 }
                 if row.canDecide {
                     View{width: Fill height: Fit spacing: 8
@@ -430,6 +466,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         if P.page == "form" {
             mod.widgets.PalpoCard{
                 mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
+                if P.form.service == "palpo.inbox.recover" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retry" {"Retry only the refused reservations using the same approved budget and administrators."} else {"Close this failed allocation after Hagency confirms the accepted reservations never funded an agent. Capacity stays held until that proof arrives."}}
+                }
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
                 if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "project" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Submission prepares your private project room for review. Agents can be requested only after the administrator approves and Hagency reserves the budget."}
@@ -478,7 +517,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         }
                     }
                     if project.canRequest { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
-                    if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Project setup or membership verification is still pending. Refresh after setup completes."} }
+                    if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if project.state == "released" {"This failed allocation is closed. Request a new project using current resources."} else {"Project setup or membership verification is still pending. Refresh after setup completes."}} }
                 }
             }
         }

@@ -26,13 +26,14 @@
     "palpo.inbox.submit",
     "palpo.inbox.get",
     "palpo.inbox.decide",
+    "palpo.inbox.recover",
     "palpo.inbox.activate",
     "palpo.inbox.seen",
     "palpo.inbox.snooze"
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "7d17a79435977ecf4f68b8dd0a17bcdaf07aa00f6c7c7611d4e10041cd3c8e2a"
+    "bundle_blake3": "0455080d9c4f124faefa877a05a028ad8f326576333c31320226836b36eb9226"
   },
   "name": "Palpo",
   "requires": [

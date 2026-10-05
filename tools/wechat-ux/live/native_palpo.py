@@ -344,6 +344,44 @@ def main():
             assert navigation == {'account': '@admin:example.test', 'roomId': signup['roomId'], 'eventId': signup['eventId']}, (navigation, signup)
             assert signup['status'] == 'pending' and signup['registrations'] == 0, signup
             report['checks'].append('signup page resolves the original account-bound Matrix event through the native adapter; opening sends no verdict')
+            for mode in ('retry', 'release'):
+                (root / f'seed-{mode}-project').touch()
+                admin.click_id('inbox'); admin.click_id('needs')
+                for _ in range(20):
+                    admin.click_id('refresh')
+                    if any(f'Recovery {mode} project' in w.get('t', '') for w in admin.snap()): break
+                    time.sleep(1)
+                admin.wait_text(f'Recovery {mode} project'); admin.click_id('review')
+                admin.wait_text('Budget reservation refused')
+                admin.wait_text('Recovery analysis resource')
+                admin.wait_text('The contribution cannot currently cover this budget.')
+                admin.capture(f'partial-reservation-{mode}')
+                admin.click_id('retry_reservation' if mode == 'retry' else 'release_reservation')
+                fill(admin, 'Recovery reason', 'Recover the partial allocation')
+                admin.capture(f'confirm-project-{mode}'); admin.click_id('submit')
+                admin.click_id('review')
+                admin.wait_text('waiting for Hagency' if mode == 'retry' else 'Releasing unused reservations')
+                admin.capture(f'project-{mode}-awaiting-receipt')
+                (root / ('apply-project-recovery' if mode == 'retry' else 'apply-unused-releases')).touch()
+                for _ in range(20):
+                    admin.click_id('latest')
+                    wanted = 'Project allocated' if mode == 'retry' else 'unused reservations released'
+                    if any(wanted in w.get('t', '') for w in admin.snap()): break
+                    time.sleep(1)
+                admin.wait_text(wanted); admin.capture(f'project-{mode}-confirmed')
+                data = json.loads((root / 'backend.json').read_text())
+                recovery = next(r for r in data['recoveries'] if r['name'] == f'Recovery {mode} project')
+                assert recovery['owner'] == '@owner:example.test', recovery
+                assert recovery['allocated'] == (mode == 'retry'), recovery
+                assert recovery['commands'] == ['reserve_project', 'reserve_project', 'reserve_project' if mode == 'retry' else 'release_unused_project'], recovery
+                assert recovery['execution'] == ('done' if mode == 'retry' else 'released'), recovery
+                report['checks'].append(f'partial project {mode} uses native confirmation, waits for its exact fixture receipt and preserves the owner')
+            owner.click_id('inbox'); owner.click_id('history')
+            owner.wait_text('Recovery release project'); owner.click_id('review')
+            owner.wait_text('unused reservations released')
+            assert not any(w.get('i') in {'retry_reservation', 'release_reservation'} for w in owner.snap())
+            owner.click_id('new_project'); owner.wait_text('Hagency contributes finite budgets')
+            owner.capture('released-project-owner-returns-to-resources')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')

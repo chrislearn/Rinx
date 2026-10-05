@@ -5,6 +5,9 @@ within `1.x` it only grows.
 
 ## 1.2.0 (pending release)
 
+- `palpo.inbox.recover` explicitly grants failed-project reservation recovery;
+  existing read/decision grants do not acquire it. The backend retains current
+  designated-administrator authority and Hagency must prove unused release.
 - Exact Palpo host-service grants, with `palpo-admin-v1` required by Palpo
   bundles. Credentials stay in the host; package consent grants no business role.
 - `palpo.accounts.open` and required feature `palpo-account-navigation-v1` let

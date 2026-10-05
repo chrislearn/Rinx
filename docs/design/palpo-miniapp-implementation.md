@@ -18,7 +18,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | --- | --- | --- |
 | One designated Palpo administrator approves projects | Palpo role checks, strict-create migration, distinct native manager/admin controls | Activate strict mode and validate on the live deployment |
 | Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
-| Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands and exact receipt projection; backend and native fixture checks | Actual Hagency/Palpo integration, live validation, partial-refusal recovery and explicit legacy migration |
+| Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands, exact receipt projection and partial-refusal retry/unused release; backend and native fixture checks | Actual Hagency/Palpo integration and recovery acceptance, live validation and explicit legacy migration |
 | Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; backend and Makepad fixture checks | Actual Hagency/Palpo integration and live workflow validation |
 | Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
@@ -34,6 +34,51 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Failed project allocation recovery — 2026-10-04
+
+The designated Palpo administrator can recover a partially refused allocation
+after every original reservation has a result. Retry sends new commands only for
+refused reservations and preserves the original owner, room, limits, expiry and
+assigned administrators. Release closes a failed allocation only after Hagency
+confirms its accepted grants have never funded an agent. Pending or refused
+release keeps capacity held. The owner sees the closed result in History and can
+request a new project; the previous room and history remain intact.
+
+This uses the separate `palpo.inbox.recover` grant from App Hub `3862c36`.
+Palpo `7af9ee2` rechecks current designated authority, original scope and fresh
+capacity, commits recovery/commands/notices atomically, and keeps exact retries
+idempotent. Hagency `1e40151` adds the typed unused-release receipt and schema-64
+marker. Any lifetime agent debit refuses release, even after removal. Grant rows
+remain permanent admission/replay fences. Cumulative reserved/released counters
+are monotonic; their difference is held capacity. The optional peer extension
+`projectWorkflow.unusedRelease: true` gates release commands.
+
+Approval details now name each resource beside its budget and refusal result.
+Readable explanations replace raw reservation refusal codes. Older DTOs remain
+readable without enabling recovery controls.
+
+Validation: **130 Palpo backend tests, six Rinx adapter tests and 28 shared
+contract tests pass**. Hagency store/Palpo regressions pass **645 tests** with
+50 existing ignored; the final 12 project-command tests, shared eight-vector
+wire corpus, production host check and schema-64 console asset build also pass.
+Optimized Rinx and instrument example builds pass.
+
+Final Makepad hidden-window run `09c5cfe34129477da76b3bdadd797d81` passes all
+13 checks, including partial retry, pending release, exact fixture receipt,
+owner preservation and return to current resources. It also retains the earlier
+three-role, budget/assignment, top-up, removal, signup handoff, draft, theme and
+disconnect checks. Resource-name and pending/completed release captures were
+inspected. Example SHA-256:
+`dbb9388baa25ec4b9372e4f337b5ff1719ef20f7731e52d71f2c14618840facf`.
+The report pins both production bundle files. An earlier 13-check run predates
+the resource labels and readable errors; the final run includes both.
+
+These tests exercise the actual Splash, native transport and local Palpo
+HTTP/SQLite with explicit Matrix/Hagency fixtures. Actual cross-service/live
+recovery, same-project migration, allocation increases, broader cancellation and
+the full acceptance ledger remain. Hagency still withholds workflow capability;
+production and visible user sessions were not changed.
 
 ## Signup approval navigation — 2026-10-04
 
@@ -346,18 +391,19 @@ specific native run; this document is not a mobile or live-server acceptance cla
 
 ## Remaining ADR gates
 
-This is **not the complete ADR**. Existing-operation parity still needs signup
-decision navigation, real native configuration saving/import and full account-
-switch/revocation integration. Current signup UI lists requests only. Live
-administrator/owner contribution approval and Matrix-room notices now pass;
-the Hagency connection/lifecycle and OS push-notification entry remain untested.
-My Actions currently uses private Matrix notices and links; the Glance-style
-board, pinning, quiet hours and direct OS-notification mini-app routing remain.
+This is **not the complete ADR**. The full implementation ledger above is the
+current acceptance checklist. Signup navigation is implemented; actual native
+timeline/verdict acceptance, configuration saving/import and full account-
+switch/revocation integration remain. Earlier live contribution checks below
+used the superseded Rinx-originated model and do not validate Hagency-originated
+association. My Actions uses private Matrix notices and links; the Glance-style
+board, pinning, quiet hours and OS-notification mini-app entry remain.
 
-The subsequent Hagency extension is still required for delegated operator
-decisions, top-ups, runtime stats and complete runtime-plus-Matrix revocation.
-The UI does not report these as implemented. Android, OpenHarmony and hosted
-OctoSense require their own build/device acceptance.
+Delegated decisions, top-ups, scoped usage/lifecycle projection and verified
+retirement now have local backend and native fixture coverage. Actual
+cross-service runtime/Matrix lifecycle and recovery acceptance, allocation
+increases, explicit migration and broader cancel/resubmit/expiry remain.
+Android, OpenHarmony and hosted OctoSense require their own build/device checks.
 
 App Hub publication is not attempted. The template listing with invented
 publisher/platform data was removed. See `apps/palpo/PUBLISHING.md`. The stock

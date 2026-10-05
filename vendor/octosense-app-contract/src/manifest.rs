@@ -131,6 +131,7 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     "palpo.inbox.submit",
     "palpo.inbox.get",
     "palpo.inbox.decide",
+    "palpo.inbox.recover",
     "palpo.inbox.activate",
     "palpo.inbox.seen",
     "palpo.inbox.snooze",

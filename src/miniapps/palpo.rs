@@ -251,10 +251,33 @@ fn normalize_workflow_views(service: &str, result: &mut Value) {
             object.entry("requesterMxid").or_insert(requester);
             object.entry("workflowVersion").or_insert(Value::Null);
             object.entry("reservations").or_insert(Value::Null);
+            object.entry("releases").or_insert(Value::Null);
+            object.entry("canRetryReservation").or_insert(json!(false));
+            object.entry("canReleaseReservation").or_insert(json!(false));
             object.entry("canRetry").or_insert(json!(false));
         }
         if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
             payload.entry("allocations").or_insert(Value::Null);
+            if let Some(allocations) = payload.get_mut("allocations").and_then(Value::as_array_mut) {
+                for allocation in allocations {
+                    let name = allocation
+                        .get("resourceId")
+                        .cloned()
+                        .unwrap_or(json!("Project resource"));
+                    if let Some(allocation) = allocation.as_object_mut() {
+                        allocation.entry("resourceName").or_insert(name);
+                    }
+                }
+            }
+        }
+        for key in ["reservations", "releases"] {
+            if let Some(rows) = row.get_mut(key).and_then(Value::as_array_mut) {
+                for item in rows {
+                    if let Some(item) = item.as_object_mut() {
+                        item.entry("resourceName").or_insert(json!("Project resource"));
+                    }
+                }
+            }
         }
     }
     if service == "palpo.requests.list" {
