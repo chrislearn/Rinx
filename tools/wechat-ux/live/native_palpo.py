@@ -304,6 +304,38 @@ def main():
             backend = json.loads((root / 'backend.json').read_text())
             assert backend['requests'] == 1 and backend['allocations'] == [{'tokens': 120000, 'pendingTokens': 0}], backend
             report['checks'].append('owner requests more tokens; assigned administrator approves a smaller increase; one agent receives one applied increase')
+            owner.click_id('remove'); owner.wait_text('Reason for removal')
+            owner.wait_text('Chat history stays available')
+            fill(owner, 'Reason for removal', 'Research complete')
+            owner.capture('confirm-agent-removal'); owner.click_id('submit')
+            owner.click_id('review'); owner.wait_text('Removal requested')
+            assert not any(w.get('i') in {'approve', 'reject'} for w in owner.snap())
+            (root / 'release-agent-removals').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('waiting for runtime and Matrix cleanup' in w.get('t', '') for w in owner.snap()): break
+                time.sleep(1)
+            owner.wait_text('waiting for runtime and Matrix cleanup'); owner.capture('removal-cleanup-pending')
+            (root / 'fail-agent-cleanup').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('Cleanup failed' in w.get('t', '') for w in owner.snap()): break
+                time.sleep(1)
+            owner.wait_text('Cleanup failed'); owner.capture('removal-cleanup-failed')
+            owner.click_id('retry_remove'); fill(owner, 'Reason for removal', 'Retry the failed cleanup')
+            owner.click_id('submit'); owner.click_id('review')
+            (root / 'release-agent-cleanup').touch()
+            for _ in range(20):
+                owner.click_id('latest')
+                if any('Agent removed' in w.get('t', '') for w in owner.snap()): break
+                time.sleep(1)
+            owner.wait_text('Agent removed'); owner.capture('agent-removal-verified')
+            owner.click_id('agent_status'); owner.wait_text('Token usage: unknown')
+            assert not any(w.get('i') in {'top_up', 'remove'} for w in owner.snap())
+            backend = json.loads((root / 'backend.json').read_text())
+            assert backend['requests'] == 1 and backend['removalCommands'] == 2, backend
+            assert backend['requestStates'] == [{'state': 'removed', 'usable': False}], backend
+            report['checks'].append('owner removal needs no second approval; partial cleanup stays pending; definitive failure retries once and runtime plus Matrix proof complete removal')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')

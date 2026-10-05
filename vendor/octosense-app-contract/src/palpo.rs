@@ -57,7 +57,7 @@ pub fn words(service: &str) -> Option<&'static str> {
         "palpo.activity.list" => "Read the Palpo administrator audit history",
         "palpo.accounts.list" => "Read pending account signup requests",
         "palpo.inbox.list" => "Read your pending Palpo actions and history",
-        "palpo.inbox.submit" => "Request projects and additional agent tokens within your permissions",
+        "palpo.inbox.submit" => "Request projects, additional tokens and agent removal within your permissions",
         "palpo.inbox.get" => "Read the latest state of an authorized action",
         "palpo.inbox.decide" => "Approve or reject within your explicitly assigned project permissions",
         "palpo.inbox.activate" => "Continue an approved project as its owner",

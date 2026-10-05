@@ -32,6 +32,15 @@ fn connection_label(fleet){
     return "Checking connection status…"
 }
 fn action_label(row){
+    if row.kind == "agent_removal" {
+        if row.execution == "awaiting_hagency" { return "Removal requested · waiting for Hagency" }
+        if row.execution == "command_refused" { return "Removal was refused · review the result" }
+        if row.execution == "cleanup_failed" { return "Cleanup failed · retry is available" }
+        if row.execution == "inspection_required" { return "Cleanup is uncertain · runtime inspection is required" }
+        if row.execution == "done" { return "Agent removed · cleanup verified" }
+        if row.execution == "superseded" { return "A newer removal attempt is available" }
+        return "Removing agent · waiting for runtime and Matrix cleanup"
+    }
     if row.kind == "top_up" {
         if row.execution == "awaiting_hagency" { return "Token increase approved · waiting for Hagency" }
         if row.execution == "command_refused" { return "Token increase could not be applied · review the result" }
@@ -226,6 +235,11 @@ fn request_top_up(row){
             {key: "reason" label: "Why do you need more tokens?" value: ""}
         ])
 }
+fn remove_agent(id){
+    new_form("Remove agent", "palpo.inbox.submit", {kind: "agent_removal" agentRequestId: id reason: ""}, [
+        {key: "reason" label: "Reason for removal" value: ""}
+    ])
+}
 fn continue_action(){
     call("palpo.inbox.activate", {id: P.selected.id}, fn(data){ P.selected = data.action P.notice = "Latest result received." })
 }
@@ -397,7 +411,16 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if row.kind == "project" && row.state == "approved" && row.execution == "done" {
                     projects := mod.widgets.RinxPrimaryButton{text: "Open Projects" on_click: || open_page("projects")}
                 }
-                if (row.kind == "agent" || row.kind == "top_up") && row.ownerMxid == P.user {
+                if row.kind == "agent_removal" && row.canRetry {
+                    retry_remove := mod.widgets.RinxPrimaryButton{text: "Retry cleanup" on_click: || remove_agent(row.payload.agentRequestId)}
+                }
+                if row.kind == "agent_removal" && row.execution == "command_refused" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Result: " + row.result.code}
+                }
+                if row.kind == "agent_removal" && row.execution == "inspection_required" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Ask the Hagency operator to inspect the interrupted cleanup. Retry is unavailable while the outcome is uncertain."}
+                }
+                if (row.kind == "agent" || row.kind == "top_up" || row.kind == "agent_removal") && row.ownerMxid == P.user {
                     agent_status := mod.widgets.RinxButton{text: "Open My agents" on_click: || open_page("requests")}
                 }
                 if row.needsMyAction { snooze := mod.widgets.RinxButton{text: "Remind me in an hour" on_click: || snooze_action()} }
@@ -410,6 +433,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
                 if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "project" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Submission prepares your private project room for review. Agents can be requested only after the administrator approves and Hagency reserves the budget."}
+                }
+                if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "agent_removal" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Remove this agent and revoke its Matrix access. Chat history stays available. Removal is complete only when runtime and Matrix cleanup are verified."}
                 }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
@@ -503,8 +529,20 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if row.allocation != nil {
                         mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Confirmed allocation: " + row.allocation.tokens + " tokens · awaiting result: " + row.allocation.pendingTokens}
                     }
+                    if row.lifecycle != nil {
+                        if row.lifecycle.status != nil {
+                            let status = row.lifecycle.status
+                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if status.spentTokensLowerBound == nil {"Token usage: unknown"} else {"Observed usage: at least " + status.spentTokensLowerBound + " tokens"}}
+                            if status.quotaPaused { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Paused: token allocation used up"} }
+                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if row.lifecycle.stale {"Last observation is stale. Refresh to check for an update."} else {"Observed " + row.lifecycle.observedAt}}
+                        }
+                        if row.lifecycle.removalActionId != nil {
+                            removal_status := mod.widgets.RinxButton{text: "View removal progress" on_click: || review_action({id: row.lifecycle.removalActionId})}
+                        }
+                    }
                     if row.actionId != nil { review := mod.widgets.RinxButton{text: "Open approval" on_click: || review_action({id: row.actionId})} }
                     if row.canRequestTopUp { top_up := mod.widgets.RinxPrimaryButton{text: "Request more tokens" on_click: || request_top_up(row)} }
+                    if row.canRemove { remove := mod.widgets.RinxButton{text: "Remove agent" on_click: || remove_agent(row.id)} }
                 }
             }
         }

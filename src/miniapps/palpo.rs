@@ -214,6 +214,7 @@ fn normalize_workflow_views(service: &str, result: &mut Value) {
             object.entry("requesterMxid").or_insert(requester);
             object.entry("workflowVersion").or_insert(Value::Null);
             object.entry("reservations").or_insert(Value::Null);
+            object.entry("canRetry").or_insert(json!(false));
         }
         if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
             payload.entry("allocations").or_insert(Value::Null);
@@ -226,6 +227,8 @@ fn normalize_workflow_views(service: &str, result: &mut Value) {
                     row.entry("actionId").or_insert(Value::Null);
                     row.entry("canRequestTopUp").or_insert(json!(false));
                     row.entry("allocation").or_insert(Value::Null);
+                    row.entry("canRemove").or_insert(json!(false));
+                    row.entry("lifecycle").or_insert(Value::Null);
                 }
             }
         }
@@ -394,6 +397,8 @@ mod tests {
         let mut legacy_requests = json!({"requests":[{"id":"old_agent","state":"active"}]});
         normalize_workflow_views("palpo.requests.list", &mut legacy_requests);
         assert_eq!(legacy_requests["requests"][0]["canRequestTopUp"], false);
+        assert_eq!(legacy_requests["requests"][0]["canRemove"], false);
+        assert_eq!(legacy_requests["requests"][0].get("lifecycle"), Some(&Value::Null));
         assert_eq!(legacy_requests["requests"][0].get("allocation"), Some(&Value::Null));
     }
     #[test]

@@ -20,9 +20,9 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Hagency owns resource contributions | Rinx forms removed; native contribution calls refused; Hagency `e911aae` adds authenticated operator contribution controls and bounded publication | Hagency-originated association/review/handoff; live validation |
 | Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands and exact receipt projection; backend and native fixture checks | Actual Hagency/Palpo integration, live validation, partial-refusal recovery and explicit legacy migration |
 | Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; backend and Makepad fixture checks | Actual Hagency/Palpo integration and live workflow validation |
-| Revocation/expiry fence provisioning and execution | Hagency `86099fc`: retirement, claim/completion and runtime checks; revocation tests pass | Full runtime/Matrix cleanup and lost-response/restart validation |
+| Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
 | Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
-| Usage and lifecycle management | Existing Hagency usage/quota primitives; same-agent top-up forms and confirmed/pending allocation | Scoped fresh/stale/unknown usage summaries, removal UI and verified cleanup |
+| Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
 | Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
 | Signup decisions | Requests listed | Approve/reject navigation and role checks |
@@ -34,6 +34,47 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Agent removal, cleanup receipts and usage — 2026-10-04
+
+Owners can remove an allocated agent from My agents, with a reason and stable
+request ID. Current assigned project administrators have the same scoped backend
+authority. This does not ask Hagency for another human approval. A queued or
+applied command keeps the action pending until runtime cleanup and Matrix
+retirement are independently verified. Definite failures permit one fresh cleanup
+attempt; uncertain outcomes ask for operator inspection. Old cards resolve to the
+latest action, and a stale failure cannot offer another retry after a new attempt.
+
+Hagency publishes its recorded Matrix identity, local effect attempt/custody,
+independent retirement receipt, allocation and observed usage lower bound. Its
+fixed retirement call verifies the response and journals the exact target under
+a current-registration transaction. Restart/lost replies preserve idempotency.
+Rinx distinguishes unknown usage and stale observations. Verified removal releases
+concurrency and daily-rate allowance; lifetime token allocations are not refunded
+from incomplete usage evidence.
+
+Validation: Palpo's 122 backend tests, five Rinx adapter tests and 27 shared
+contract tests pass. Hagency's store/Palpo regression passed 642 tests (50 existing
+ignored); the final focused lifecycle/command/TLS run passed 25 tests. Both
+optimized Rinx binaries build. Final Makepad hidden-window run
+`15aae70b2e0b4e68b49babddaf6496bf` passed all ten checks through the production
+Splash and native adapter, including owner removal, pending cleanup, definite
+failure, a single retry, verified completion, three role sessions, budget/top-up
+forms, drafts, themes and disconnect. Captures were inspected.
+
+The final example SHA-256 is
+`cfb047d7c78b154d562f3352084935e8e09612c36db71280443f4492d68e1941`;
+main.splash SHA-256 is
+`48d048da3b5f5d9f0fb53d4cbea4886241ee1a8aa823ba34a84c05444bbddada`.
+The report also pins the manifest. An earlier ten-check run passed before the
+final retry/refusal refinements. All new UI evidence uses isolated local
+HTTP/SQLite and explicit Matrix/Hagency fixtures, not a real runtime lifecycle.
+
+The full ADR remains open: actual cross-service/live acceptance, Hagency-originated
+association, partial-refusal recovery, signup decisions, richer My Actions and
+notification preferences, hosted/mobile validation and release are unfinished.
+Production and visible user sessions remain unchanged; Hagency still withholds
+the workflow capability.
 
 ## Agent decisions and same-agent token increases — 2026-10-04
 
