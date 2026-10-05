@@ -7,10 +7,10 @@
 > historical approval tables below are not the current authority specification.
 
 - Date: 2026-10-03
-- Status: Implemented under ADR 0011's revised authority and Rust backend.
+- Status: Core workflows implemented under ADR 0011's revised authority and Rust backend.
   Native desktop, Android and hosted OctoSense acceptance pass; OpenHarmony
-  builds pass and device acceptance awaits a Rinx signing profile. Production
-  cutover remains separate. See the
+  builds pass and device acceptance awaits a Rinx signing profile. Suspended-app
+  push delivery and production cutover remain open. See the
   [implementation checkpoint](../design/palpo-miniapp-implementation.md).
 - Extends [ADR 0005](0005-octoscript-miniapps-matrix-octos.md),
   [ADR 0006](0006-shared-app-hub-miniapps.md),

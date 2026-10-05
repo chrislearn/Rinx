@@ -79,9 +79,12 @@ was fabricated. Rinx's own bundle packaging/build validation passed.
 
 ## Current acceptance checkpoint, 2026-10-05
 
-The Rust migration and complete agent lifecycle are implemented. Full ADR
-acceptance still requires the outstanding platform/deployment checks; passing a
-desktop fixture alone does not establish them.
+The Rust migration and agent lifecycle are implemented. Full ADR acceptance still
+requires the outstanding platform/deployment work; passing a desktop fixture
+alone does not establish it. Matrix-room notices and durable Inbox recovery are
+verified. Suspended-app OS push delivery remains open: the checkout has no
+configured native push provider/gateway, and a configuration location has been
+requested before choosing that platform integration.
 
 - Native production-Splash regression `6517e8356fa444e2b98e93c95b129d67` passes
   all 26 checks, including role isolation, decision/top-up replay, interrupted

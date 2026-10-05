@@ -79,8 +79,11 @@ remembered consent. Its test uses an isolated source override and leaves the
 production release tag unchanged.
 
 The native library and complete OpenHarmony HAP build, but installation needs a
-signing profile for Rinx and the connected phone. OpenHarmony device acceptance
-and production cutover remain open; the ADR is not fully release-accepted.
+signing profile for Rinx and the connected phone. Matrix-room notices and Inbox
+recovery are implemented; OS alerts while the mobile app is suspended are not
+validated. No native push provider/gateway configuration was found. That
+integration and device acceptance, OpenHarmony installation, and production
+cutover remain open; the ADR is not fully release-accepted.
 
 ## Reproduce the native checks
 
