@@ -2,7 +2,7 @@ width: Fill height: Fill flow: Down spacing: 12
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
-    mod.palpo = {ready: false busy: false admin: false coordinator: false owner: false services: [] user: "" page: "inbox" filter: "needs_action"
+    mod.palpo = {room_board: false board_generation: 0 ready: false busy: false admin: false coordinator: false owner: false services: [] user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         notification_settings: nil device_time_zone: nil quiet_enabled: false quiet_start: "22:00" quiet_end: "08:00" quiet_zone: "UTC"
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
@@ -34,7 +34,7 @@ fn control_text(control){
 mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
     draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
 
-fn draw_page(){ ui.content.render() ui.navigation.render() ui.status.set_text(P.notice) }
+fn draw_page(){ ui.navigation.set_visible(!P.room_board) ui.content.render() ui.navigation.render() ui.status.set_text(P.notice) }
 fn call(service, args, complete){
     if P.busy { return }
     P.busy = true
@@ -48,9 +48,19 @@ fn call(service, args, complete){
         draw_page()
     })
 }
+fn watch_board(generation){
+    if !P.ready || !P.room_board || generation != P.board_generation { return }
+    start_timeout(30.0, || {
+        if !P.ready || !P.room_board || generation != P.board_generation { return }
+        if P.page == "inbox" && !P.busy { refresh_page() }
+        watch_board(generation)
+    })
+}
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
+        P.room_board = data.roomBoard P.board_generation = P.board_generation + 1
         P.ready = true P.admin = data.isAdmin P.coordinator = data.canApproveProjects == true P.owner = data.isResourceOwner == true P.user = data.userId P.services = data.services
+        if P.room_board { watch_board(P.board_generation) }
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
@@ -238,13 +248,14 @@ View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
     disconnect := mod.widgets.RinxButton{text: "Disconnect" on_click: || call("palpo.session.disconnect", {}, fn(data){ P.ready = false P.notice = "Palpo disconnected. Rinx remains signed in." })}
 }
 navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
-    if P.ready {
+    if P.ready && !P.room_board {
         inbox := mod.widgets.RinxButton{text: "Inbox · " + P.pending on_click: || open_page("inbox")}
         if available("palpo.projects.list") { projects := mod.widgets.RinxButton{text: "Projects" on_click: || open_page("projects")} }
         if available("palpo.requests.list") { requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")} }
         if available("palpo.catalog.list") { resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")} }
         if available("palpo.fleets.list") { fleets := mod.widgets.RinxButton{text: "Engagements" on_click: || open_page("fleets")} }
         if available("palpo.notifications.get") && available("palpo.notifications.set") { notifications := mod.widgets.RinxButton{text: "Notifications" on_click: || open_page("notifications")} }
+        if available("palpo.actions.room.ensure") { actions_room := mod.widgets.RinxButton{text: "My Actions" on_click: || call("palpo.actions.room.ensure", {}, fn(data){ P.notice = "Opening My Actions in Rinx." })} }
         if P.admin {
             if available("palpo.activity.list") { activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")} }
             if available("palpo.accounts.list") { accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")} }
@@ -445,6 +456,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         if row.usage.consumedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
                     }
                     if row.agentMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.agentMxid} }
+                    if available("palpo.requests.open") && row.canOpenChat { open_agent_chat := mod.widgets.RinxPrimaryButton{text: "Open agent chat" on_click: || call("palpo.requests.open", {requestId: row.chatRequestId}, fn(data){ P.notice = "Opening the agent's project room in Rinx." })} }
                     if row.canRequestTopUp == true { more_tokens := mod.widgets.RinxButton{text: "Request more tokens" on_click: || request_tokens(row)} }
                     if available("palpo.agents.control") {
                         if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }

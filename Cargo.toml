@@ -169,6 +169,8 @@ dark-light = "2"
 
 
 [features]
+# Isolated local accounts exist only in instrument builds.
+palpo-instrument = []
 default = ["standalone", "agent_chat"]
 ## The standalone app's entry point (window, menus, `app_main!`). A host that
 ## links Rinx as a module disables it.
@@ -213,6 +215,10 @@ log_timeline_diffs = []
 ## Logs all diffs received by the Matrix SpaceService.
 log_space_service_diffs = []
 
+
+[[example]]
+name = "palpo_action_room"
+required-features = ["palpo-instrument"]
 
 [patch.crates-io]
 # Pending additive App Hub contract release; see vendor/octosense-app-contract/RINX-PATCH.md.

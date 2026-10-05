@@ -177,3 +177,20 @@ The settings screenshot was inspected. This run saves the coordinator's settings
 reopens them and verifies that the owner's settings remain independent. The
 startup harness now waits for the initial Inbox HTTP request to settle before
 clicking Waiting, fixing the previously recorded missed input while busy.
+
+## Verified room board and native navigation
+
+My Actions mounts the installed bundle only after exact-bundle consent and a
+current private-room/account verification. The native host rechecks the binding
+on each service call and on refresh; account changes revoke it and restore chat
+history. Agent chat navigation accepts only the service-derived room after both
+the user and agent are joined. Signup navigation retains the original approval
+event through an invitation join, with account and expiry checks.
+
+The combined native run passed all 24 checks at
+`target/palpo-coordinator-validation/cf7023ce7a614e1d802911d2ae987f15/report.json`.
+The actual embedded board, theme switch and account-switch screenshots were
+inspected. The host suite passed 25 checks and shell navigation passed six.
+The instrument uses real Rinx and Rust Palpo processes with isolated Matrix and
+provider fixtures; it does not establish live Hagency execution or mobile
+acceptance. The scroll helper now requires a visible hit target before clicking.

@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 from urllib.request import Request, build_opener, ProxyHandler
+from urllib.parse import unquote, urlsplit
 import uuid
 
 from native_palpo import PalpoApp, port, fill, inspect
@@ -25,12 +26,59 @@ HTTP = build_opener(ProxyHandler({}))
 
 
 class Matrix(BaseHTTPRequestHandler):
+    rooms = {}
+    aliases = {}
+    events = {}
+    guard = threading.Lock()
+
     def log_message(self, *_):
         pass
 
+    def user(self):
+        return {f"Bearer {name}-secret": f"@{name}:example.test" for name in ("owner", "coordinator", "admin", "notices")}.get(self.headers.get("Authorization"))
+
+    def reply(self, value, status=200):
+        raw = json.dumps(value).encode()
+        self.send_response(status); self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw))); self.end_headers(); self.wfile.write(raw)
+
+    def do_POST(self):
+        value = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        actor = self.user(); parts = [unquote(p) for p in urlsplit(self.path).path.split('/')]
+        with self.guard:
+            if parts[-1] == 'createRoom' and actor == '@notices:example.test':
+                room = f"!actions{len(self.rooms)}:example.test"
+                self.aliases['#' + value['room_alias_name'] + ':example.test'] = room
+                self.rooms[room] = value['initial_state'] + [
+                    {'type':'m.room.create','state_key':'','sender':actor,'content':{'creator':actor,**value['creation_content']}},
+                    {'type':'m.room.power_levels','state_key':'','content':value['power_level_content_override']},
+                    {'type':'m.room.member','state_key':actor,'content':{'membership':'join'}},
+                    *[{'type':'m.room.member','state_key':u,'content':{'membership':'invite'}} for u in value['invite']]]
+                self.reply({'room_id':room}); return
+            if len(parts) >= 2 and parts[-2] == 'join' and actor:
+                for member in self.rooms.get(parts[-1], []):
+                    if member.get('type') == 'm.room.member' and member.get('state_key') == actor:
+                        member['content']['membership'] = 'join'; self.reply({'room_id':parts[-1]}); return
+        self.reply({'errcode':'M_FORBIDDEN'},403)
+
+    def do_PUT(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        if self.user() != '@notices:example.test': self.reply({'errcode':'M_FORBIDDEN'},403); return
+        with self.guard:
+            if self.path in self.events and self.events[self.path] != body:
+                self.reply({'errcode':'changed_transaction'},409); return
+            self.events[self.path] = body
+            self.reply({'event_id': '$notice' + digest(self.path)[:24]})
+
     def do_GET(self):
-        users = {f"Bearer {name}-secret": f"@{name}:example.test" for name in ("owner", "coordinator", "admin")}
-        user = users.get(self.headers.get("Authorization"))
+        user = self.user()
+        parts = [unquote(p) for p in urlsplit(self.path).path.split('/')]
+        if user == '@notices:example.test':
+            with self.guard:
+                if 'directory' in parts:
+                    room = self.aliases.get(parts[-1]); self.reply({'room_id':room} if room else {'errcode':'M_NOT_FOUND'},200 if room else 404); return
+                if parts[-1] == 'joined_rooms': self.reply({'joined_rooms':list(self.rooms)}); return
+                if len(parts) > 2 and parts[-1] == 'state' and parts[-2] in self.rooms: self.reply(self.rooms[parts[-2]]); return
         status = 200 if user else 401
         if self.path == "/_matrix/client/v3/account/whoami" and user:
             value = {"user_id": user}
@@ -70,7 +118,7 @@ def machine_update(endpoint, fleet, body):
         return json.load(response)
 
 
-def launch(root, binary, endpoint, role):
+def launch(root, binary, endpoint, role, board=False):
     profile = root / "profile"
     (profile / "app").mkdir(parents=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -96,7 +144,7 @@ def launch(root, binary, endpoint, role):
         # The Inbox shell draws before its initial HTTP result. Input while the
         # bundle is busy is intentionally ignored; wait for that first result.
         for _ in range(150):
-            if inspect(app)["pending"] == 0 and not any(w.get("i") == "status" and w.get("t") == "Working…" for w in app.snap()):
+            if (board or inspect(app)["pending"] == 0) and not any(w.get("i") == "status" and w.get("t") == "Working…" for w in app.snap()):
                 break
             time.sleep(.1)
         else:
@@ -111,6 +159,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", type=Path, required=True)
     parser.add_argument("--binary", type=Path, default=Path("target/fast/examples/palpo_miniapp"))
+    parser.add_argument("--board-binary", type=Path)
     args = parser.parse_args()
     root = Path("target/palpo-coordinator-validation") / uuid.uuid4().hex
     root.mkdir(parents=True)
@@ -122,6 +171,9 @@ def main():
                PALPO_ADMIN_DATABASE=str((root / "admin.sqlite").resolve()), PUBLIC_ORIGIN=endpoint,
                PALPO_OPERATIONS_LISTEN=endpoint.removeprefix("http://"), PALPO_TRANSPORT_ORIGIN=endpoint,
                PALPO_RELAY_ORIGIN=endpoint)
+    notice_token = root / "notice.token"
+    notice_token.write_text("notices-secret"); notice_token.chmod(0o600)
+    env.update(PALPO_ACTIONS_BOT_MXID="@notices:example.test", PALPO_ACTIONS_BOT_TOKEN_FILE=str(notice_token.resolve()), PALPO_ACTIONS_PUBLIC_ORIGIN=endpoint)
     fleet = "hf_" + "a" * 32
     now = int(time.time() * 1000)
     snapshot = {"engagements": {fleet: {"id": fleet, "server": "example.test", "owner": "@provider:example.test",
@@ -168,6 +220,18 @@ def main():
             "projectId": "project_one", "projectRevision": 1, "resourceAllocationId": "grant_a", "projectOwner": "@owner:example.test",
             "requester": "@owner:example.test", "definitionDigest": digest(definition), "requestedTokens": 100000}, "definition": definition}
         action = call(endpoint, token, "palpo.inbox.submit", request)["action"]
+        if args.board_binary:
+            report["board_binary_sha256"] = hashlib.sha256(args.board_binary.read_bytes()).hexdigest()
+            board = launch(root / "board", args.board_binary, endpoint, "coordinator", board=True); apps.append(board)
+            board.wait_text("Littlewhite"); board.capture("action-board-light")
+            assert not any(w.get("i") in {"projects", "resources", "actions_room"} for w in board.snap())
+            board.click_id("review"); board.wait_text("Approve"); board.capture("action-board-latest-action")
+            board.click_id("toggle"); board.wait_text("Ordinary chat timeline fallback")
+            board.click_id("toggle"); board.wait_text("Littlewhite")
+            board.click_id("dark"); board.wait_text("Littlewhite"); board.capture("action-board-dark")
+            board.click_id("switch_account"); board.wait_text("Ordinary chat timeline fallback")
+            assert not any(w.get("i") in {"review", "approve", "toggle"} for w in board.snap())
+            board.capture("action-board-account-switch")
         owner = launch(root / "owner", args.binary, endpoint, "owner"); apps.append(owner)
         owner.click_id("waiting"); owner.wait_text("Littlewhite")
         owner.click_id("review"); owner.wait_text("Requested by @owner:example.test")
@@ -376,6 +440,8 @@ def main():
             "retired history remains visible with usage settlement separate",
             "native notification preferences persist after reopening", "notification settings stay isolated per Matrix account"]
         report["passed"] = True
+        if args.board_binary:
+            report["checks"] += ["private My Actions mounts the actual installed app after server verification", "action board opens the latest delegated approval", "board theme and chat-history toggle retain the correct scope", "account switch revokes the board and restores chat history"]
     except Exception:
         for app in apps:
             try:

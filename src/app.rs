@@ -244,6 +244,8 @@ pub struct App {
     /// This can be either a room we're waiting to join, or one we're waiting to be invited to.
     /// Also includes an optional room ID to be closed once the awaited room has been loaded.
     #[rust] waiting_to_navigate_to_room: Option<(BasicRoomDetails, Option<OwnedRoomId>)>,
+    /// Preserve the exact signup event while its invitation is accepted/synced.
+    #[rust] pending_signup_navigation: Option<(crate::miniapps::palpo::SignupApprovalTarget, std::time::Instant)>,
 }
 
 impl ScriptHook for App {
@@ -363,9 +365,15 @@ impl MatchEvent for App {
                 }
                 continue;
             }
+            if let Some(AppStateAction::RoomLoadedSuccessfully { room_name_id, is_invite: false }) = action.downcast_ref() {
+                self.resume_signup_navigation(cx, room_name_id, current_user_id().as_deref());
+            }
             // Opening a hidden conversation is explicit on both mobile and desktop.
             // Mobile selection does not emit the desktop RoomFocused action.
             if let RoomsListAction::Selected(room) = action.as_widget_action().cast() {
+                if self.pending_signup_navigation.as_ref().is_some_and(|(target, _)| target.room_id != *room.room_id()) {
+                    self.cancel_signup_navigation();
+                }
                 // Mobile selection does not emit `RoomFocused`: this is the room shown now.
                 crate::assistant::set_current_room(Some(room.room_name()));
                 if crate::home::chat_actions::restore(room.room_id()) {
@@ -535,6 +543,39 @@ impl MatchEvent for App {
                 continue;
             }
             if let Some(action) = action.downcast_ref::<MiniAppsAction>() {
+                if let MiniAppsAction::OpenSignupApproval(target) = action {
+                    if current_user_id().as_ref() == Some(&target.account) {
+                        self.waiting_to_navigate_to_room = None;
+                        self.close_mini_apps(cx);
+                        let room = RoomNameId::empty(target.room_id.clone());
+                        if cx.get_global::<RoomsListRef>().get_room_state(&target.room_id) == Some(RoomState::Joined) {
+                            self.pending_signup_navigation = None;
+                            cx.action(NavigationBarAction::GoToHome);
+                            cx.action(RoomHistoryAction::Jump { room, event: target.event_id.clone() });
+                        } else {
+                            self.pending_signup_navigation = Some((target.clone(), std::time::Instant::now()));
+                            self.navigate_to_room(cx, None, &BasicRoomDetails::RoomId(room));
+                        }
+                    }
+                    continue;
+                }
+                if let MiniAppsAction::OpenActionsRoom(target) = action {
+                    if current_user_id().as_ref() == Some(&target.account) {
+                        self.cancel_signup_navigation();
+                        self.close_mini_apps(cx);
+                        cx.action(NavigationBarAction::GoToHome);
+                        self.navigate_to_room(cx, None, &BasicRoomDetails::RoomId(RoomNameId::empty(target.room_id.clone())));
+                    }
+                    continue;
+                }
+                if let MiniAppsAction::OpenAgentChat(target) = action {
+                    let account = current_user_id();
+                    let state = cx.get_global::<RoomsListRef>().get_room_state(&target.room_id);
+                    if let Err(message) = self.open_agent_chat(cx, target, account.as_deref(), state) {
+                        enqueue_popup_notification(message, PopupKind::Info, None);
+                    }
+                    continue;
+                }
                 let modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
                 if matches!(action, MiniAppsAction::Close) {
                     self.close_mini_apps(cx);
@@ -940,6 +981,7 @@ impl App {
     }
 
     fn clear_session_ui(&mut self, cx: &mut Cx) {
+        self.pending_signup_navigation = None;
         self.close_web_browser(cx);
         #[cfg(feature = "agent_chat")]
         {
@@ -1588,6 +1630,49 @@ impl App {
         self.ui.view(cx, ids!(home_screen_view)).set_visible(cx, !show_login);
     }
 
+    fn cancel_signup_navigation(&mut self) {
+        if let Some((target, _)) = self.pending_signup_navigation.take() {
+            if self.waiting_to_navigate_to_room.as_ref()
+                .is_some_and(|(room, _)| room.room_id() == &target.room_id)
+            {
+                self.waiting_to_navigate_to_room = None;
+            }
+        }
+    }
+
+    fn resume_signup_navigation(&mut self, cx: &mut Cx, room: &RoomNameId, account: Option<&ruma::UserId>) {
+        let Some((target, started)) = self.pending_signup_navigation.as_ref() else { return };
+        if &target.room_id != room.room_id() { return; }
+        let destination = (account == Some(target.account.as_ref()) && started.elapsed() < Duration::from_secs(300))
+            .then(|| target.event_id.clone());
+        // Consume the generic join waiter too: an expired/cancelled signup must
+        // not navigate later through the ordinary room-loaded handler.
+        self.cancel_signup_navigation();
+        if let Some(event) = destination {
+            cx.action(NavigationBarAction::GoToHome);
+            cx.action(RoomHistoryAction::Jump { room: room.clone(), event });
+        }
+    }
+
+    fn open_agent_chat(&mut self, cx: &mut Cx, target: &crate::miniapps::palpo::AgentChatTarget,
+        account: Option<&ruma::UserId>, room_state: Option<RoomState>) -> Result<(), &'static str> {
+        if account != Some(target.account.as_ref()) {
+            return Err("Your account changed. Reopen Palpo from your current account.");
+        }
+        if room_state != Some(RoomState::Joined) {
+            return Err("The project room is still syncing. Refresh My Agents and try again shortly.");
+        }
+        self.cancel_signup_navigation();
+        self.waiting_to_navigate_to_room = None;
+        self.close_mini_apps(cx);
+        cx.action(NavigationBarAction::GoToHome);
+        cx.widget_action(self.ui.widget_uid(), RoomsListAction::Selected(SelectedRoom::JoinedRoom {
+            room_name_id: RoomNameId::empty(target.room_id.clone()),
+        }));
+        enqueue_rooms_list_update(RoomsListUpdate::ScrollToRoom(target.room_id.clone()));
+        Ok(())
+    }
+
     /// Navigates to the given `destination_room`, optionally closing the `room_to_close`.
     fn navigate_to_room(
         &mut self,
@@ -2090,6 +2175,72 @@ mod back_navigation_tests {
         assert!(generated.iter().any(|action| matches!(action.downcast_ref::<WebBrowserAction>(),
             Some(WebBrowserAction::ReadArticle { room: actual_room, event: actual_event }) if actual_room == &room && actual_event == &event)));
         assert!(!app.ui.modal(&mut cx, ids!(article_app_modal)).is_open());
+    }
+
+    #[test]
+    fn agent_chat_only_opens_a_joined_room_for_the_current_account() {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let mut app = embedded_app(&mut cx);
+        let account = ruma::user_id!("@owner:example.test");
+        let target = crate::miniapps::palpo::AgentChatTarget::from_reply(&serde_json::json!({
+            "v": 1, "requestId": "fleet_a:request_b", "account": account,
+            "roomId": "!project:example.test", "agentMxid": "@fleet_a_agent:example.test",
+        }), account.as_str()).unwrap();
+        for (actor, state) in [
+            (None, Some(RoomState::Joined)),
+            (Some(ruma::user_id!("@other:example.test")), Some(RoomState::Joined)),
+            (Some(account), None), (Some(account), Some(RoomState::Invited)),
+            (Some(account), Some(RoomState::Left)),
+        ] {
+            let actions = cx.capture_actions(|cx| assert!(app.open_agent_chat(cx, &target, actor, state).is_err()));
+            assert!(actions.is_empty(), "refused navigation must not auto-join or select a room");
+        }
+        let actions = cx.capture_actions(|cx| app.open_agent_chat(cx, &target, Some(account), Some(RoomState::Joined)).unwrap());
+        assert!(actions.iter().any(|a| matches!(a.as_widget_action().cast::<RoomsListAction>(),
+            RoomsListAction::Selected(SelectedRoom::JoinedRoom { room_name_id }) if room_name_id.room_id() == &target.room_id)));
+        assert!(app.waiting_to_navigate_to_room.is_none());
+    }
+
+    #[test]
+    fn signup_invitation_preserves_the_event_but_not_a_stale_navigation() {
+        use crate::miniapps::palpo::SignupApprovalTarget;
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let mut app = embedded_app(&mut cx);
+        let account = ruma::user_id!("@admin:example.test");
+        let target = SignupApprovalTarget::from_reply(&serde_json::json!({
+            "v": 1, "requestId": "a".repeat(32), "account": account,
+            "roomId": "!signups:example.test", "eventId": "$original",
+        }), account.as_str()).unwrap();
+        let room = RoomNameId::empty(target.room_id.clone());
+        let unrelated = RoomNameId::empty(ruma::room_id!("!other:example.test").to_owned());
+
+        for (actor, age, should_jump) in [
+            (Some(account), 0, true),
+            (Some(account), 301, false),
+            (Some(ruma::user_id!("@other:example.test")), 0, false),
+            (None, 0, false),
+        ] {
+            app.pending_signup_navigation = Some((target.clone(), std::time::Instant::now() - Duration::from_secs(age)));
+            app.waiting_to_navigate_to_room = Some((BasicRoomDetails::RoomId(room.clone()), None));
+            let generated = cx.capture_actions(|cx| app.resume_signup_navigation(cx, &unrelated, actor));
+            assert!(generated.is_empty());
+            assert!(app.pending_signup_navigation.is_some());
+            let generated = cx.capture_actions(|cx| app.resume_signup_navigation(cx, &room, actor));
+            let jumps: Vec<_> = generated.iter().filter_map(|a| a.downcast_ref::<RoomHistoryAction>()).collect();
+            if should_jump {
+                assert!(matches!(jumps.as_slice(), [RoomHistoryAction::Jump { room: actual, event }]
+                    if actual.room_id() == room.room_id() && event == &target.event_id));
+            } else {
+                assert!(generated.is_empty(), "expired or different-account navigation must be discarded");
+            }
+            assert!(app.pending_signup_navigation.is_none());
+            assert!(app.waiting_to_navigate_to_room.is_none());
+        }
+
+        app.pending_signup_navigation = Some((target, std::time::Instant::now()));
+        app.waiting_to_navigate_to_room = Some((BasicRoomDetails::RoomId(unrelated.clone()), None));
+        app.cancel_signup_navigation();
+        assert_eq!(app.waiting_to_navigate_to_room.as_ref().unwrap().0.room_id(), unrelated.room_id());
     }
 
     #[test]

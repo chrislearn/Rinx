@@ -17,6 +17,26 @@ class PalpoApp(NativeApp):
     def snap(self):
         return [w for w in super().snap() if w.get('ty') != 'Splash']
 
+    def click_id(self, widget_id):
+        window_width, window_height = self.request('/s')['w'][0]['sz']
+        def target():
+            return next((w for w in self.request('/snap', all=1)['s']
+                         if w.get('i') == widget_id and w['r'][2] > 0 and w['r'][3] > 0
+                         and w['r'][1] >= 30 and w['r'][1] + w['r'][3] <= window_height - 15), None)
+        found = target()
+        if found is None:
+            x, y = min(300, window_width - 30), min(650, window_height - 40)
+            self.request('/m', k='scroll', x=x, y=y, dy=-3000, wait=1)
+            for _ in range(24):
+                found = target()
+                if found is not None:
+                    break
+                self.request('/m', k='scroll', x=x, y=y, dy=130, wait=1)
+        if found is None:
+            raise AssertionError(f'Could not scroll widget into view: {widget_id}')
+        x, y, width, height = found['r']
+        self.click(x + width / 2, y + height / 2)
+
     def request(self, route, **params):
         # SDK 1f3b1de can fail wait=1 after already applying the input when a
         # hidden Metal frame cannot immediately submit. Never replay that input.

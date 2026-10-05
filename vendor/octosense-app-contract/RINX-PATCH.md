@@ -14,3 +14,9 @@ project-scoped lifecycle intents; the backend still checks current authority.
 The notification read/settings grants match App Hub commit `8ff0654`. The native
 host supplies a device time-zone suggestion; only an explicit settings save
 changes the account preference.
+
+The vendored manifest, Palpo service registry, policy and growth tests now match
+App Hub `6180376`, including the closed native signup/agent navigation targets
+and verified My Actions room feature gates. Native integration was adapted from
+Rinx `a9aaa2f0`, `8d2ffbd4` and `ee3836bb`; the superseded Node workflow-view
+normalizer is intentionally not used with the ADR 0011 Rust projections.

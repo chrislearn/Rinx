@@ -26,6 +26,11 @@ pub enum MiniAppsAction {
     OpenReviewed,
     /// Untrusted notification routing hint; backend authorization remains mandatory.
     OpenPalpo(String),
+    /// Resolved by Palpo's account worker; host navigation never emits a verdict.
+    OpenSignupApproval(super::palpo::SignupApprovalTarget),
+    /// Server-resolved ready agent in a project room joined by this account.
+    OpenAgentChat(super::palpo::AgentChatTarget),
+    OpenActionsRoom(super::palpo::ActionsRoomTarget),
     Close,
 }
 script_mod! {
@@ -101,6 +106,7 @@ struct Pending {
     receiver: Receiver<ServiceEvent>,
     started: Instant,
     turn: bool,
+    navigation: Option<super::palpo::PalpoNavigation>,
 }
 struct Approval {
     id: String,
@@ -133,6 +139,8 @@ pub struct MiniAppsPanel {
     #[rust]
     palpo_action: Option<String>,
     #[rust]
+    board: Option<super::palpo::ActionsRoomTarget>,
+    #[rust]
     octos_unavailable: Option<String>,
     #[rust]
     tag: String,
@@ -163,11 +171,12 @@ impl ScriptHook for MiniAppsPanel {
             let cx = vm.cx_mut();
             self.view.widget(cx, ids!(library)).set_visible(cx, self.showing_hub);
             self.view.view(cx, ids!(catalog)).set_visible(cx, self.showing_catalog);
-            self.view.view(cx, ids!(header)).set_visible(cx, !self.showing_hub);
+            self.view.view(cx, ids!(header)).set_visible(cx, !self.showing_hub && self.board.is_none());
             let app = !self.showing_hub && !self.showing_catalog;
             self.view.view(cx, ids!(app_content)).set_visible(cx, app);
             self.view.view(cx, ids!(import_form)).set_visible(cx, app && self.lease.is_none());
             self.view.label(cx, ids!(notice)).set_text(cx, &self.notice_text);
+            self.view.widget(cx, ids!(notice)).set_visible(cx, self.board.is_none() || !self.notice_text.is_empty());
             self.view.view(cx, ids!(import_form.core)).set_visible(cx, !crate::octos_service::is_hosted() && self.package.as_ref().and_then(Package::builtin_id) != Some(super::palpo::APP_ID));
             let imported = self.package.as_ref().and_then(Package::builtin_id).is_none();
             self.view.view(cx, ids!(bundle_path)).set_visible(cx, imported);
@@ -276,6 +285,7 @@ impl MiniAppsPanel {
     fn notice(&mut self, cx: &mut Cx, message: &str) {
         self.notice_text = message.to_owned();
         self.view.label(cx, ids!(notice)).set_text(cx, message);
+        self.view.widget(cx, ids!(notice)).set_visible(cx, self.board.is_none() || !message.is_empty());
     }
     fn stop(&mut self, cx: &mut Cx) {
         if let Some(lease) = self.lease.take() {
@@ -295,6 +305,9 @@ impl MiniAppsPanel {
     }
     /// What the assistant's `status` and `open_mini_app` see of this screen.
     fn publish_to_assistant(&self) {
+        // A room projection does not replace the user's separately reviewed app
+        // or the assistant's foreground app context.
+        if self.board.is_some() { return; }
         let reviewed = self.package.as_ref().map(|package| crate::assistant::ReviewedApp {
             id: package.manifest.id.clone(),
             name: package.manifest.name.clone(),
@@ -420,6 +433,7 @@ impl MiniAppsPanel {
                     .to_string(),
             )
         };
+        let room = self.board.as_ref().map(|target| target.room_id.to_string()).or(room);
         static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let generation = GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let lease = super::AUTHORITY.issue(
@@ -434,7 +448,8 @@ impl MiniAppsPanel {
             Instant::now() + Duration::from_secs(3600),
         );
         self.palpo = if package.manifest.capabilities.iter().any(|c| octosense_app_contract::palpo::SERVICES.contains(&c.as_str())) {
-            Some(super::palpo::PalpoHost::new(package.manifest.integrity.bundle_blake3.clone())?.with_action(self.palpo_action.take()))
+            Some(super::palpo::PalpoHost::new(package.manifest.integrity.bundle_blake3.clone())?
+                .with_action(self.palpo_action.take()).with_board(self.board.clone()))
         } else { None };
         if package.builtin_id() == Some(super::palpo::APP_ID) {
             super::consent::remember(&account, &package.manifest.integrity.bundle_blake3)?;
@@ -494,6 +509,10 @@ impl MiniAppsPanel {
             cx,
             "Running · Back closes this app and revokes its services.",
         );
+        if self.board.is_some() {
+            self.view.view(cx, ids!(header)).set_visible(cx, false);
+            self.notice(cx, "");
+        }
         Ok(())
     }
     fn render(&mut self, cx: &mut Cx) -> Result<(), String> {
@@ -589,6 +608,7 @@ impl MiniAppsPanel {
             receiver: rx,
             started: Instant::now(),
             turn: service == "octos.turn.start",
+            navigation: super::palpo::PalpoNavigation::for_service(service),
         });
         Ok(())
     }
@@ -681,7 +701,7 @@ impl MiniAppsPanel {
                 match pending.receiver.try_recv() {
                     Ok(event) => {
                         let complete = matches!(event, ServiceEvent::Complete(_));
-                        updates.push((pending.reply, pending.target.clone(), pending.turn, event));
+                        updates.push((pending.reply, pending.target.clone(), pending.turn, pending.navigation, event));
                         if complete {
                             done = true;
                             break;
@@ -693,6 +713,7 @@ impl MiniAppsPanel {
                             pending.reply,
                             pending.target.clone(),
                             pending.turn,
+                            pending.navigation,
                             ServiceEvent::Complete(Err(
                                 "Service connection closed before completing".into(),
                             )),
@@ -707,6 +728,7 @@ impl MiniAppsPanel {
                     pending.reply,
                     pending.target.clone(),
                     pending.turn,
+                    pending.navigation,
                     ServiceEvent::Complete(Err("Service timed out".into())),
                 ));
                 done = true;
@@ -714,11 +736,35 @@ impl MiniAppsPanel {
             !done
         });
         let mut redraw = false;
-        for (reply, target, turn, event) in updates {
-            let (complete, result) = match event {
+        for (reply, target, turn, navigation, event) in updates {
+            let (complete, mut result) = match event {
                 ServiceEvent::Data(v) => (false, Ok(v)),
                 ServiceEvent::Complete(r) => (true, r),
             };
+            if complete {
+                if let Some(navigation) = navigation {
+                    result = result.and_then(|value| {
+                        let account = &lease.identity().account;
+                        match navigation {
+                            super::palpo::PalpoNavigation::Signup => {
+                                let target = super::palpo::SignupApprovalTarget::from_reply(&value, account)?;
+                                cx.action(MiniAppsAction::OpenSignupApproval(target));
+                                Ok(json!({"opened": true}))
+                            }
+                            super::palpo::PalpoNavigation::AgentChat => {
+                                let target = super::palpo::AgentChatTarget::from_reply(&value, account)?;
+                                cx.action(MiniAppsAction::OpenAgentChat(target));
+                                Ok(json!({"requested": true}))
+                            }
+                            super::palpo::PalpoNavigation::ActionsRoom => {
+                                let target = super::palpo::ActionsRoomTarget::from_reply(&value, account)?;
+                                cx.action(MiniAppsAction::OpenActionsRoom(target));
+                                Ok(json!({"requested": true}))
+                            }
+                        }
+                    });
+                }
+            }
             if !complete {
                 if let Ok(value) = &result {
                     let event = &value["event"];
@@ -852,6 +898,7 @@ impl Widget for MiniAppsPanel {
                             receiver: rx,
                             started: Instant::now(),
                             turn: false,
+                            navigation: None,
                         }),
                         Err(e) => self.notice(cx, &e),
                     }
@@ -907,6 +954,23 @@ impl Widget for MiniAppsPanel {
     }
 }
 impl MiniAppsPanelRef {
+    pub fn open_board(&self, cx: &mut Cx, target: super::palpo::ActionsRoomTarget) -> Result<(), String> {
+        let mut inner = self.borrow_mut().ok_or("Mini app view unavailable")?;
+        inner.open = true;
+        inner.board = Some(target);
+        inner.palpo_action = None;
+        let index = crate::system_apps::apps().iter().position(|a| a.manifest.id == super::palpo::APP_ID)
+            .ok_or("Palpo app is not installed")?;
+        inner.open_builtin(cx, index)
+    }
+
+    pub fn close_board(&self, cx: &mut Cx) {
+        if let Some(mut inner) = self.borrow_mut() {
+            inner.stop(cx);
+            inner.open = false;
+            inner.board = None;
+        }
+    }
     /// Consume Back synchronously before the underlying Rinx/shell navigation.
     pub fn back(&self, cx: &mut Cx, modal: ModalRef) {
         let mut close = false;
@@ -919,6 +983,7 @@ impl MiniAppsPanelRef {
     pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MiniAppsAction) {
         if let Some(mut inner) = self.borrow_mut() {
             match action {
+                MiniAppsAction::OpenSignupApproval(_) | MiniAppsAction::OpenAgentChat(_) | MiniAppsAction::OpenActionsRoom(_) => {} // Handled by the account-bound app shell.
                 MiniAppsAction::Open => {
                     inner.open = true;
                     inner.show_catalog(cx);
