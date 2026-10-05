@@ -1668,7 +1668,8 @@ impl App {
         self.waiting_to_navigate_to_room = None;
         self.close_mini_apps(cx);
         cx.action(NavigationBarAction::GoToHome);
-        let room_name_id = cx.get_global::<RoomsListRef>().get_room_name(&target.room_id)
+        let room_name_id = cx.get_global_ref::<RoomsListRef>()
+            .and_then(|rooms| rooms.get_room_name(&target.room_id))
             .unwrap_or_else(|| RoomNameId::empty(target.room_id.clone()));
         cx.widget_action(self.ui.widget_uid(), RoomsListAction::Selected(SelectedRoom::JoinedRoom {
             room_name_id,
