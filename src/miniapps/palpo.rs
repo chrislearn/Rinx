@@ -12,6 +12,28 @@ pub const APP_ID: &str = "im.palpo.operations";
 const PREFIX: &str = "/_palpo/miniapp/v1/";
 const MAX_WIRE_BYTES: usize = 2 * 1024 * 1024;
 
+/// A server-bound navigation result, not an approval verdict or a script URL.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SignupApprovalTarget {
+    v: u8,
+    request_id: String,
+    pub account: ruma::OwnedUserId,
+    pub room_id: ruma::OwnedRoomId,
+    pub event_id: ruma::OwnedEventId,
+}
+impl SignupApprovalTarget {
+    pub fn from_reply(value: &Value, account: &str) -> Result<Self, String> {
+        let target: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "Palpo returned an invalid account approval destination")?;
+        if target.v != 1 || target.account.as_str() != account
+            || target.request_id.len() != 32 || !target.request_id.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return Err("Palpo returned a different account or signup request".into());
+        }
+        Ok(target)
+    }
+}
+
 struct Session {
     token: String,
     expires: Instant,
@@ -131,6 +153,12 @@ impl PalpoHost {
             *session = None;
         }
         let mut result = result?;
+        if service == "palpo.accounts.open" {
+            let target = SignupApprovalTarget::from_reply(&result, account)?;
+            if args["requestId"].as_str() != Some(target.request_id.as_str()) {
+                return Err("Palpo returned a different signup request".into());
+            }
+        }
         if service == "palpo.session.open" {
             // Older servers lack the designated business role. Fail closed;
             // the Matrix admin flag is never an implicit project approval grant.
@@ -208,6 +236,15 @@ impl PalpoHost {
 // return the earlier unbudgeted DTOs; make optional display fields explicit and
 // keep agent requests disabled until an accepted allocation is reported.
 fn normalize_workflow_views(service: &str, result: &mut Value) {
+    if service == "palpo.accounts.list" {
+        if let Some(rows) = result.get_mut("requests").and_then(Value::as_array_mut) {
+            for row in rows {
+                if let Some(row) = row.as_object_mut() {
+                    row.entry("canOpen").or_insert(json!(false));
+                }
+            }
+        }
+    }
     fn action(row: &mut Value) {
         let requester = row.get("ownerMxid").cloned().unwrap_or(Value::Null);
         if let Some(object) = row.as_object_mut() {
@@ -358,6 +395,24 @@ pub async fn request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn signup_navigation_is_closed_and_bound_to_the_current_account() {
+        let value = json!({"v":1,"requestId":"a".repeat(32),"account":"@admin:example.test",
+            "roomId":"!approvals:example.test","eventId":"$original"});
+        let target = SignupApprovalTarget::from_reply(&value, "@admin:example.test").unwrap();
+        assert_eq!(target.event_id.as_str(), "$original");
+        assert!(SignupApprovalTarget::from_reply(&value, "@other:example.test").is_err());
+        for (key, replacement) in [
+            ("v", json!(2)), ("requestId", json!("changed")), ("roomId", json!("https://evil.test")),
+            ("eventId", json!("https://evil.test")), ("url", json!("https://evil.test")),
+        ] {
+            let mut changed = value.clone(); changed[key] = replacement;
+            assert!(SignupApprovalTarget::from_reply(&changed, "@admin:example.test").is_err(), "{key}");
+        }
+        let mut old = json!({"requests":[{"id":"legacy"}]});
+        normalize_workflow_views("palpo.accounts.list", &mut old);
+        assert_eq!(old["requests"][0]["canOpen"], false);
+    }
     #[test]
     fn legacy_workflow_views_render_without_enabling_unbudgeted_requests() {
         let mut old = json!({"projects":[{"id":"legacy","canRequest":true}]});

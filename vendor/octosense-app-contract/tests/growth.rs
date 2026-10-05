@@ -16,14 +16,14 @@ fn manifest_with(body: &str) -> String {
 fn palpo_extension_preserves_schema_and_declares_its_host_feature() {
     assert_eq!(SCHEMA, 1);
     assert_eq!(SCHEMA_MINOR, 0);
-    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1"]);
+    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1", "palpo-account-navigation-v1"]);
 }
 
 #[test]
 fn palpo_uses_exact_service_grants() {
     let services = serde_json::to_string(octosense_app_contract::palpo::SERVICES).unwrap();
     let manifest = parse(&manifest_with(&format!(
-        r#""requires":["palpo-admin-v1"],"capabilities":{services}"#
+        r#""requires":["palpo-admin-v1","palpo-account-navigation-v1"],"capabilities":{services}"#
     ))).unwrap();
     let limits = HostLimits::system().with_require_signature(false);
     let resolved = resolve(&manifest, &limits).unwrap();
@@ -34,6 +34,17 @@ fn palpo_uses_exact_service_grants() {
     assert!(!resolved.allows("palpo.users.delete"));
     let unknown = parse(&manifest_with(r#""capabilities":["palpo.users.delete"]"#)).unwrap();
     assert!(resolve(&unknown, &limits).is_err());
+}
+
+#[test]
+fn signup_navigation_needs_an_explicit_grant_and_required_host_feature() {
+    let limits = HostLimits::system().with_require_signature(false);
+    let old = parse(&manifest_with(r#""requires":["palpo-admin-v1"],"capabilities":["palpo.accounts.list"]"#)).unwrap();
+    assert!(!resolve(&old, &limits).unwrap().allows("palpo.accounts.open"));
+    let missing = parse(&manifest_with(r#""requires":["palpo-admin-v1"],"capabilities":["palpo.accounts.open"]"#)).unwrap();
+    assert!(resolve(&missing, &limits).unwrap_err().contains("palpo-account-navigation-v1"));
+    let explicit = parse(&manifest_with(r#""requires":["palpo-account-navigation-v1"],"capabilities":["palpo.accounts.open"]"#)).unwrap();
+    assert!(resolve(&explicit, &limits).unwrap().allows("palpo.accounts.open"));
 }
 
 #[test]

@@ -336,6 +336,14 @@ def main():
             assert backend['requests'] == 1 and backend['removalCommands'] == 2, backend
             assert backend['requestStates'] == [{'state': 'removed', 'usable': False}], backend
             report['checks'].append('owner removal needs no second approval; partial cleanup stays pending; definitive failure retries once and runtime plus Matrix proof complete removal')
+            admin.click_id('accounts'); admin.wait_text('Alice 张')
+            admin.capture('signup-request-list')
+            admin.click_id('open_signup'); admin.wait_text('Opening the original approval request in Rinx')
+            navigation = json.loads((admin.root / 'profile/signup-navigation.json').read_text())
+            signup = json.loads((root / 'backend.json').read_text())['signup']
+            assert navigation == {'account': '@admin:example.test', 'roomId': signup['roomId'], 'eventId': signup['eventId']}, (navigation, signup)
+            assert signup['status'] == 'pending' and signup['registrations'] == 0, signup
+            report['checks'].append('signup page resolves the original account-bound Matrix event through the native adapter; opening sends no verdict')
             owner.click_id('disconnect'); owner.wait_text('Rinx remains signed in')
             assert json.loads((root / 'backend.json').read_text())['logouts'] == 0
             report['checks'].append('mini-app disconnect preserves Matrix login')

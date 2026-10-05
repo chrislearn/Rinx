@@ -26,6 +26,8 @@ pub enum MiniAppsAction {
     OpenReviewed,
     /// Untrusted notification routing hint; backend authorization remains mandatory.
     OpenPalpo(String),
+    /// Resolved by Palpo's account worker; host navigation never emits a verdict.
+    OpenSignupApproval(super::palpo::SignupApprovalTarget),
     Close,
 }
 script_mod! {
@@ -101,6 +103,7 @@ struct Pending {
     receiver: Receiver<ServiceEvent>,
     started: Instant,
     turn: bool,
+    signup_navigation: bool,
 }
 struct Approval {
     id: String,
@@ -589,6 +592,7 @@ impl MiniAppsPanel {
             receiver: rx,
             started: Instant::now(),
             turn: service == "octos.turn.start",
+            signup_navigation: service == "palpo.accounts.open",
         });
         Ok(())
     }
@@ -681,7 +685,7 @@ impl MiniAppsPanel {
                 match pending.receiver.try_recv() {
                     Ok(event) => {
                         let complete = matches!(event, ServiceEvent::Complete(_));
-                        updates.push((pending.reply, pending.target.clone(), pending.turn, event));
+                        updates.push((pending.reply, pending.target.clone(), pending.turn, pending.signup_navigation, event));
                         if complete {
                             done = true;
                             break;
@@ -693,6 +697,7 @@ impl MiniAppsPanel {
                             pending.reply,
                             pending.target.clone(),
                             pending.turn,
+                            pending.signup_navigation,
                             ServiceEvent::Complete(Err(
                                 "Service connection closed before completing".into(),
                             )),
@@ -707,6 +712,7 @@ impl MiniAppsPanel {
                     pending.reply,
                     pending.target.clone(),
                     pending.turn,
+                    pending.signup_navigation,
                     ServiceEvent::Complete(Err("Service timed out".into())),
                 ));
                 done = true;
@@ -714,11 +720,18 @@ impl MiniAppsPanel {
             !done
         });
         let mut redraw = false;
-        for (reply, target, turn, event) in updates {
-            let (complete, result) = match event {
+        for (reply, target, turn, signup_navigation, event) in updates {
+            let (complete, mut result) = match event {
                 ServiceEvent::Data(v) => (false, Ok(v)),
                 ServiceEvent::Complete(r) => (true, r),
             };
+            if complete && signup_navigation {
+                result = result.and_then(|value| {
+                    let target = super::palpo::SignupApprovalTarget::from_reply(&value, &lease.identity().account)?;
+                    cx.action(MiniAppsAction::OpenSignupApproval(target));
+                    Ok(json!({"opened": true}))
+                });
+            }
             if !complete {
                 if let Ok(value) = &result {
                     let event = &value["event"];
@@ -852,6 +865,7 @@ impl Widget for MiniAppsPanel {
                             receiver: rx,
                             started: Instant::now(),
                             turn: false,
+                            signup_navigation: false,
                         }),
                         Err(e) => self.notice(cx, &e),
                     }
@@ -919,6 +933,7 @@ impl MiniAppsPanelRef {
     pub fn action(&self, cx: &mut Cx, modal: ModalRef, action: &MiniAppsAction) {
         if let Some(mut inner) = self.borrow_mut() {
             match action {
+                MiniAppsAction::OpenSignupApproval(_) => {} // Handled by the account-bound app shell.
                 MiniAppsAction::Open => {
                     inner.open = true;
                     inner.show_catalog(cx);

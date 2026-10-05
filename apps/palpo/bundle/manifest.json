@@ -21,6 +21,7 @@
     "palpo.agents.retire",
     "palpo.activity.list",
     "palpo.accounts.list",
+    "palpo.accounts.open",
     "palpo.inbox.list",
     "palpo.inbox.submit",
     "palpo.inbox.get",
@@ -31,11 +32,12 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "3226a55d9f9c1d2ce17456d8f7a3da229b37a75646c2463a6d36aee7b709ddb0"
+    "bundle_blake3": "7d17a79435977ecf4f68b8dd0a17bcdaf07aa00f6c7c7611d4e10041cd3c8e2a"
   },
   "name": "Palpo",
   "requires": [
-    "palpo-admin-v1"
+    "palpo-admin-v1",
+    "palpo-account-navigation-v1"
   ],
   "schema": 1,
   "version": "0.1.0"

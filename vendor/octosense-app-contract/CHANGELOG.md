@@ -3,6 +3,15 @@
 `octosense-app-contract` follows the rules in [README.md](README.md#stability):
 within `1.x` it only grows.
 
+## 1.2.0 (pending release)
+
+- Exact Palpo host-service grants, with `palpo-admin-v1` required by Palpo
+  bundles. Credentials stay in the host; package consent grants no business role.
+- `palpo.accounts.open` and required feature `palpo-account-navigation-v1` let
+  a host navigate to a server-authorized signup request's original Matrix event.
+  It does not send an approval or accept a script-supplied room/event destination.
+  Older hosts refuse the required feature rather than silently lose navigation.
+
 ## 1.1.0
 
 `RESERVED_NAMES` lists the native apps OctoSense ships (its

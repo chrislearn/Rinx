@@ -41,7 +41,7 @@ struct App {
     #[rust]
     lease: Option<Lease>,
     #[rust]
-    pending: Vec<(usize, u64, mpsc::Receiver<Result<Value, String>>)>,
+    pending: Vec<(usize, u64, bool, mpsc::Receiver<Result<Value, String>>)>,
     #[rust]
     calls: usize,
     #[rust]
@@ -155,7 +155,7 @@ impl AppMain for App {
             let account = lease.identity().account.clone();
             let token = self.matrix_token.clone();
             let (tx, rx) = mpsc::channel();
-            self.pending.push((req.heap_key, req.req_id, rx));
+            self.pending.push((req.heap_key, req.req_id, req.service == "palpo.accounts.open", rx));
             self.runtime.as_ref().unwrap().spawn(async move {
                 let args = serde_json::from_str(&req.args_json).unwrap();
                 let result = host
@@ -166,8 +166,19 @@ impl AppMain for App {
             });
         }
         let mut complete = Vec::new();
-        for (i, (heap, id, rx)) in self.pending.iter().enumerate() {
+        for (i, (heap, id, signup_navigation, rx)) in self.pending.iter().enumerate() {
             if let Ok(result) = rx.try_recv() {
+                // This fixture records the trusted handoff. Production App opens
+                // the Matrix timeline; this isolated example has no SDK login.
+                let result = if *signup_navigation {
+                    result.and_then(|value| {
+                        let target = rinx::miniapps::palpo::SignupApprovalTarget::from_reply(&value, &self.lease.as_ref().unwrap().identity().account)?;
+                        std::fs::write(rinx::app_data_dir().join("signup-navigation.json"), serde_json::json!({
+                            "account": target.account, "roomId": target.room_id, "eventId": target.event_id,
+                        }).to_string()).map_err(|e| e.to_string())?;
+                        Ok(serde_json::json!({"opened": true}))
+                    })
+                } else { result };
                 let result = result.map(|v| v.to_string());
                 splash_host_respond(cx, *heap, *id, result.as_deref().map_err(String::as_str));
                 complete.push(i);

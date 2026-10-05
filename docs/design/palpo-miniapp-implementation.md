@@ -25,7 +25,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
 | Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
-| Signup decisions | Requests listed | Approve/reject navigation and role checks |
+| Signup decisions | Authorized original-event navigation, current-role/source verification, account-bound invitation continuation | Full native timeline and real Matrix approve/reject acceptance |
 | Shared theme and desktop windows | Native theme-preservation and separate-window tests, including budget, assignment, agent and top-up forms | Hosted OctoSense acceptance |
 | Android and OpenHarmony | No device acceptance claimed | Actual build, touch/back/keyboard, background notification and file-picker tests |
 | Shared contract and App Hub release | Companion contract implementation and local provenance | Reviewed contract release, remove vendor patch, authentic publisher/platform evidence and publication |
@@ -34,6 +34,38 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Signup approval navigation — 2026-10-04
+
+Signups now offers Open signup request to configured account approvers. The new
+exact `palpo.accounts.open` grant requires `palpo-account-navigation-v1`; an older
+host or a read-only signup grant does not acquire this capability. The bundle
+supplies only a request ID. Palpo verifies the private approval room, current
+approver role and membership, original bot event, request/tool/digest/approvers,
+and that the source remains current after asynchronous checks.
+
+Rinx closes the mini-app window and navigates to the exact trusted Matrix event
+under the same signed-in account. For an invitation, it preserves the event while
+the user joins. An expired continuation, account change or selection of another room drops
+the pending event and its matching generic room waiter. A new signup navigation
+also replaces an older room waiter. Opening neither joins automatically nor sends
+a verdict; existing trusted Matrix controls and the account worker still own
+approve/reject. Account approval is separate from project approval authority.
+
+Validation: all 125 Palpo backend tests pass; the final source-check ordering
+passes the 26 focused account/mini-app tests. Six Rinx adapter tests plus the
+app-shell invitation continuation regression pass, as do all 28 shared contract
+tests. Optimized Rinx and instrument example builds pass. Makepad hidden-window
+run `ff509030317f46a183685c646d32d5ef` passes all eleven checks, including original
+signup-event resolution without a verdict or account creation, and the earlier
+budget, assignment, top-up, removal, draft, theme and disconnect flows. The actual
+signup captures were inspected. Example SHA-256:
+`620ee142411abe2ec2840a991f3f7554f27ea30481551e98b1397432453ff348`.
+The report also pins the production Splash and manifest digests.
+
+The isolated native example records the validated host handoff without an SDK
+login. It cannot prove real timeline rendering, invitation acceptance or a Matrix
+signup verdict. Those acceptance checks remain open; production is unchanged.
 
 ## Agent removal, cleanup receipts and usage — 2026-10-04
 

@@ -28,7 +28,7 @@ pub const SCHEMA_MINOR: u32 = 0;
 /// build honours. Empty in `1.0.0`: every feature added in `1.x` that
 /// restricts or changes what an app gets is added here, with the field
 /// that carries it, in the same release.
-pub const KNOWN_FEATURES: &[&str] = &["palpo-admin-v1"];
+pub const KNOWN_FEATURES: &[&str] = &["palpo-admin-v1", "palpo-account-navigation-v1"];
 
 /// Parse a manifest: [`AppManifest::parse`].
 pub fn parse(json: &str) -> Result<AppManifest, String> {
@@ -126,6 +126,7 @@ pub const KNOWN_CAPABILITIES: &[&str] = &[
     "palpo.agents.retire",
     "palpo.activity.list",
     "palpo.accounts.list",
+    "palpo.accounts.open",
     "palpo.inbox.list",
     "palpo.inbox.submit",
     "palpo.inbox.get",
