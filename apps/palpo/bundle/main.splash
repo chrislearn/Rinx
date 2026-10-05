@@ -93,7 +93,9 @@ fn submit_form(){
     })
 }
 fn request_project(fleet, resource){
-    new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [resource.id] name: "" reason: ""}, [
+    let allocation = resource.id
+    if resource.allocationId != nil { allocation = resource.allocationId }
+    new_form("Request a project", "palpo.inbox.submit", {kind: "project" fleetId: fleet.id resourceIds: [allocation] name: "" reason: ""}, [
         {key: "name" label: "Project name" value: ""}
         {key: "reason" label: "What will your project do?" value: ""}
     ])
@@ -163,7 +165,9 @@ fn select_agent_resource(project){
     call("palpo.catalog.list", {projectId: project.id}, fn(data){ P.rows = data.fleets })
 }
 fn request_agent(resource, role){
-    new_form("Request an agent", "palpo.requests.create", {projectId: P.selected.id role: role requestedTokens: "100000" ratePerDay: "10000" agentDefinition: {name: "" resourceId: resource.id}}, [
+    let payload = {projectId: P.selected.id role: role requestedTokens: "100000" ratePerDay: "10000" agentDefinition: {name: "" resourceId: resource.id}}
+    if resource.allocationId != nil { payload.resourceAllocationId = resource.allocationId }
+    new_form("Request an agent", "palpo.requests.create", payload, [
         {key: "agentName" label: "Agent name" value: ""}
         {key: "requestedTokens" label: "Initial tokens" value: "100000"}
         {key: "ratePerDay" label: "Daily rate" value: "10000"}

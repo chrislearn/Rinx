@@ -78,11 +78,34 @@ was fabricated. Rinx's own bundle packaging/build validation passed.
 ## Remaining acceptance
 
 This is a draft integration, not the full ADR implementation. The Rust backend
-still needs association/profile issuance, room preparation, resource browsing and
-creation routes. Those unsupported entries are hidden.
+still needs association/profile issuance and the remaining lifecycle/admin routes.
+Resource browsing and project/agent creation now use the paired Rust routes with
+explicit allocation IDs; unsupported entries remain hidden.
 The real Hagency runtime has separate tests; this UI run does not establish
 combined provisioning, live chat, usage metering or notification delivery.
 Android, OpenHarmony and hosted OctoSense also require their own device evidence.
 
 Companion changes: [Palpo #508](https://github.com/palpo-im/palpo/pull/508) and
 [Hagency #29](https://github.com/hagency-org/hagency-rs/pull/29).
+
+## Continued implementation, 2026-10-04
+
+The manager's forms now distinguish the engagement allocation from its parent
+resource. Rust Palpo prepares owner-authorized Matrix rooms with durable recovery
+and freezes the definition before coordinator review. Its HTTP tests cover a
+lost createRoom reply, a lost agent event response followed by a new Matrix login,
+conflicting retries, funding/role checks and automatic command queueing. The
+paired Rust notification worker adds private My Actions delivery, reminders,
+quiet hours, privacy revalidation and a pinned Inbox summary.
+
+The desktop window host from commit `9927786e` is integrated here. Real Makepad
+window input verified opening, OS close, Back, reopening, theme reapplication and
+preservation of the main chat draft/display context. The light catalog and dark
+import screenshots were inspected. Evidence:
+`target/miniapp-window-validation/51e566f3bcdc4f78a7a3a8a8e128a3e0/report.json`.
+
+The coordinator UI scenario also passed against the rebuilt Rust process,
+including the original fourteen checks. Its evidence is
+`target/palpo-coordinator-validation/5e9b1bdbeb974031a58b7f039b051f68/report.json`.
+The coordinator decision screenshot was inspected. These runs use a Matrix HTTP
+fixture; they do not claim combined live Hagency or mobile acceptance.

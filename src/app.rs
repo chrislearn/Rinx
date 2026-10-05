@@ -33,6 +33,7 @@ use crate::shared::web_browser_window::WebBrowserWindowHostWidgetRefExt;
 use crate::agent_chat::ops::ui::{AgentOpsAction, AgentOpsPanelWidgetRefExt};
 use crate::moments::ui::{MomentsAction, MomentsPanelWidgetRefExt};
 use crate::octoscript_apps::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
+use crate::miniapps::window::MiniAppsWindowHostWidgetRefExt;
 use crate::settings::theme_studio::{ThemeStudioAction, ThemeStudioWidgetRefExt};
 use crate::article_app::{ArticleAction, ArticlePanelWidgetRefExt};
 use crate::mini_app::{MiniAppAction, MiniAppPanelWidgetRefExt};
@@ -186,6 +187,7 @@ script_mod! {
             // Likewise the article editor's window.
             article_window_host := ArticleWindowHost {}
             web_browser_window_host := WebBrowserWindowHost {}
+            mini_apps_window_host := MiniAppsWindowHost {}
 
             main_window := Window {
                 window.inner_size: vec2(1280, 800)
@@ -423,8 +425,7 @@ impl MatchEvent for App {
             if let Some(LoginAction::LoginFailure(_)) = action.downcast_ref() {
                 crate::article_app::invalidate_sessions();
                 crate::octoscript_apps::invalidate_sessions();
-                let mini_modal=self.ui.modal(cx,ids!(octoscript_apps_modal));
-                self.ui.mini_apps_panel(cx,ids!(octoscript_apps_modal.content)).action(cx,mini_modal,&MiniAppsAction::Close);
+                self.close_mini_apps(cx);
                 let modal = self.ui.modal(cx, ids!(article_app_modal));
                 self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
                 self.article_window_host(cx).close(cx);
@@ -534,8 +535,16 @@ impl MatchEvent for App {
                 continue;
             }
             if let Some(action) = action.downcast_ref::<MiniAppsAction>() {
-                let modal=self.ui.modal(cx,ids!(octoscript_apps_modal));
-                self.ui.mini_apps_panel(cx,ids!(octoscript_apps_modal.content)).action(cx,modal,action);
+                let modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
+                if matches!(action, MiniAppsAction::Close) {
+                    self.close_mini_apps(cx);
+                } else if !self.embedded && cfg!(any(target_os = "macos", target_os = "windows", all(target_os = "linux", not(target_env = "ohos")))) {
+                    self.ui.mini_apps_window_host(cx, ids!(mini_apps_window_host)).action(cx, action);
+                } else if let Some(panel) = self.hosted_window(cx, HostedWindow::MiniApps) {
+                    panel.as_mini_apps_panel().action(cx, ModalRef::default(), action);
+                } else {
+                    self.ui.mini_apps_panel(cx, ids!(octoscript_apps_modal.content)).action(cx, modal, action);
+                }
                 continue;
             }
             if let Some(action) = action.downcast_ref::<MiniAppAction>() {
@@ -923,6 +932,13 @@ impl App {
         self.ui.web_browser(cx, ids!(web_browser_modal.content)).action(cx, modal, &WebBrowserAction::Close);
     }
 
+    fn close_mini_apps(&mut self, cx: &mut Cx) {
+        self.ui.mini_apps_window_host(cx, ids!(mini_apps_window_host)).close(cx);
+        let modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
+        self.ui.mini_apps_panel(cx, ids!(octoscript_apps_modal.content)).action(cx, modal, &MiniAppsAction::Close);
+        self.close_hosted_window(cx, HostedWindow::MiniApps, true);
+    }
+
     fn clear_session_ui(&mut self, cx: &mut Cx) {
         self.close_web_browser(cx);
         #[cfg(feature = "agent_chat")]
@@ -936,7 +952,7 @@ impl App {
         let modal = self.ui.modal(cx, ids!(space_management_modal));
         self.ui.space_management_panel(cx, ids!(space_management_modal.content)).action(cx, modal, &SpaceManagementAction::Close);
         crate::assistant::set_current_room(None);
-        for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser] {
+        for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser, HostedWindow::MiniApps] {
             self.close_hosted_window(cx, window, true);
         }
         let modal = self.ui.modal(cx, ids!(moments_modal));
@@ -948,8 +964,7 @@ impl App {
             let modal = self.ui.modal(cx, ids!(agent_ops_modal));
             self.ui.agent_ops_panel(cx, ids!(agent_ops_modal.content)).action(cx, modal, &AgentOpsAction::Close);
         }
-        let mini_modal=self.ui.modal(cx,ids!(octoscript_apps_modal));
-        self.ui.mini_apps_panel(cx,ids!(octoscript_apps_modal.content)).action(cx,mini_modal,&MiniAppsAction::Close);
+        self.close_mini_apps(cx);
         let modal = self.ui.modal(cx, ids!(article_app_modal));
         self.ui.article_panel(cx, ids!(article_app_modal.content)).action(cx, modal, &ArticleAction::Close);
         self.article_window_host(cx).close(cx);
@@ -1162,6 +1177,7 @@ enum HostedWindow {
     Moments,
     Article,
     WebBrowser,
+    MiniApps,
 }
 
 impl HostedWindow {
@@ -1170,6 +1186,7 @@ impl HostedWindow {
             Self::Moments => live_id!(moments),
             Self::Article => live_id!(article),
             Self::WebBrowser => live_id!(web_browser),
+            Self::MiniApps => live_id!(mini_apps),
         }
     }
 }
@@ -1206,6 +1223,11 @@ impl App {
                         use mod.widgets.*
                         ArticlePanel { padding: Inset{top: 0 bottom: 0} }
                     }),
+                    HostedWindow::MiniApps => script_eval!(vm, {
+                        use mod.prelude.widgets.*
+                        use mod.widgets.*
+                        MiniAppsPanel {}
+                    }),
                     HostedWindow::WebBrowser => script_eval!(vm, {
                         use mod.prelude.widgets.*
                         use mod.widgets.*
@@ -1218,6 +1240,7 @@ impl App {
                 HostedWindow::Moments => "Moments",
                 HostedWindow::Article => "Article editor",
                 HostedWindow::WebBrowser => "Website",
+                HostedWindow::MiniApps => "Mini apps",
             });
             crate::module::open_window(window.key(), title, panel.clone());
             self.hosted_windows.push((window, panel.clone()));
@@ -1240,6 +1263,7 @@ impl App {
             }
             HostedWindow::Article => panel.as_article_panel().action(cx, ModalRef::default(), &ArticleAction::Close),
             HostedWindow::WebBrowser => panel.as_web_browser().action(cx, ModalRef::default(), &WebBrowserAction::Close),
+            HostedWindow::MiniApps => panel.as_mini_apps_panel().action(cx, ModalRef::default(), &MiniAppsAction::Close),
         }
         #[cfg(feature = "octosense-module")]
         if close_host_window {
@@ -1251,7 +1275,7 @@ impl App {
     fn handle_closed_hosted_windows(&mut self, cx: &mut Cx) {
         #[cfg(feature = "octosense-module")]
         for key in crate::module::take_closed_windows() {
-            for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser] {
+            for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser, HostedWindow::MiniApps] {
                 if window.key() == key {
                     self.close_hosted_window(cx, window, false);
                 }
@@ -1290,6 +1314,7 @@ impl App {
                 HostedWindow::Moments => script_eval!(vm, {mod.widgets.MomentsPanel {}}),
                 HostedWindow::Article => script_eval!(vm, {mod.widgets.ArticlePanel {}}),
                 HostedWindow::WebBrowser => script_eval!(vm, {mod.widgets.WebBrowser {}}),
+                HostedWindow::MiniApps => script_eval!(vm, {mod.widgets.MiniAppsPanel {}}),
             };
             panel.script_apply(vm, &Apply::ScriptReapply, &mut Scope::empty(), value);
         }
@@ -1313,7 +1338,7 @@ impl App {
         self.lifecycle.shutdown_started = true;
         self.preserve_reader_session(cx);
         self.close_web_browser(cx);
-        for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser] {
+        for window in [HostedWindow::Moments, HostedWindow::Article, HostedWindow::WebBrowser, HostedWindow::MiniApps] {
             self.close_hosted_window(cx, window, true);
         }
         self.persist_runtime_state(cx, "module close");
@@ -1443,6 +1468,7 @@ impl App {
                     self.moments_window_host(cx).close(cx);
                     self.article_window_host(cx).close(cx);
                     self.close_web_browser(cx);
+                    self.close_mini_apps(cx);
                 }
             // Not every close goes through a close request first, so also catch the close itself.
             Event::WindowClosed(e)
@@ -1451,6 +1477,7 @@ impl App {
                     self.moments_window_host(cx).close(cx);
                     self.article_window_host(cx).close(cx);
                     self.close_web_browser(cx);
+                    self.close_mini_apps(cx);
                 }
             Event::Foreground => {
                 if !self.lifecycle.is_foreground {
@@ -1707,6 +1734,7 @@ mod session_state_tests {
             (HostedWindow::Moments, WidgetRef::default()),
             (HostedWindow::Article, WidgetRef::default()),
             (HostedWindow::WebBrowser, WidgetRef::default()),
+            (HostedWindow::MiniApps, WidgetRef::default()),
         ];
         app.app_state.logged_in = true;
         app.app_state.app_prefs.send_on_enter = false;
