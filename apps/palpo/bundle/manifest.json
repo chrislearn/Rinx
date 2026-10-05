@@ -23,6 +23,7 @@
     "palpo.agents.control",
     "palpo.activity.list",
     "palpo.accounts.list",
+    "palpo.accounts.open",
     "palpo.inbox.list",
     "palpo.inbox.submit",
     "palpo.inbox.get",
@@ -38,13 +39,14 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "46c25b2e03cf314ce38c6a1e1a7e972c7bf4dfe983337a86e8590c56793c02f2"
+    "bundle_blake3": "791de8123a5149dac36718b8e7e9419841a67609accdf7c180c6cb1990e92664"
   },
   "name": "Palpo",
   "requires": [
     "palpo-admin-v1",
     "palpo-actions-room-v1",
-    "palpo-agent-navigation-v1"
+    "palpo-agent-navigation-v1",
+    "palpo-account-navigation-v1"
   ],
   "schema": 1,
   "version": "0.1.0"

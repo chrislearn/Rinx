@@ -194,3 +194,18 @@ inspected. The host suite passed 25 checks and shell navigation passed six.
 The instrument uses real Rinx and Rust Palpo processes with isolated Matrix and
 provider fixtures; it does not establish live Hagency execution or mobile
 acceptance. The scroll helper now requires a visible hit target before clicking.
+
+## Rust signup approval worker
+
+The Signups screen now opens the original verified Matrix approval event through
+its explicit native navigation grant. A navigation call sends no verdict. The
+Rust worker consumes the bound Matrix decision and projects registration only
+after a confirmed ordinary account or original-device reconciliation.
+
+All five native checks passed at
+`target/palpo-signup-validation/ffd93453b2d64a028adf42d8cfe0aec5/report.json`;
+the pending handoff and terminal registration screenshots were inspected. This
+uses the real Rust worker and native Palpo adapter with an isolated Matrix HTTP
+fixture. It verifies the source-event handoff, not a live Matrix SDK room join.
+The Rust suite separately covers eight signup scenarios, including lost replies,
+restart, private-room changes, stale/forged verdicts and revocation during UIAA.

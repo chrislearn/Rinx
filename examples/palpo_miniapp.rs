@@ -161,6 +161,13 @@ impl AppMain for App {
                 let result = host
                     .execute(&lease, &account, url, &token, &req.service, args)
                     .await;
+                // Instrument evidence only: the production MiniAppsPanel sends
+                // this closed target to the account-bound application shell.
+                if matches!(req.service.as_str(), "palpo.accounts.open" | "palpo.requests.open") {
+                    if let Ok(target) = &result {
+                        std::fs::write(rinx::app_data_dir().join("navigation.json"), target.to_string()).unwrap();
+                    }
+                }
                 let _ = tx.send(result);
                 SignalToUI::set_ui_signal();
             });

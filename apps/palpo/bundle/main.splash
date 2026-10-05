@@ -516,7 +516,16 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
         if P.page == "accounts" {
             mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Account decisions open in their original trusted Matrix approval room."}
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No account signup requests."} }
-            for i in P.rows.len() { let row = P.rows[i] mod.widgets.PalpoCard{mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.displayName + " · " + row.status} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.reason}} }
+            for i in P.rows.len() {
+                let row = P.rows[i]
+                mod.widgets.PalpoCard{
+                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.displayName + " · " + row.status}
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.reason}
+                    if row.canOpen && available("palpo.accounts.open") {
+                        open_signup := mod.widgets.RinxPrimaryButton{text: "Open signup request" on_click: || call("palpo.accounts.open", {requestId: row.id}, fn(data){ P.notice = "Opening the original approval request in Rinx." })}
+                    }
+                }
+            }
         }
     }
 }}
