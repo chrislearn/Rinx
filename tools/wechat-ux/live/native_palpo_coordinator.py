@@ -193,7 +193,7 @@ def main():
         state["fleets"][fleet] = {"id": fleet, "state": "ready", "installation": "installed",
             "representativeMxid": f"@{fleet}_representative:example.test", "registrationGeneration": 1,
             "transport": {"mode": "outbound", "generation": 1, "sequence": 0, "token": "fixture-machine"},
-            "capabilities": {"coordinatorApprovalV1": True, "coordinatorAgentControlV1": True, "coordinatorAgentProfileV1": True}}
+            "capabilities": {"coordinatorApprovalV1": True, "coordinatorAgentControlV1": True, "coordinatorAgentProfileV1": True, "coordinatorProjectSetupV1": True}}
         db.execute("UPDATE state SET body=? WHERE id=1", [json.dumps(state)])
     log = (root / "backend.log").open("w")
     server = subprocess.Popen([str(args.backend.resolve())], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -427,6 +427,43 @@ def main():
             owner.request('/m', k='scroll', x=210, y=420, dy=100, wait=1)
         owner.wait_text("Agent removed · cleanup verified. Usage settlement is tracked separately.")
         owner.capture("owner-agent-retired")
+        project_definition = {"name": "Recovery project", "roomId": "!recovery:example.test", "ownerDmRoomId": "!recoveryprivate:example.test"}
+        project_request = {"kind": "project", "request": {"id": "recover_request", "revision": 1, "serverEngagementId": fleet,
+            "projectId": "recover_project", "owner": "@owner:example.test", "requester": "@owner:example.test", "definitionDigest": digest(project_definition), "resourceAllocations": ["grant_a"]}, "definition": project_definition}
+        project_action = call(endpoint, token, "palpo.inbox.submit", project_request)["action"]
+        coordinator.click_id("inbox"); coordinator.click_id("needs"); coordinator.wait_text("Recovery project")
+        coordinator.click_id("review"); coordinator.click_id("approve"); coordinator.wait_text("Decision reason")
+        coordinator.click_id("submit"); coordinator.wait_text("No requests in this view")
+        with sqlite3.connect(root / "admin.sqlite") as db:
+            state = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+            project_command = next(r["command"] for r in state["rustWorkflows"]["outbox"].values() if r["actionId"] == project_action["id"])
+        source = project_command["context"]["commandId"]
+        project_grant = {"projectId": "recover_project", "serverEngagementId": fleet, "revision": 1, "owner": "@owner:example.test", "resourceAllocations": ["grant_a"], "state": "approved"}
+        projection = {"kind": "project", "registrationGeneration": 1, "delegationRevision": 1, "project": project_grant}
+        receipt = {"kind": "receipt", "registrationGeneration": 1, "delegationRevision": 1, "commandId": source, "commandDigest": digest({"operation": "coordinator_project_approval", "command": project_command, "definition": project_definition}), "projectId": "recover_project", "state": "applied"}
+        setup = {"kind": "project_setup", "registrationGeneration": 1, "delegationRevision": 1, "projectId": "recover_project", "projectRevision": 1,
+            "approvalCommandId": source, "attemptId": source, "revision": 1, "state": "failed", "reason": "private_membership_pending", "observedAtMs": int(time.time() * 1000)}
+        def projection_row(identity, body):
+            return {"id": identity, "payload": body, "digest": digest(body)}
+        sequence += 1
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True,
+            "coordinatorUpdates": [projection_row("project_recover_project", projection), projection_row("command_" + source, receipt), projection_row("project_setup_recover_project", setup)]})
+        owner.click_id("projects"); owner.wait_text("Recovery project")
+        owner.wait_text("The approval bot could not join your private room. Check its invitation, then retry.")
+        owner.capture("owner-project-setup-failed")
+        owner.click_id("retry_setup"); owner.wait_text("Retry project setup"); owner.capture("owner-project-setup-retry")
+        retry_draft = json.loads((owner.root / "profile/app/draft.json").read_text())
+        owner.click_id("submit"); owner.wait_text("Project setup is waiting for Hagency and Matrix verification.")
+        setup.update(attemptId=retry_draft["payload"]["commandId"], revision=2, state="ready", reason=None, observedAtMs=int(time.time() * 1000))
+        project_grant["state"] = "ready"
+        sequence += 1
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True,
+            "coordinatorUpdates": [projection_row("project_recover_project", projection), projection_row("project_setup_recover_project", setup)]})
+        owner.click_id("refresh"); owner.wait_text("Project rooms verified"); owner.capture("owner-project-setup-ready")
+        with sqlite3.connect(root / "admin.sqlite") as db:
+            stored = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+            assert stored["rustWorkflows"]["actions"][project_action["id"]]["decision"]["commandId"] == source
+            assert stored["rustWorkflows"]["projectRetries"][retry_draft["payload"]["commandId"]]["command"]["approvalCommandId"] == source
         coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: On")
         coordinator.click_id("notifications_enabled"); coordinator.wait_text("Action notifications: Off")
         coordinator.click_id("reminders_enabled"); coordinator.wait_text("Reminders: Off")
@@ -455,9 +492,11 @@ def main():
             "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
             "top-up retry after provider execution returns the original result",
             "owner sees a terminal provider refusal without losing the approved decision",
-            "scoped rename waits for Matrix observation", "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
+            "native project setup failure and recovery retain the original approval", "scoped rename waits for Matrix observation", "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
             "retired history remains visible with usage settlement separate",
             "native notification preferences persist after reopening", "notification settings stay isolated per Matrix account"]
+        assert hashlib.sha256(args.binary.read_bytes()).hexdigest() == report["binary_sha256"], "native binary changed during acceptance"
+        assert hashlib.sha256(args.backend.read_bytes()).hexdigest() == report["backend_sha256"], "backend binary changed during acceptance"
         report["passed"] = True
         if args.board_binary:
             report["checks"] += ["private My Actions mounts the actual installed app after server verification", "action board opens the latest delegated approval", "board theme and chat-history toggle retain the correct scope", "account switch revokes the board and restores chat history"]

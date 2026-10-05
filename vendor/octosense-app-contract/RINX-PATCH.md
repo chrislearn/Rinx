@@ -24,3 +24,7 @@ normalizer is intentionally not used with the ADR 0011 Rust projections.
 Scoped rename consent now matches App Hub `a93073d`; the same lifecycle grant
 is checked for the project owner/resource owner/current coordinator. Runtime
 `coordinatorAgentProfileV1` negotiation is required before displaying rename.
+
+Project setup recovery consent matches App Hub `2e2ad26`. The Rust endpoint
+checks current project/engagement roles and requires an existing approved grant;
+it cannot create a replacement approval.

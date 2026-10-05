@@ -240,3 +240,15 @@ usable while only a label update is pending. Captures `owner-rename-pending.png`
 and `owner-rename-verified.png` were inspected. This run uses the Rust Palpo
 process and a provider fixture; Hagency store and HTTPS-client tests separately
 cover real rename execution and read-back. It is not live-provider acceptance.
+
+### Approved project setup recovery (2026-10-05)
+
+Run `0a97a9126f214590a91825d332085946` passed 22 checks with binary hashes
+held constant through acceptance. The Projects page shows a failed private-room
+join, sends a frozen retry through the native form, and enables Request agent
+only after the approved project becomes ready. The original decision and grant
+are unchanged. Failure and ready screenshots were inspected. The first run
+caught missing optional fields for older project projections; the Rust DTO now
+supplies explicit null/false defaults and association views do not read a
+project-only property. Evidence uses Rust Palpo plus provider/Matrix fixtures,
+not a live provider deployment.

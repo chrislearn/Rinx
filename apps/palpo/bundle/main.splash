@@ -21,6 +21,15 @@ fn refusal_text(reason){
     if reason == "request_conflict" { return "This request conflicts with a recorded decision." }
     return "Hagency could not validate this request. Review its project and room settings."
 }
+fn setup_text(setup){
+    if setup.state == "ready" { return "Project rooms verified" }
+    if setup.state == "pending" { return "Project setup is waiting for Hagency and Matrix verification." }
+    if setup.reason == "project_membership_pending" { return "The Hagency representative could not join the project room. Check its invitation, then retry." }
+    if setup.reason == "private_membership_pending" { return "The approval bot could not join your private room. Check its invitation, then retry." }
+    if setup.reason == "room_authority_changed" { return "Project room permissions or private-room membership need attention before retrying." }
+    if setup.reason == "authority_changed" { return "The engagement authorization changed. Check the current coordinator before retrying." }
+    return "Project setup could not be verified. Check the connection and room settings, then retry."
+}
 fn control_text(control){
     if control.execution == "rename_pending" { return "Name saved · waiting for Matrix verification" }
     if control.execution == "rename_failed" { return "Matrix could not verify the new name. Hagency will retry." }
@@ -128,7 +137,7 @@ fn save_form(){ fs.write("draft.json", P.form.to_json()) P.has_draft = true }
 fn edit_field(i, value){ P.form.fields[i].value = value P.form.payload[P.form.fields[i].key] = value save_form() }
 fn new_form(title, service, payload, fields){
     call("palpo.intent.new", {}, fn(data){
-        if service == "palpo.inbox.decide" || service == "palpo.agents.control" { payload.commandId = data.requestId }
+        if service == "palpo.inbox.decide" || service == "palpo.agents.control" || service == "palpo.inbox.activate" { payload.commandId = data.requestId }
         if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" || service == "palpo.fleets.set_state" { payload.requestId = data.requestId }
         P.form = {title: title service: service payload: payload fields: fields}
         P.page = "form" save_form()
@@ -141,6 +150,7 @@ fn submit_form(){
         P.notice = "Saved. The server will keep this request when you close the app."
         P.page = "inbox" P.filter = "waiting" P.selected = nil P.rows = [] P.offset = 0
         if P.form.service == "palpo.inbox.decide" { P.filter = "needs_action" }
+        if P.form.service == "palpo.inbox.activate" { P.page = "projects" }
         if P.form.service == "palpo.requests.create" || P.form.service == "palpo.agents.control" { P.page = "requests" }
         if P.form.service == "palpo.fleets.register" || P.form.service == "palpo.fleets.migrate" || P.form.service == "palpo.fleets.set_state" || P.form.service == "palpo.agents.rename" || P.form.service == "palpo.agents.register" { P.page = "fleets" }
         if P.page != "inbox" { P.filter = previous_filter }
@@ -181,7 +191,10 @@ fn decision(value){
         {id: row.id expectedRevision: row.revision decision: value reason: ""}, [{key: "reason" label: "Decision reason" value: ""}])
 }
 fn continue_action(){
-    call("palpo.inbox.activate", {id: P.selected.id}, fn(data){ P.selected = data.action P.notice = "Latest result received." })
+    retry_project_setup(P.selected.id, P.selected.revision)
+}
+fn retry_project_setup(action, revision){
+    new_form("Retry project setup", "palpo.inbox.activate", {id: action expectedRevision: revision}, [])
 }
 fn snooze_action(){
     call("palpo.inbox.snooze", {id: P.selected.id minutes: 60}, fn(data){ P.notice = "Reminders snoozed for one hour. This action remains pending." })
@@ -343,8 +356,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         reject := mod.widgets.RinxButton{text: "Reject" on_click: || decision("reject")}
                     }
                 }
-                if row.canContinue && row.nextAction != "export_and_connect" {
-                    continue_work := mod.widgets.RinxPrimaryButton{text: "Continue approved work" on_click: || continue_action()}
+                if row.kind == "project" && row.projectSetup != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: setup_text(row.projectSetup)} }
+                if available("palpo.inbox.activate") && row.canContinue && row.nextAction != "export_and_connect" {
+                    continue_work := mod.widgets.RinxPrimaryButton{text: "Retry project setup" on_click: || continue_action()}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
                 }
                 if row.kind == "association" && row.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action({id: row.result.fleetId}, "connect")} }
@@ -397,6 +411,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if P.form.service == "palpo.agents.control" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retire" {"Remove this agent from the runtime and its Matrix rooms. Chat history stays available. Completion waits for verified cleanup; unknown usage keeps its reservation."} else {"This change is sent to the agent's Hagency runtime. Its latest result stays in My agents."}}
                 }
+                if P.form.service == "palpo.inbox.activate" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Retry the approved project's room setup. The original approval, room bindings and resource grant are retained."} }
                 if P.form.service == "palpo.fleets.set_state" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "This changes the engagement's Matrix credentials. Revocation is final. Existing allocations and history remain; stopping a remote runtime requires separate confirmation. Resume requires a new connection check."}
                 }
@@ -428,6 +443,8 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.PalpoCard{
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: project.name}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: project.state + " · " + project.ownerMxid}
+                    if project.projectSetup != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: setup_text(project.projectSetup)} }
+                    if project.canRetrySetup && available("palpo.inbox.activate") { retry_setup := mod.widgets.RinxButton{text: "Retry project setup" on_click: || retry_project_setup(project.actionId, project.revision)} }
                     if project.canRequest && available("palpo.requests.create") { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
                     if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "New agent requests are not available for this project yet."} }
                 }

@@ -72,7 +72,7 @@ pub fn words(service: &str) -> Option<&'static str> {
         "palpo.inbox.get" => "Read the latest state of an authorized action",
         "palpo.inbox.decide" => "Approve or reject within your explicitly assigned project permissions",
         "palpo.inbox.recover" => "Retry a failed project reservation or release its never-used allocation as the designated administrator",
-        "palpo.inbox.activate" => "Continue an approved project as its owner",
+        "palpo.inbox.activate" => "Retry approved project setup within your project permissions",
         "palpo.inbox.seen" => "Mark a notification seen without completing its action",
         "palpo.actions.room.get" => "Verify your private My Actions room without joining it",
         "palpo.actions.room.ensure" => "Set up and open your private My Actions room",
