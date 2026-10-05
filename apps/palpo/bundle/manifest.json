@@ -7,6 +7,7 @@
     "palpo.catalog.list",
     "palpo.projects.list",
     "palpo.requests.list",
+    "palpo.requests.open",
     "palpo.requests.create",
     "palpo.fleets.list",
     "palpo.fleets.install",
@@ -33,12 +34,13 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "0455080d9c4f124faefa877a05a028ad8f326576333c31320226836b36eb9226"
+    "bundle_blake3": "1d6de7b75a89d4f1aa8c9aaea9f9a6add36ab8279d55ab0c9b6daf2d1fe00828"
   },
   "name": "Palpo",
   "requires": [
     "palpo-admin-v1",
-    "palpo-account-navigation-v1"
+    "palpo-account-navigation-v1",
+    "palpo-agent-navigation-v1"
   ],
   "schema": 1,
   "version": "0.1.0"

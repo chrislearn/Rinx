@@ -34,6 +34,44 @@ impl SignupApprovalTarget {
     }
 }
 
+/// The current-account room of a server-verified ready agent. Scripts supply only
+/// the saved request ID; this closed reply cannot contain a URL or extra action.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentChatTarget {
+    v: u8,
+    request_id: String,
+    pub account: ruma::OwnedUserId,
+    pub room_id: ruma::OwnedRoomId,
+    pub agent_mxid: ruma::OwnedUserId,
+}
+impl AgentChatTarget {
+    pub fn from_reply(value: &Value, account: &str) -> Result<Self, String> {
+        let target: Self = serde_json::from_value(value.clone())
+            .map_err(|_| "Palpo returned an invalid agent chat destination")?;
+        let valid_request = target.request_id.split_once(':').is_some_and(|(fleet, request)| {
+            [fleet, request].iter().all(|part| !part.is_empty() && part.len() <= 80
+                && part.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-'))
+        });
+        if target.v != 1 || target.account.as_str() != account || !valid_request {
+            return Err("Palpo returned a different account or agent request".into());
+        }
+        Ok(target)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum PalpoNavigation { Signup, AgentChat }
+impl PalpoNavigation {
+    pub fn for_service(service: &str) -> Option<Self> {
+        match service {
+            "palpo.accounts.open" => Some(Self::Signup),
+            "palpo.requests.open" => Some(Self::AgentChat),
+            _ => None,
+        }
+    }
+}
+
 struct Session {
     token: String,
     expires: Instant,
@@ -190,6 +228,12 @@ impl PalpoHost {
             lease.check(account)?;
             return Ok(json!({"saved": saved}));
         }
+        if service == "palpo.requests.open" {
+            let target = AgentChatTarget::from_reply(&result, account)?;
+            if args["requestId"].as_str() != Some(target.request_id.as_str()) {
+                return Err("Palpo returned a different agent request".into());
+            }
+        }
         normalize_workflow_views(service, &mut result);
         bounded_reply(result)
     }
@@ -285,6 +329,7 @@ fn normalize_workflow_views(service: &str, result: &mut Value) {
             for row in rows {
                 if let Some(row) = row.as_object_mut() {
                     row.entry("actionId").or_insert(Value::Null);
+                    row.entry("canOpenChat").or_insert(json!(false));
                     row.entry("canRequestTopUp").or_insert(json!(false));
                     row.entry("allocation").or_insert(Value::Null);
                     row.entry("canRemove").or_insert(json!(false));
@@ -437,6 +482,23 @@ mod tests {
         assert_eq!(old["requests"][0]["canOpen"], false);
     }
     #[test]
+    fn agent_chat_target_is_closed_typed_and_bound_to_the_current_account() {
+        let value = json!({"v": 1, "requestId": "fleet_a:request_b", "account": "@owner:example.test",
+            "roomId": "!project:example.test", "agentMxid": "@fleet_a_agent:example.test"});
+        let target = AgentChatTarget::from_reply(&value, "@owner:example.test").unwrap();
+        assert_eq!(target.request_id, "fleet_a:request_b");
+        assert!(AgentChatTarget::from_reply(&value, "@other:example.test").is_err());
+        for (key, replacement) in [
+            ("v", json!(2)), ("requestId", json!("invalid")), ("requestId", json!("a:b:c")),
+            ("roomId", json!("https://evil.test")), ("agentMxid", json!("not-a-user")),
+            ("url", json!("https://evil.test")),
+        ] {
+            let mut changed = value.clone(); changed[key] = replacement;
+            assert!(AgentChatTarget::from_reply(&changed, "@owner:example.test").is_err(), "{key}");
+        }
+    }
+
+    #[test]
     fn legacy_workflow_views_render_without_enabling_unbudgeted_requests() {
         let mut old = json!({"projects":[{"id":"legacy","canRequest":true}]});
         normalize_workflow_views("palpo.projects.list", &mut old);
@@ -476,6 +538,7 @@ mod tests {
         normalize_workflow_views("palpo.requests.list", &mut legacy_requests);
         assert_eq!(legacy_requests["requests"][0]["canRequestTopUp"], false);
         assert_eq!(legacy_requests["requests"][0]["canRemove"], false);
+        assert_eq!(legacy_requests["requests"][0]["canOpenChat"], false);
         assert_eq!(legacy_requests["requests"][0].get("lifecycle"), Some(&Value::Null));
         assert_eq!(legacy_requests["requests"][0].get("allocation"), Some(&Value::Null));
     }

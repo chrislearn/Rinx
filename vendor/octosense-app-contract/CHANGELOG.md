@@ -5,6 +5,10 @@ within `1.x` it only grows.
 
 ## 1.2.0 (pending release)
 
+- `palpo.requests.open` requires `palpo-agent-navigation-v1` and resolves a ready
+  agent's project room through the current account. The bundle supplies a request
+  ID, never a room or URL; the host checks the account and joined room again.
+
 - `palpo.inbox.recover` explicitly grants failed-project reservation recovery;
   existing read/decision grants do not acquire it. The backend retains current
   designated-administrator authority and Hagency must prove unused release.

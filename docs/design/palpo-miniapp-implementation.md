@@ -21,7 +21,7 @@ they are not acceptance evidence for the corrected Hagency-originated flow.
 | Capacity is reserved before a project becomes allocated | Finite project forms, explicit administrators, prepared owner-bound room, atomic decision/reservation commands, exact receipt projection and partial recovery; native UI fixtures plus actual Palpo HTTP/Rust worker integration | Full runtime/Matrix and live acceptance; explicit legacy migration |
 | Assigned project admins decide agents and top-ups | Scoped commands, current-role leases, atomic debit/receipts, assigned-admin Inbox and native forms; actual Palpo HTTP/Rust worker decisions and replay | Actual model execution, live Matrix room readiness and full native workflow acceptance |
 | Revocation/expiry fence provisioning and execution | Scoped removal commands; local runtime custody and independent Matrix retirement proof; response-loss, restart and uncertain-cleanup tests | Actual cross-service runtime/Matrix cleanup; live validation |
-| Named agent appears and works in its project room | Existing provisioning and earlier live agent setup | Corrected grant-based end-to-end approval through actual room readiness |
+| Named agent appears and works in its project room | Existing provisioning, earlier live agent setup and ready-agent navigation with native fixture coverage | Corrected grant-based end-to-end approval through actual room readiness |
 | Usage and lifecycle management | Same-agent top-ups, scoped stale/unknown usage, owner removal/retry UI and verified cleanup projection; slot/rate release retains lifetime token debit | Live lifecycle and final usage/refund policy acceptance |
 | Durable actions and notifications | Inbox, outbox, private Matrix notices, stale-card/version checks | Cancel/resubmit/expiry parity, Glance board, reminders/preferences/quiet hours and OS entry |
 | Identity, permissions and secrets | Native account binding, exact bundle consent, owner-only save boundary | Full logout/account-switch/bundle-update/revocation tests and native save/import acceptance |
@@ -34,6 +34,42 @@ No catalog item, connection proof, queued command or admin click is sufficient t
 claim reserved capacity, running agent readiness, or complete cleanup. Each UI
 state must follow its owning service's durable receipt. Existing projects and
 agents retain their original owners; migration into grants must be explicit.
+
+## Open a ready agent's project room — 2026-10-04
+
+My agents now offers **Open agent chat** only after the server verifies readiness.
+The new exact `palpo.requests.open` grant requires `palpo-agent-navigation-v1`
+(App Hub `8c4035f`). The script supplies only its request ID. Palpo refreshes that
+request's provider status and Matrix membership, rechecks current scope and
+returns an account-bound room/agent destination. Stale observations, paused
+fleets, expired grants, changed ownership/revisions and removal refuse opening.
+Approval or transport receipts alone cannot enable the button.
+
+Rinx validates the closed destination and original request ID, then rechecks the
+current account and joined-room state. Success closes the mini-app window and
+selects the project conversation. An unsynced/invited room leaves the app open
+with a retry notice; this action does not join rooms, send messages or approvals.
+Older request DTOs default to no navigation permission.
+
+Validation: optimized Rinx and instrument builds pass. Palpo `3fe92d7` passes
+all **134 backend tests**; the shared contract passes **29 tests**. Rinx's
+agent-chat filter passes **67 tests** with one existing ignored, including the
+new app-shell account/membership guard and closed-target validation. All **seven Palpo adapter tests** also pass. The real Hagency worker/Palpo HTTP
+integration passes both selected tests again at the exact `3fe92d7` revision.
+
+Makepad hidden-window run `4f378746da2b44eaadfd58c9b1e19147` passes **14 checks**.
+The new case first confirms that an applied approval has no chat button, then
+publishes an explicit readiness/Matrix-membership fixture and clicks the actual
+production Splash button. The native adapter resolves the correct account,
+room and agent with zero additional Matrix mutations. Its ready-agent capture
+was inspected. Example SHA-256:
+`af4f310bff11a3081bed58b6a0b58fbe2e921662a12c77984e420353f44ed5cb`.
+The local report also pins both bundle files. Existing role, budget, theme,
+draft, signup, top-up, removal and reservation-recovery checks remain passing.
+
+The instrument records the trusted destination; it has no logged-in SDK timeline
+or actual model runtime. Live conversation/rendering and full ADR acceptance
+remain open. Production and visible user sessions were not changed.
 
 ## Actual Palpo HTTP / Hagency worker integration — 2026-10-04
 

@@ -281,6 +281,22 @@ def main():
             report['checks'].append('assigned project administrator decides in native Inbox; owner cannot approve; applied fixture receipt does not claim a ready agent')
             (root / 'release-agent-decisions').unlink()
             owner.click_id('agent_status'); owner.wait_text('Confirmed allocation: 80000')
+            assert not any(w.get('i') == 'open_agent_chat' for w in owner.snap())
+            (root / 'publish-ready-agent').touch()
+            for _ in range(20):
+                owner.click_id('requests'); owner.wait_text('Confirmed allocation: 80000')
+                if any(w.get('i') == 'open_agent_chat' for w in owner.snap()): break
+                time.sleep(1)
+            owner.capture('ready-agent-chat')
+            before = json.loads((root / 'backend.json').read_text())['matrixMutations']
+            owner.click_id('open_agent_chat'); owner.wait_text("Opening the agent's project room in Rinx")
+            navigation = json.loads((owner.root / 'profile/agent-navigation.json').read_text())
+            time.sleep(0.2)
+            backend = json.loads((root / 'backend.json').read_text())
+            assert navigation == backend['agentChats'][0], (navigation, backend['agentChats'])
+            assert backend['matrixMutations'] == before, backend
+            report['checks'].append('explicit ready-agent fixture opens its account-bound project room through the native adapter without a Matrix mutation; no live timeline claimed')
+            (root / 'publish-ready-agent').unlink()
             owner.click_id('top_up'); owner.wait_text('Additional tokens')
             fill(owner, 'Additional tokens', '50000')
             fill(owner, 'Why do you need more tokens?', 'Continue research on the same agent')

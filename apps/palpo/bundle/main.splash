@@ -580,6 +580,11 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                         }
                     }
                     if row.actionId != nil { review := mod.widgets.RinxButton{text: "Open approval" on_click: || review_action({id: row.actionId})} }
+                    if row.canOpenChat {
+                        open_agent_chat := mod.widgets.RinxPrimaryButton{text: "Open agent chat" on_click: || {
+                            call("palpo.requests.open", {requestId: row.id}, fn(data) { P.notice = "Opening the agent's project room in Rinx" })
+                        }}
+                    }
                     if row.canRequestTopUp { top_up := mod.widgets.RinxPrimaryButton{text: "Request more tokens" on_click: || request_top_up(row)} }
                     if row.canRemove { remove := mod.widgets.RinxButton{text: "Remove agent" on_click: || remove_agent(row.id)} }
                 }

@@ -559,6 +559,14 @@ impl MatchEvent for App {
                     }
                     continue;
                 }
+                if let MiniAppsAction::OpenAgentChat(target) = action {
+                    let account = current_user_id();
+                    let state = cx.get_global::<RoomsListRef>().get_room_state(&target.room_id);
+                    if let Err(message) = self.open_agent_chat(cx, target, account.as_deref(), state) {
+                        enqueue_popup_notification(message, PopupKind::Info, None);
+                    }
+                    continue;
+                }
                 let modal = self.ui.modal(cx, ids!(octoscript_apps_modal));
                 if matches!(action, MiniAppsAction::Close) {
                     self.close_mini_apps(cx);
@@ -1637,6 +1645,25 @@ impl App {
         }
     }
 
+    fn open_agent_chat(&mut self, cx: &mut Cx, target: &crate::miniapps::palpo::AgentChatTarget,
+        account: Option<&ruma::UserId>, room_state: Option<RoomState>) -> Result<(), &'static str> {
+        if account != Some(target.account.as_ref()) {
+            return Err("Your account changed. Reopen Palpo from your current account.");
+        }
+        if room_state != Some(RoomState::Joined) {
+            return Err("The project room is still syncing. Refresh My Agents and try again shortly.");
+        }
+        self.cancel_signup_navigation();
+        self.waiting_to_navigate_to_room = None;
+        self.close_mini_apps(cx);
+        cx.action(NavigationBarAction::GoToHome);
+        cx.widget_action(self.ui.widget_uid(), RoomsListAction::Selected(SelectedRoom::JoinedRoom {
+            room_name_id: RoomNameId::empty(target.room_id.clone()),
+        }));
+        enqueue_rooms_list_update(RoomsListUpdate::ScrollToRoom(target.room_id.clone()));
+        Ok(())
+    }
+
     /// Navigates to the given `destination_room`, optionally closing the `room_to_close`.
     fn navigate_to_room(
         &mut self,
@@ -2139,6 +2166,30 @@ mod back_navigation_tests {
         assert!(generated.iter().any(|action| matches!(action.downcast_ref::<WebBrowserAction>(),
             Some(WebBrowserAction::ReadArticle { room: actual_room, event: actual_event }) if actual_room == &room && actual_event == &event)));
         assert!(!app.ui.modal(&mut cx, ids!(article_app_modal)).is_open());
+    }
+
+    #[test]
+    fn agent_chat_only_opens_a_joined_room_for_the_current_account() {
+        let mut cx = Cx::new(Box::new(|_, _| {}));
+        let mut app = embedded_app(&mut cx);
+        let account = ruma::user_id!("@owner:example.test");
+        let target = crate::miniapps::palpo::AgentChatTarget::from_reply(&serde_json::json!({
+            "v": 1, "requestId": "fleet_a:request_b", "account": account,
+            "roomId": "!project:example.test", "agentMxid": "@fleet_a_agent:example.test",
+        }), account.as_str()).unwrap();
+        for (actor, state) in [
+            (None, Some(RoomState::Joined)),
+            (Some(ruma::user_id!("@other:example.test")), Some(RoomState::Joined)),
+            (Some(account), None), (Some(account), Some(RoomState::Invited)),
+            (Some(account), Some(RoomState::Left)),
+        ] {
+            let actions = cx.capture_actions(|cx| assert!(app.open_agent_chat(cx, &target, actor, state).is_err()));
+            assert!(actions.is_empty(), "refused navigation must not auto-join or select a room");
+        }
+        let actions = cx.capture_actions(|cx| app.open_agent_chat(cx, &target, Some(account), Some(RoomState::Joined)).unwrap());
+        assert!(actions.iter().any(|a| matches!(a.as_widget_action().cast::<RoomsListAction>(),
+            RoomsListAction::Selected(SelectedRoom::JoinedRoom { room_name_id }) if room_name_id.room_id() == &target.room_id)));
+        assert!(app.waiting_to_navigate_to_room.is_none());
     }
 
     #[test]
