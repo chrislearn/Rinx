@@ -1,7 +1,11 @@
 # ADR 0011: Hagency server engagements and coordinator approvals
 
 - Date: 2026-10-03
-- Status: Accepted product decision; implementation and deployment acceptance pending.
+- Status: Implemented across Rinx, Rust Palpo and native Hagency. Live isolated
+  lifecycle/migration, native desktop, Android and hosted OctoSense checks pass.
+  OpenHarmony builds pass; device acceptance awaits a Rinx signing profile.
+  Production cutover remains separate. See the
+  [acceptance record](../design/palpo-coordinator-validation.md).
 - Supersedes ADR 0010's Node.js backend retention, contribution initiation,
   configuration-export authority and project/agent approval model, including
   its subsequent designated-project-admin and assigned-project-admin amendments.

@@ -1,6 +1,8 @@
 # Coordinator workflow integration
 
-This implements the decision-screen portion of [ADR 0011](../adr/0011-hagency-server-engagements.md).
+This records implementation and acceptance for [ADR 0011](../adr/0011-hagency-server-engagements.md).
+The current checkpoint below supersedes the older dated partial results.
+See also the [implementation overview](palpo-miniapp-implementation.md).
 It replaces the earlier resource-contribution action: resources are contributed
 by their Hagency owner, while Rinx handles requests and coordinator decisions.
 
@@ -75,15 +77,80 @@ Its store-publication check refused the missing `listing.json`, as expected for
 this built-in app with no publisher/platform submission. No listing or identity
 was fabricated. Rinx's own bundle packaging/build validation passed.
 
-## Remaining acceptance
+## Current acceptance checkpoint, 2026-10-05
 
-This is a draft integration, not the full ADR implementation. The Rust backend
-still needs the remaining lifecycle/admin routes and migration acceptance.
-Resource browsing and project/agent creation now use the paired Rust routes with
-explicit allocation IDs; unsupported entries remain hidden.
-The real Hagency runtime has separate tests; this UI run does not establish
-combined provisioning, live chat, usage metering or notification delivery.
-Android, OpenHarmony and hosted OctoSense also require their own device evidence.
+The Rust migration and complete agent lifecycle are implemented. Full ADR
+acceptance still requires the outstanding platform/deployment checks; passing a
+desktop fixture alone does not establish them.
+
+- Native production-Splash regression `6517e8356fa444e2b98e93c95b129d67` passes
+  all 26 checks, including role isolation, decision/top-up replay, interrupted
+  drafts, live themes, notification preferences and the My Actions board.
+- Desktop native Save/Cancel/profile-import/probe run
+  `fab3aeaa83224af4a8ba65825b4f7fed` passes 19 checks. The operator explicitly
+  handed over the desktop after the earlier interrupted dialog attempts.
+- Live Rust Palpo, the real Matrix homeserver and native Hagency ran in the
+  isolated `rinx-adr0011.test` deployment. Two simultaneous same-server TLS
+  engagements have distinct coordinators, profiles, grants, projects and agents.
+  All project and agent approvals used the actual Rinx forms. No second console
+  approval was needed.
+- The first agent replied in its encrypted DM and project room from Android.
+  After live rotation, the second agent also replied in its encrypted DM and to
+  an actual project-room mention. Screenshots were captured and inspected.
+  Work is executed by the deterministic native MCP fixture; no paid-provider
+  measurement or model-quality claim is made.
+- Native rotation run `a119fe7f636f49008b2209d6b052800b` moves only the second
+  transport to generation 4; registration remains generation 1. The first stays
+  online/Ready. Live import reattaches the second without a process restart.
+  A bug in one-shot warm-runtime custody was fixed in Hagency `29e44e8`; the
+  live report is `target/adr0011-live/two-engagement-rotation-v5-report.json`
+  in the Palpo worktree.
+- The live top-up increases the same agent from 100,000 to 120,000 tokens exactly
+  once. Replay preserves the ledger. Reallocating engagement capacity is explicit:
+  a request exceeding the shared parent was refused before owner rebalancing.
+- Native retirement run `e4cb06c8f8d74a7a85bf093bb92a5a15` verifies runtime and
+  Matrix cleanup. Unknown usage remains reserved. Android My Actions opens the
+  latest retired result, including cleanup and usage-settlement status.
+- Actual Node-to-Rust migration, native receipt adoption, restored-copy replay and
+  writer fences pass. A prior compatible Rust build opens a copy of the latest
+  database without changing its state or delivery rows; post-cutover approvals
+  and the top-up survive rollback compatibility checks.
+- Palpo passes 46 workflow tests, nine library tests and clippy. Hagency passes
+  nine provision-runtime tests and all 21 inline-factory tests serially, including
+  reconnecting over the same domain writer. One parallel waiter-loss run hit a
+  pre-existing timing-dependent intermediate-state assertion; its isolated and
+  serial runs pass. Spec validation reports 1,258 bindings with none missing;
+  production caller validation reports no missing/unresolved callers and retains
+  its existing G8 bootstrap debt.
+- Android builds and runs the production app on the connected device. Consent,
+  actual My Actions/history navigation, latest retirement and real agent chats
+  have been checked. Native document-picker Cancel, Save and background/resume
+  pass; the exported JSON exactly matches the active generation-4 profile. A real
+  manager-to-owner logout/login required fresh consent and showed owner data.
+  Native guard tests separately verify revocation immediately before writing.
+  Test exports were removed from the phone afterward.
+- The narrowed native room picker run `fec9b0bc30c14a31a3a63e824a22092c`
+  passes eligible-room selection, theme reload, cancellation and account
+  invalidation without submitting a project.
+- The actual OctoSense shell (`59e7dd5`) hosts Rinx snapshot `ac402c3b` and passes
+  shared Matrix login/Palpo consent, a separate mini-app window, authoritative
+  Ready status, live light/dark theme changes, My Actions navigation, remembered
+  consent on reopen and host-window close. Captures were visually inspected.
+  The shell build and dependency-graph check pass. This is an isolated local
+  dependency override, not a fabricated Rinx release tag or production pin update.
+- OpenHarmony Rust and ArkTS/HAP builds pass with the new native document-picker
+  bridge. Device installation is awaiting a Rinx signing profile for the connected
+  phone.
+
+Android captures are under `target/adr0011-device-validation/`, notably
+`android-second-rotation-final-dm.png`, `android-second-project-after-send.png`,
+`android-actions-board-real.png` and `android-board-latest-retired.png`.
+The Android export report is `android-export-report.json` in that directory.
+Hosted evidence is `target/adr0011-hosted/report.json` in the isolated
+`OctoSense-palpo-adr0011` worktree, with `palpo-shared-login.png`,
+`agent-dark-theme.png`, `my-actions-room.png`,
+`reopened-remembered-consent.png` and `closed-miniapp-main-room.png`.
+Live fixture accounts, keys, profiles and databases remain private and untracked.
 
 Companion changes: [Palpo #508](https://github.com/palpo-im/palpo/pull/508) and
 [Hagency #29](https://github.com/hagency-org/hagency-rs/pull/29).
@@ -265,10 +332,10 @@ Mobile continues to use its native document provider.
 
 Two focused tests pass for private replacement/hard-link isolation and lease
 revocation before commit. The association harness has `--native-export` to drive
-Cancel, Save, direct Hagency import and credential-leak checks. This new native
-acceptance has **not passed**: panels closed before the harness could inspect
-them. Desktop automation is paused pending clarification about interaction with
-the test dialogs; failed runs do not count as acceptance. One isolated fixture
+Cancel, Save, direct Hagency import and credential-leak checks. The first native
+acceptance attempts were interrupted by concurrent panel interaction. The user
+subsequently handed over the desktop; the completed run below supersedes those
+failed attempts, which do not count as acceptance. One isolated fixture
 profile saved to Documents during that attempt was verified against its test
 database and removed; existing user profiles were left untouched.
 
