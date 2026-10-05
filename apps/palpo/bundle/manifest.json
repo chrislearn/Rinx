@@ -20,6 +20,7 @@
     "palpo.agents.register",
     "palpo.agents.rename",
     "palpo.agents.retire",
+    "palpo.agents.control",
     "palpo.activity.list",
     "palpo.accounts.list",
     "palpo.inbox.list",
@@ -32,7 +33,7 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "82f1169278043de10c98ed73150614ff3cbf9ed6dcf534482bc015d8277218a4"
+    "bundle_blake3": "e9526d75bc8d1dae7a799da7fae8a94172228675e964232937eb37cf8a77c219"
   },
   "name": "Palpo",
   "requires": [

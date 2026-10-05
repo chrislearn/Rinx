@@ -6,3 +6,7 @@ consent language as version 1.2.0. No admission or integrity rule is relaxed.
 Remove the root, standalone miniapp-catalog, system-apps and miniapp-package
 Cargo patches when the same shared contract is published. All four consumers
 require at least version 1.2 so build, admission and packaging agree.
+
+The additive `palpo.agents.control` grant and consent text match companion App
+Hub commit `6180376` on `fix/palpo-project-consent`. It authorizes bounded
+project-scoped lifecycle intents; the backend still checks current authority.

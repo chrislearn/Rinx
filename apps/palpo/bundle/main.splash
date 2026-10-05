@@ -20,6 +20,15 @@ fn refusal_text(reason){
     if reason == "request_conflict" { return "This request conflicts with a recorded decision." }
     return "Hagency could not validate this request. Review its project and room settings."
 }
+fn control_text(control){
+    if control.execution == "control_pending" { return "Waiting for Hagency to receive your " + control.operation + " request." }
+    if control.execution == "control_refused" { return "The operation was refused. " + refusal_text(control.reason) }
+    if control.execution == "retiring" { return "Removing agent · runtime and Matrix cleanup pending" }
+    if control.execution == "cleanup_failed" { return "Cleanup failed. You can retry the removal." }
+    if control.execution == "inspection_required" { return "Cleanup is uncertain. The Hagency operator must inspect it before retrying." }
+    if control.execution == "retired" { return "Agent removed · cleanup verified. Usage settlement is tracked separately." }
+    return "Hagency applied the " + control.operation + " request."
+}
 // Dynamic render closures resolve the current host prototypes on every reapply.
 mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
     draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
@@ -83,7 +92,7 @@ fn save_form(){ fs.write("draft.json", P.form.to_json()) P.has_draft = true }
 fn edit_field(i, value){ P.form.fields[i].value = value P.form.payload[P.form.fields[i].key] = value save_form() }
 fn new_form(title, service, payload, fields){
     call("palpo.intent.new", {}, fn(data){
-        if service == "palpo.inbox.decide" { payload.commandId = data.requestId }
+        if service == "palpo.inbox.decide" || service == "palpo.agents.control" { payload.commandId = data.requestId }
         if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" { payload.requestId = data.requestId }
         P.form = {title: title service: service payload: payload fields: fields}
         P.page = "form" save_form()
@@ -95,7 +104,7 @@ fn submit_form(){
         P.notice = "Saved. The server will keep this request when you close the app."
         P.page = "inbox" P.filter = "waiting" P.selected = nil P.rows = [] P.offset = 0
         if P.form.service == "palpo.inbox.decide" { P.filter = "needs_action" }
-        if P.form.service == "palpo.requests.create" { P.page = "requests" }
+        if P.form.service == "palpo.requests.create" || P.form.service == "palpo.agents.control" { P.page = "requests" }
         if P.form.service == "palpo.fleets.register" || P.form.service == "palpo.fleets.migrate" || P.form.service == "palpo.agents.rename" || P.form.service == "palpo.agents.register" { P.page = "fleets" }
         refresh_page()
     })
@@ -107,6 +116,10 @@ fn request_project(fleet, resource){
         {key: "name" label: "Project name" value: ""}
         {key: "reason" label: "What will your project do?" value: ""}
     ])
+}
+fn control_agent(row, operation){
+    new_form(if operation == "retire" {"Remove agent"} else {if operation == "retry_cleanup" {"Retry cleanup"} else {if operation == "stop" {"Pause agent"} else {"Resume agent"}}},
+        "palpo.agents.control", {agentActionId: row.id operation: operation kind: "agent_control"}, [])
 }
 fn request_tokens(row){
     new_form("Request more tokens", "palpo.inbox.submit", {kind: "token_top_up" agentActionId: row.id expectedAllocatedTokens: row.allocatedTokens requestedAdditionalTokens: "10000"}, [
@@ -261,6 +274,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
                 if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
                 if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                if row.kind == "agent" && available("palpo.agents.control") {
+                    if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
+                }
                 if row.kind == "association" {
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + row.payload.coordinatorMxid}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Runtime · " + row.payload.runtimeId}
@@ -291,6 +307,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             mod.widgets.PalpoCard{
                 mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
+                if P.form.service == "palpo.agents.control" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retire" {"Remove this agent from the runtime and its Matrix rooms. Chat history stays available. Completion waits for verified cleanup; unknown usage keeps its reservation."} else {"This change is sent to the agent's Hagency runtime. Its latest result stays in My agents."}}
+                }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: item.label}
@@ -361,13 +380,20 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if row.allocatedTokens == nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
                     if row.usage != nil {
                         if row.usage.consumedTokens != nil {
-                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Consumed: at least " + row.usage.consumedTokens + " tokens"}
+                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if row.usage.complete == true {"Final accounted usage: " + row.usage.consumedTokens + " tokens"} else {"Consumed: at least " + row.usage.consumedTokens + " tokens"}}
                             if row.usage.state == "stale" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Usage sample is out of date. Refresh for the latest report."} }
                         }
                         if row.usage.consumedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
                     }
                     if row.agentMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.agentMxid} }
                     if row.canRequestTopUp == true { more_tokens := mod.widgets.RinxButton{text: "Request more tokens" on_click: || request_tokens(row)} }
+                    if available("palpo.agents.control") {
+                        if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
+                        if row.canPause { pause_agent := mod.widgets.RinxButton{text: "Pause agent" on_click: || control_agent(row,"stop")} }
+                        if row.canResume { resume_agent := mod.widgets.RinxButton{text: "Resume agent" on_click: || control_agent(row,"start")} }
+                        if row.canRetire { remove_agent := mod.widgets.RinxButton{text: "Remove agent" on_click: || control_agent(row,"retire")} }
+                        if row.canRetryCleanup { retry_cleanup := mod.widgets.RinxButton{text: "Retry cleanup" on_click: || control_agent(row,"retry_cleanup")} }
+                    }
                     if available("palpo.inbox.get") { agent_result := mod.widgets.RinxButton{text: "Open latest result" on_click: || review_action(row)} }
                 }
             }

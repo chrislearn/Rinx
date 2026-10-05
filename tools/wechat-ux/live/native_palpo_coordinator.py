@@ -133,7 +133,7 @@ def main():
         state["fleets"][fleet] = {"id": fleet, "state": "ready", "installation": "installed",
             "representativeMxid": f"@{fleet}_representative:example.test", "registrationGeneration": 1,
             "transport": {"mode": "outbound", "generation": 1, "sequence": 0, "token": "fixture-machine"},
-            "capabilities": {"coordinatorApprovalV1": True}}
+            "capabilities": {"coordinatorApprovalV1": True, "coordinatorAgentControlV1": True}}
         db.execute("UPDATE state SET body=? WHERE id=1", [json.dumps(state)])
     log = (root / "backend.log").open("w")
     server = subprocess.Popen([str(args.backend.resolve())], env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -280,6 +280,10 @@ def main():
                 break
             owner.request('/m', k='scroll', x=210, y=500, dy=220, wait=1)
         owner.wait_text("CapacityRefused")
+        for _ in range(8):
+            if any(w.get("t") == "Allocation refused" for w in owner.snap()):
+                break
+            owner.request('/m', k='scroll', x=210, y=500, dy=100, wait=1)
         owner.wait_text("Allocation refused")
         for _ in range(5):
             if any(w.get("t") == "Not enough capacity remains in this allocation." for w in owner.snap()):
@@ -287,6 +291,51 @@ def main():
             owner.request('/m', k='scroll', x=210, y=500, dy=100, wait=1)
         owner.wait_text("Not enough capacity remains in this allocation.")
         owner.capture("owner-agent-allocation-refused")
+        # Native forms and real Palpo receipts; this provider fixture does not
+        # claim to execute runtime cleanup (covered by native worker tests).
+        sequence = 5
+        observed.update(observedAt=datetime.now(timezone.utc).isoformat(), usageObservedAtMs=int(time.time() * 1000),
+            lifecycle={"runtimeState": "active", "paused": False, "cleanup": "not_required", "cleanupEffect": None})
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed]})
+        for operation, widget_id, title in [("stop", "pause_agent", "Pause agent"), ("start", "resume_agent", "Resume agent"), ("retire", "remove_agent", "Remove agent")]:
+            owner.click_id("refresh")
+            owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
+            for _ in range(18):
+                if any(w.get("i") == widget_id for w in owner.snap()):
+                    break
+                owner.request('/m', k='scroll', x=210, y=420, dy=140, wait=1)
+            owner.click_id(widget_id); owner.wait_text(title)
+            owner.capture("owner-control-" + operation)
+            control_draft = json.loads((owner.root / "profile/app/draft.json").read_text())
+            owner.click_id("submit")
+            with sqlite3.connect(root / "admin.sqlite") as db:
+                control = None
+                for _ in range(100):
+                    stored = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
+                    control = stored["rustWorkflows"].get("agentControls", {}).get(control_draft["payload"]["commandId"])
+                    if control:
+                        break
+                    time.sleep(.03)
+            assert control and control["state"] == "pending", control
+            control_receipt = {"kind": "receipt", "registrationGeneration": 1, "delegationRevision": 1,
+                "commandId": control_draft["payload"]["commandId"], "commandDigest": control["commandDigest"],
+                "agentId": "en_littlewhite", "operation": operation, "state": "applied"}
+            observed["lifecycle"]["paused"] = operation == "stop"
+            sequence += 1
+            machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed],
+                "coordinatorUpdates": [{"id": "command_" + control_receipt["commandId"], "payload": control_receipt, "digest": digest(control_receipt)}]})
+        observed.update(state="ended", ready=False, bound=False)
+        observed["lifecycle"].update(runtimeState="revoked", cleanup="complete", cleanupEffect="complete", settlement={"state": "awaiting_final_usage"})
+        sequence += 1
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed]})
+        owner.click_id("refresh")
+        owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
+        for _ in range(18):
+            if any("Agent removed · cleanup verified" in w.get("t", "") for w in owner.snap()):
+                break
+            owner.request('/m', k='scroll', x=210, y=420, dy=100, wait=1)
+        owner.wait_text("Agent removed · cleanup verified. Usage settlement is tracked separately.")
+        owner.capture("owner-agent-retired")
         report["checks"] = ["manager cannot approve own agent", "Matrix admin has no implicit agent approval",
             "coordinator approves from the actual OctoScript form", "theme changes preserve draft and request count",
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
@@ -295,8 +344,18 @@ def main():
             "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness",
             "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
             "top-up retry after provider execution returns the original result",
-            "owner sees a terminal provider refusal without losing the approved decision"]
+            "owner sees a terminal provider refusal without losing the approved decision",
+            "owner pauses and resumes through actual native forms", "removal receipt is distinct from runtime cleanup",
+            "retired history remains visible with usage settlement separate"]
         report["passed"] = True
+    except Exception:
+        for app in apps:
+            try:
+                app.capture("failure")
+                (app.root / "failure-snapshot.json").write_text(json.dumps(app.request("/snap", all=1), indent=2))
+            except Exception:
+                pass
+        raise
     finally:
         for app in apps:
             app.stop()

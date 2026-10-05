@@ -146,3 +146,19 @@ with suspension/revocation, explicit export recipients and durable publication.
 Palpo applies those revisions to current approval/export authority and notices.
 These validations remain isolated fixture evidence, not production cutover or
 device acceptance.
+
+## Scoped agent lifecycle
+
+The owner can pause, resume, remove and retry definitively failed cleanup through
+native forms when the runtime advertises `coordinatorAgentControlV1`. A pending
+command, accepted retirement and verified cleanup are separate projections.
+Retired history retains its allocation and usage; unknown consumption is not
+refunded by retirement. Final accounted usage is labelled separately from runtime
+lower-bound observations.
+
+The eighteen-check instrument run passed at
+`target/palpo-coordinator-validation/bba39c472bba48da8e45cc259d889739/report.json`.
+It drives real native forms and Rust Palpo with authenticated provider fixtures;
+the retired-history screenshot was inspected. An earlier hidden-window run
+missed the initial Waiting input before reaching the lifecycle flow; failed runs
+remain recorded. This evidence does not claim live executor termination.
