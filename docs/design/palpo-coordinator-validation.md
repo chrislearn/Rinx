@@ -78,7 +78,7 @@ was fabricated. Rinx's own bundle packaging/build validation passed.
 ## Remaining acceptance
 
 This is a draft integration, not the full ADR implementation. The Rust backend
-still needs association/profile issuance and the remaining lifecycle/admin routes.
+still needs the remaining lifecycle/admin routes and migration acceptance.
 Resource browsing and project/agent creation now use the paired Rust routes with
 explicit allocation IDs; unsupported entries remain hidden.
 The real Hagency runtime has separate tests; this UI run does not establish
@@ -109,3 +109,22 @@ including the original fourteen checks. Its evidence is
 `target/palpo-coordinator-validation/5e9b1bdbeb974031a58b7f039b051f68/report.json`.
 The coordinator decision screenshot was inspected. These runs use a Matrix HTTP
 fixture; they do not claim combined live Hagency or mobile acceptance.
+
+## Owner association and native connection probe
+
+The paired Rust services now implement owner initiation, one designated Matrix
+admin decision, resumable appservice installation, explicitly scoped profile
+retrieval and generation-bound connection verification. The Rinx association
+action exposes setup retry and authorized export; Engagements separates the last
+proof time from current heartbeat connectivity.
+
+`native_palpo_association.py` runs actual Rinx, Rust Palpo and native Hagency
+processes against an isolated Matrix HTTP fixture. Hagency's CLI persists and
+retries the association, the real OctoScript admin form approves it, native
+Hagency imports the matching profile, and the owner's Rinx Verify action sends
+the probe. Hagency consumes both delivery lanes and publishes the authenticated
+receipt. All eight checks passed; both screenshots were inspected at
+`target/palpo-association-validation/93b07861d5bb4ca5b0bc4ddfa0a950b9/report.json`.
+This covers native connection proof, not agent execution, live Matrix or a native
+save-dialog interaction: the harness retrieves the authorized profile through
+the API and writes its private import file.
