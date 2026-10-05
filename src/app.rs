@@ -564,7 +564,9 @@ impl MatchEvent for App {
                         self.cancel_signup_navigation();
                         self.close_mini_apps(cx);
                         cx.action(NavigationBarAction::GoToHome);
-                        self.navigate_to_room(cx, None, &BasicRoomDetails::RoomId(RoomNameId::empty(target.room_id.clone())));
+                        let room = cx.get_global::<RoomsListRef>().get_room_name(&target.room_id)
+                            .unwrap_or_else(|| RoomNameId::new(matrix_sdk::RoomDisplayName::Named("My Actions".into()), target.room_id.clone()));
+                        self.navigate_to_room(cx, None, &BasicRoomDetails::RoomId(room));
                     }
                     continue;
                 }
@@ -1666,8 +1668,10 @@ impl App {
         self.waiting_to_navigate_to_room = None;
         self.close_mini_apps(cx);
         cx.action(NavigationBarAction::GoToHome);
+        let room_name_id = cx.get_global::<RoomsListRef>().get_room_name(&target.room_id)
+            .unwrap_or_else(|| RoomNameId::empty(target.room_id.clone()));
         cx.widget_action(self.ui.widget_uid(), RoomsListAction::Selected(SelectedRoom::JoinedRoom {
-            room_name_id: RoomNameId::empty(target.room_id.clone()),
+            room_name_id,
         }));
         enqueue_rooms_list_update(RoomsListUpdate::ScrollToRoom(target.room_id.clone()));
         Ok(())

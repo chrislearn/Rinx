@@ -16,14 +16,14 @@ fn manifest_with(body: &str) -> String {
 fn palpo_extension_preserves_schema_and_declares_its_host_feature() {
     assert_eq!(SCHEMA, 1);
     assert_eq!(SCHEMA_MINOR, 0);
-    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1", "palpo-account-navigation-v1", "palpo-agent-navigation-v1", "palpo-actions-room-v1"]);
+    assert_eq!(KNOWN_FEATURES, &["palpo-admin-v1", "palpo-account-navigation-v1", "palpo-agent-navigation-v1", "palpo-actions-room-v1", "palpo-project-room-picker-v1"]);
 }
 
 #[test]
 fn palpo_uses_exact_service_grants() {
     let services = serde_json::to_string(octosense_app_contract::palpo::SERVICES).unwrap();
     let manifest = parse(&manifest_with(&format!(
-        r#""requires":["palpo-admin-v1","palpo-account-navigation-v1","palpo-agent-navigation-v1", "palpo-actions-room-v1"],"capabilities":{services}"#
+        r#""requires":["palpo-admin-v1","palpo-account-navigation-v1","palpo-agent-navigation-v1", "palpo-actions-room-v1", "palpo-project-room-picker-v1"],"capabilities":{services}"#
     ))).unwrap();
     let limits = HostLimits::system().with_require_signature(false);
     let resolved = resolve(&manifest, &limits).unwrap();
@@ -217,4 +217,14 @@ fn actions_room_setup_is_explicit_and_does_not_follow_from_inbox_read() {
     assert!(resolve(&missing, &limits).unwrap_err().contains("palpo-actions-room-v1"));
     let explicit = parse(&manifest_with(r#""requires":["palpo-actions-room-v1"],"capabilities":["palpo.actions.room.ensure"]"#)).unwrap();
     assert!(resolve(&explicit, &limits).unwrap().allows("palpo.actions.room.ensure"));
+}
+
+#[test]
+fn project_room_picker_requires_native_feature_and_explicit_grant() {
+    let limits = HostLimits::system().with_require_signature(false);
+    let missing = parse(&manifest_with(r#""capabilities":["palpo.projects.select_room"]"#)).unwrap();
+    assert!(resolve(&missing, &limits).unwrap_err().contains("palpo-project-room-picker-v1"));
+    let explicit = parse(&manifest_with(r#""requires":["palpo-project-room-picker-v1"],"capabilities":["palpo.projects.select_room"]"#)).unwrap();
+    assert!(resolve(&explicit, &limits).is_ok());
+    assert!(octosense_app_contract::palpo::words("palpo.projects.select_room").unwrap().contains("Choose"));
 }

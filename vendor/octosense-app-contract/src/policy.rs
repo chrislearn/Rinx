@@ -234,6 +234,11 @@ pub fn resolve(manifest: &AppManifest, limits: &HostLimits) -> Result<AppPolicy,
         }
         capabilities.insert(capability.clone());
     }
+    if capabilities.contains("palpo.projects.select_room")
+        && !manifest.requires.iter().any(|f| f == "palpo-project-room-picker-v1") {
+        return Err("palpo.projects.select_room requires palpo-project-room-picker-v1".into());
+    }
+
     if capabilities.contains("palpo.accounts.open")
         && !manifest.requires.iter().any(|f| f == "palpo-account-navigation-v1") {
         return Err("palpo.accounts.open requires palpo-account-navigation-v1".into());

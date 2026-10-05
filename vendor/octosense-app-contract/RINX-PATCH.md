@@ -28,3 +28,7 @@ is checked for the project owner/resource owner/current coordinator. Runtime
 Project setup recovery consent matches App Hub `2e2ad26`. The Rust endpoint
 checks current project/engagement roles and requires an existing approved grant;
 it cannot create a replacement approval.
+
+Native project room selection and its required host feature match App Hub
+`978a28f`. Only the selected joined room crosses the Rinx picker boundary;
+Palpo independently checks current owner authority before binding it.

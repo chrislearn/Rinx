@@ -187,7 +187,7 @@ impl PalpoHost {
         if session.is_none() {
             let opened = self.post(&endpoint, "session", matrix_token, &json!({
                 "appId": lease.identity().app, "bundleDigest": self.digest,
-                "services": lease.services().iter().filter(|s| octosense_app_contract::palpo::SERVICES.contains(&s.as_str())).collect::<Vec<_>>()
+                "services": lease.services().iter().filter(|s| s.as_str() != "palpo.projects.select_room" && octosense_app_contract::palpo::SERVICES.contains(&s.as_str())).collect::<Vec<_>>()
             })).await?;
             lease.check(account)?;
             if opened["userId"].as_str() != Some(account) || opened["version"] != 1 {

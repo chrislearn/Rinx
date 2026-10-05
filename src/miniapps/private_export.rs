@@ -1,6 +1,12 @@
 //! Native credential export. The script receives only Save/Cancel, never bytes.
 use rinx_miniapp_core::Lease;
 
+#[cfg(any(target_env = "ohos", all(test, unix)))]
+#[path = "private_export_ohos.rs"]
+mod ohos;
+#[cfg(target_env = "ohos")]
+pub(super) use ohos::save;
+
 #[cfg(any(
     target_os = "macos",
     target_os = "windows",
@@ -101,6 +107,7 @@ fn on_main_run_loop(choose: impl FnOnce() + Send + 'static) {
 // Mobile document providers own the destination permissions (including Android
 // content URIs). They must receive the bytes directly, outside the app jail.
 #[cfg(not(any(
+    target_env = "ohos",
     target_os = "macos",
     target_os = "windows",
     all(target_os = "linux", not(target_env = "ohos"))
@@ -108,16 +115,24 @@ fn on_main_run_loop(choose: impl FnOnce() + Send + 'static) {
 pub(super) async fn save(bytes: Vec<u8>, lease: Lease, account: String) -> Result<bool, String> {
     lease.check(&account)?;
     let (tx, rx) = tokio::sync::oneshot::channel();
-    robius_file_picker::FileDialog::new()
-        .set_file_name("hagency-registration.json")
-        .save_data(bytes, move |result| {
+    let dialog = robius_file_picker::FileDialog::new()
+        .set_file_name("hagency-registration.json");
+    let on_completion = move |result: robius_file_picker::Result<Option<robius_file_picker::PickedFile>>| {
             let _ = tx.send(
                 result
                     .map(|file| file.is_some())
                     .map_err(|_| "Could not save configuration".to_string()),
             );
-        })
-        .map_err(|_| "Could not open the system save dialog")?;
+        };
+    #[cfg(target_os = "android")]
+    let save = {
+        let current_lease = lease.clone();
+        let current_account = account.clone();
+        dialog.save_data_guarded(bytes, move || current_lease.check(&current_account).is_ok(), on_completion)
+    };
+    #[cfg(not(target_os = "android"))]
+    let save = dialog.save_data(bytes, on_completion);
+    save.map_err(|_| "Could not open the system save dialog")?;
     let result = rx
         .await
         .map_err(|_| "Configuration save was interrupted")??;

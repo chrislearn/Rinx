@@ -191,6 +191,61 @@ pub async fn install_instrument_account(endpoint: &str, account: &str) -> Result
     super::consent::remember(account, &package.manifest.integrity.bundle_blake3)
 }
 
+/// Restores only an isolated loopback acceptance server's ephemeral account.
+/// Compiled out of release applications; credentials never enter Splash.
+#[cfg(feature = "palpo-instrument")]
+pub async fn install_local_acceptance_session(endpoint: &str, path: &std::path::Path, role: &str) -> Result<String, String> {
+    let url = matrix_sdk::reqwest::Url::parse(endpoint).map_err(|e| e.to_string())?;
+    if url.scheme() != "http" || url.host_str() != Some("127.0.0.1") || url.path() != "/"
+        || !url.username().is_empty() || url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
+        return Err("Acceptance requires a loopback homeserver".into());
+    }
+    let metadata = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+    if !metadata.is_file() || metadata.len() > 65536 { return Err("Invalid acceptance session file".into()); }
+    #[cfg(unix)] {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 { return Err("Acceptance sessions must be private".into()); }
+    }
+    let sessions: serde_json::Value = serde_json::from_slice(&std::fs::read(path).map_err(|e| e.to_string())?).map_err(|_| "Invalid acceptance sessions")?;
+    let session = &sessions[role];
+    let account = session["user_id"].as_str().filter(|s| s.ends_with(":rinx-adr0011.test"))
+        .ok_or("Acceptance identity must belong to the isolated test server")?.to_owned();
+    if !matches!(role, "manager" | "owner" | "coordinator" | "admin" | "notices") {
+        return Err("Unknown acceptance role".into());
+    }
+    // Reusing a device ID with a fresh in-memory crypto store would replace
+    // its keys on every harness launch and invalidate real DM recipient proof.
+    let store = path.parent().ok_or("Missing acceptance directory")?
+        .join("native-acceptance-sdk").join(role);
+    std::fs::create_dir_all(&store).map_err(|e| e.to_string())?;
+    #[cfg(unix)] {
+        use std::os::unix::fs::PermissionsExt;
+        for directory in [store.parent().unwrap(), store.as_path()] {
+            let metadata = std::fs::symlink_metadata(directory).map_err(|e| e.to_string())?;
+            if !metadata.is_dir() { return Err("Acceptance SDK directory must be real".into()); }
+            std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
+        }
+    }
+    let client = matrix_sdk::Client::builder().homeserver_url(endpoint)
+        .sqlite_store_with_config_and_cache_path(matrix_sdk::SqliteStoreConfig::with_low_memory_config(&store), None::<std::path::PathBuf>)
+        .with_encryption_settings(matrix_sdk::encryption::EncryptionSettings {
+            auto_enable_cross_signing: false,
+            auto_enable_backups: false,
+            backup_download_strategy: matrix_sdk::encryption::BackupDownloadStrategy::OneShot,
+        })
+        .build().await.map_err(|e| e.to_string())?;
+    client.matrix_auth().restore_session(serde_json::from_value(serde_json::json!({
+        "user_id":account, "device_id":session["device_id"], "access_token":session["access_token"]
+    })).map_err(|_| "Invalid acceptance session")?, Default::default()).await.map_err(|e| e.to_string())?;
+    client.whoami().await.map_err(|e| e.to_string())?;
+    client.sync_once(matrix_sdk::config::SyncSettings::default().timeout(std::time::Duration::from_secs(0)))
+        .await.map_err(|e| e.to_string())?;
+    crate::sliding_sync::replace_client(Some(client));
+    let package = Package::load_builtin(APP_ID, &crate::app_data_dir().join("miniapps/imports"))?;
+    super::consent::remember(&account, &package.manifest.integrity.bundle_blake3)?;
+    Ok(account)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

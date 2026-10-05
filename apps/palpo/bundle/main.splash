@@ -8,12 +8,19 @@ if !mod.rinx_theme.reloading() {
         form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
     if fs.exists("draft.json") {
         let saved = fs.read("draft.json").parse_json()
-        if saved != nil { mod.palpo.form = saved mod.palpo.has_draft = true }
+        if saved != nil {
+            let restored = "{\"roomName\":\"\"}".parse_json()
+            for key value in saved { restored[key] = value }
+            mod.palpo.form = restored mod.palpo.has_draft = true
+        }
     }
 }
 let P = mod.palpo
 fn available(service){ for name in P.services { if name == service { return true } } return false }
 fn refusal_text(reason){
+    if reason == "agent_unavailable" { return "The agent was provisioned, but its runtime or Matrix chat connection needs attention. Ask the Hagency owner to inspect the current state." }
+    if reason == "provisioning_outcome_unknown" { return "Agent setup stopped with an uncertain result. Its allocation is retained. Ask the Hagency owner to inspect the original setup before retrying." }
+    if reason == "provisioning_failed" { return "Agent setup failed. Ask the Hagency owner to check the runtime configuration." }
     if reason == "insufficient_capacity" { return "Not enough capacity remains in this allocation." }
     if reason == "authority_changed" { return "The coordinator authorization changed or expired." }
     if reason == "project_unavailable" { return "The project is no longer available for this request." }
@@ -139,7 +146,7 @@ fn new_form(title, service, payload, fields){
     call("palpo.intent.new", {}, fn(data){
         if service == "palpo.inbox.decide" || service == "palpo.agents.control" || service == "palpo.inbox.activate" { payload.commandId = data.requestId }
         if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" || service == "palpo.fleets.set_state" { payload.requestId = data.requestId }
-        P.form = {title: title service: service payload: payload fields: fields}
+        P.form = {title: title service: service payload: payload fields: fields roomName: ""}
         P.page = "form" save_form()
     })
 }
@@ -165,6 +172,13 @@ fn request_project(fleet, resource){
         {key: "reason" label: "What will your project do?" value: ""}
     ])
 }
+fn choose_project_room(){
+    call("palpo.projects.select_room", {}, fn(data){
+        if !data.cancelled {
+            P.form.payload.roomId = data.roomId P.form.roomName = data.name save_form()
+        }
+    })
+}
 fn control_agent(row, operation){
     new_form(if operation == "retire" {"Remove agent"} else {if operation == "retry_cleanup" {"Retry cleanup"} else {if operation == "stop" {"Pause agent"} else {"Resume agent"}}},
         "palpo.agents.control", {agentActionId: row.id operation: operation kind: "agent_control"}, [])
@@ -181,7 +195,9 @@ fn request_tokens(row){
 }
 fn review_action(row){
     call("palpo.inbox.get", {id: row.id}, fn(data){
-        P.selected = data.action P.page = "action"
+        let selected = "{\"legacy\":false,\"projectSetup\":null,\"previousDecision\":null}".parse_json()
+        for key value in data.action { selected[key] = value }
+        P.selected = selected P.page = "action"
         host.request("palpo.inbox.seen", {id: row.id}, fn(r){})
     })
 }
@@ -191,6 +207,11 @@ fn decision(value){
         {id: row.id expectedRevision: row.revision decision: value reason: ""}, [{key: "reason" label: "Decision reason" value: ""}])
 }
 fn continue_action(){
+    if P.selected.nextAction == "continue_legacy_project" {
+        P.form = {title: "Continue project request" service: "palpo.inbox.submit" payload: P.selected.continuation fields: [] roomName: ""}
+        P.page = "form" save_form()
+        return
+    }
     retry_project_setup(P.selected.id, P.selected.revision)
 }
 fn retry_project_setup(action, revision){
@@ -263,7 +284,7 @@ fn submit_current(){
         P.form.payload.agentDefinition.name = P.form.fields[0].value
         // agentName is a form-only key, not a second backend identity field.
         let old = P.form.payload
-        P.form.payload = {requestId: old.requestId projectId: old.projectId role: old.role requestedTokens: old.requestedTokens ratePerDay: old.ratePerDay agentDefinition: old.agentDefinition}
+        P.form.payload = {requestId: old.requestId projectId: old.projectId resourceAllocationId: old.resourceAllocationId role: old.role requestedTokens: old.requestedTokens ratePerDay: old.ratePerDay agentDefinition: old.agentDefinition}
         save_form()
     }
     submit_form()
@@ -310,12 +331,12 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 waiting := mod.widgets.RinxButton{text: "Waiting" on_click: || inbox_filter("waiting")}
                 history := mod.widgets.RinxButton{text: "History" on_click: || inbox_filter("history")}
             }
-            mod.widgets.PalpoCard{
+            if P.filter != "history" { mod.widgets.PalpoCard{
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Pending actions stay here until they are resolved."}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reading or dismissing a notification does not complete a request."}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "The Hagency owner allocates resources to your engagement. Project and agent requests are reviewed here by its coordinator."}
-                if P.has_draft && P.form.payload.kind != "contribution" && available(P.form.service) { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
-            }
+                if P.has_draft && (P.form.service != "palpo.inbox.submit" || P.form.payload.kind != "contribution") && available(P.form.service) { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
+            } }
             if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No requests in this view. Refresh to check for updates."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
@@ -339,6 +360,7 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
                 mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
                 if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
+                if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                 if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                 if row.kind == "agent" && available("palpo.agents.control") {
                     if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
@@ -357,7 +379,12 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     }
                 }
                 if row.kind == "project" && row.projectSetup != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: setup_text(row.projectSetup)} }
-                if available("palpo.inbox.activate") && row.canContinue && row.nextAction != "export_and_connect" {
+                if row.legacy == true { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.migrationNote} }
+                if row.previousDecision != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Earlier decision · " + row.previousDecision.by + " · " + row.previousDecision.reason} }
+                if row.nextAction == "continue_legacy_project" && row.canContinue && available("palpo.inbox.submit") {
+                    continue_legacy := mod.widgets.RinxPrimaryButton{text: "Continue project request" on_click: || continue_action()}
+                }
+                if available("palpo.inbox.activate") && row.canContinue && row.nextAction != "export_and_connect" && row.nextAction != "continue_legacy_project" {
                     continue_work := mod.widgets.RinxPrimaryButton{text: "Retry project setup" on_click: || continue_action()}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
                 }
@@ -418,10 +445,20 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                 if P.form.service == "palpo.fleets.migrate" {
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Save the updated configuration, import it into the same Hagency engagement and verify its connection. Other engagements keep their own credentials. Pending deliveries and agent allocations are retained."}
                 }
+                if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "project" {
+                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.roomName != "" {"Project room: " + P.form.roomName} else {"A new project room will be created."}}
+                    choose_room := mod.widgets.RinxButton{text: "Choose an existing room" on_click: || choose_project_room()}
+                    if P.form.roomName != "" {
+                        new_room := mod.widgets.RinxButton{text: "Create a new room instead" on_click: || {P.form.payload.roomId = nil P.form.roomName = "" save_form() draw_page()}}
+                    }
+                }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: item.label}
                     mod.widgets.RinxInput{width: Fill text: item.value empty_text: item.label on_change: |value| edit_field(i, value)}
+                    if P.form.service == "palpo.requests.create" && item.key == "agentName" {
+                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Start with a letter. Use letters, numbers, hyphens or underscores, up to 64 characters."}
+                    }
                 }
                 submit := mod.widgets.RinxPrimaryButton{text: "Submit" on_click: || submit_current()}
                 cancel := mod.widgets.RinxButton{text: "Back to Inbox" on_click: || open_page("inbox")}
@@ -485,7 +522,9 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.role + " · " + row.state}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Initial request: " + row.requestedTokens + " tokens"}
                     if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
-                    if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                    if row.execution == "migration_pending" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "This earlier request is retained. Its Hagency owner must complete migration before runtime controls become available."} }
+                    if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                     if row.allocatedTokens != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocated: " + row.allocatedTokens + " tokens"} }
                     if row.allocatedTokens == nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
                     if row.usage != nil {
