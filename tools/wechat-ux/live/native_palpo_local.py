@@ -112,7 +112,7 @@ def create_agent(app, project, name, tokens):
     app.click_id('submit')
 
 
-def create_project(app, fleet, name):
+def create_project(app, fleet, name, submit=True):
     app.click_id('resources')
     app.wait_text('Request project here', timeout=30)
     scroll(app, -10000)
@@ -132,7 +132,8 @@ def create_project(app, fleet, name):
     app.wait_text('Project name')
     fill(app, 'Project name', name)
     app.capture('project-request-form')
-    app.click_id('submit')
+    if submit:
+        app.click_id('submit')
 
 
 def agent_card(app, name, button=None):
@@ -190,10 +191,11 @@ def main():
     parser.add_argument('--accounts', type=Path, required=True)
     parser.add_argument('--origin', default='http://127.0.0.1:24682')
     parser.add_argument('--role', choices=['manager', 'owner', 'coordinator', 'admin'], default='manager')
-    parser.add_argument('--scenario', choices=['inspect', 'project', 'rotate', 'create', 'top-up', 'approve', 'reject', 'pause', 'resume', 'retire'], required=True)
+    parser.add_argument('--scenario', choices=['inspect', 'project', 'room-picker', 'rotate', 'create', 'top-up', 'approve', 'reject', 'pause', 'resume', 'retire'], required=True)
     parser.add_argument('--agent')
     parser.add_argument('--project')
     parser.add_argument('--fleet')
+    parser.add_argument('--room-name')
     parser.add_argument('--action-id')
     parser.add_argument('--tokens', type=int, default=10000)
     parser.add_argument('--output', type=Path, default=Path('target/palpo-live-validation'))
@@ -207,11 +209,13 @@ def main():
     elif args.scenario == 'rotate':
         if not args.fleet:
             parser.error('A concrete engagement name is required')
-    elif args.scenario == 'project':
+    elif args.scenario in ('project', 'room-picker'):
         if not args.project or not args.fleet:
             parser.error('Concrete engagement and project names are required')
     elif not args.agent:
         parser.error('A concrete agent name is required')
+    if args.scenario == 'room-picker' and not args.room_name:
+        parser.error('An existing eligible room name is required')
     if args.tokens <= 0:
         parser.error('Tokens must be positive')
     if args.scenario == 'create' and not args.project:
@@ -271,6 +275,31 @@ def main():
             app.wait_text('Pending actions stay here', timeout=40)
             names = {f['name'] for f in readback.call('palpo.fleets.list', {})['fleets']}
             rotate_fleet(app, args.fleet, names)
+        elif args.scenario == 'room-picker':
+            app.wait_text('Pending actions stay here', timeout=40)
+            create_project(app, args.fleet, args.project, submit=False)
+            app.click_id('choose_room')
+            app.wait_text('Choose a project room')
+            app.click_id('rooms')
+            app.wait_text(args.room_name, pixels=True)
+            app.capture('eligible-room-menu')
+            app.click_text(args.room_name)
+            app.click_id('change_theme')
+            app.wait_text(args.room_name)
+            app.capture('room-selection-dark')
+            app.click_id('use_room')
+            scroll(app, -10000)
+            app.wait_text('Project room: ' + args.room_name)
+            app.capture('selected-room-form')
+            app.click_id('choose_room')
+            app.click_id('cancel_room')
+            scroll(app, -10000)
+            app.wait_text('Project room: ' + args.room_name)
+            app.click_id('choose_room')
+            app.click_id('switch_account')
+            app.wait_text('Session ended. Review and run again.', timeout=30)
+            assert not any(w.get('i') == 'use_room' and w['r'][3] > 0 for w in app.request('/snap', all=1)['s'])
+            report['checks'].append('Native eligible room selection, live theme, cancel and account revocation')
         elif args.scenario == 'project':
             app.wait_text('Pending actions stay here', timeout=40)
             create_project(app, args.fleet, args.project)
@@ -313,6 +342,10 @@ def main():
             elif args.scenario == 'rotate':
                 result = readback.fleet(args.fleet)
                 verified = result['id'] == before_fleet['id'] and result['transportGeneration'] == before_fleet['transportGeneration'] + 1 and result['registrationGeneration'] == before_fleet['registrationGeneration'] and not result['connectionVerified']
+            elif args.scenario == 'room-picker':
+                actions = readback.call('palpo.inbox.list', {'view': 'all', 'limit': 100}).get('actions', [])
+                result = {'unchangedActionIds': {a['id'] for a in actions} == before_actions}
+                verified = result['unchangedActionIds']
             elif args.scenario == 'project':
                 actions = readback.call('palpo.inbox.list', {'view': 'all', 'limit': 100}).get('actions', [])
                 result = next((a for a in actions if a['id'] not in before_actions and a.get('kind') == 'project' and a.get('payload', {}).get('name') == args.project), None)
