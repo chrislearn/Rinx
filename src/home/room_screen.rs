@@ -2,6 +2,7 @@
 //! of events (messages，state changes, etc.), along with an input bar at the bottom.
 
 use crate::theme::Snapshot as ThemeSnapshot;
+use crate::miniapps::action_room::ActionRoomBoardWidgetExt;
 use std::{
     borrow::Cow,
     cell::RefCell,
@@ -934,19 +935,12 @@ script_mod! {
                     text: ""
                 }
                 // Opens the chat info panel (members, history, notifications), as in WeChat.
-                desktop_chat_info_button := RobrixNeutralIconButton {
-                    width: 44, height: 36
-                    padding: 0
-                    align: Align{x: 0.5, y: 0.5}
-                    spacing: 0
-                    text: "···"
-                    draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold {font_size: (16 * mod.widgets.RINX_TEXT_SCALE)}}
-                    draw_bg +: {color: #x00000000 color_hover: #x0000000d color_down: #x0000001a border_size: 0}
-                    icon_walk: Walk{width: 0 height: 0}
-                }
+                desktop_chat_info_button := RinxChatInfoButton {}
             }
             LineH { draw_bg.color: #x00000014 }
         }
+
+        actions_board := mod.widgets.ActionRoomBoard {}
 
         room_screen_wrapper := SolidView {
             width: Fill, height: Fill,
@@ -1265,6 +1259,27 @@ impl Widget for RoomScreen {
     fn handle_event(&mut self, cx: &mut Cx, event: &Event, _scope: &mut Scope) {
         // Skip event handling if this RoomScreen is uninitialized (a background dock tab after dock restore).
         if self.tl_state.is_none() && self.room_name_id.is_none() {
+            return;
+        }
+        let board = self.view.action_room_board(cx, ids!(actions_board));
+        if let Event::Actions(actions) = event {
+            for action in actions {
+                if let Some(crate::miniapps::MiniAppsAction::OpenActionsRoom(target)) = action.downcast_ref()
+                    && crate::sliding_sync::current_user_id().as_ref() == Some(&target.account)
+                    && matches!(&self.timeline_kind, Some(TimelineKind::MainRoom { room_id }) if room_id == &target.room_id) {
+                    board.select(cx, Some(target.room_id.clone()));
+                }
+            }
+        }
+        board.handle_event(cx, event, &mut Scope::empty());
+        if let Event::Actions(actions) = event
+            && self.view.button(cx, ids!(desktop_chat_info_button)).clicked(actions) {
+            board.show_history(cx);
+        }
+        self.view.view(cx, ids!(room_screen_wrapper)).set_visible(cx, !board.active());
+        if board.active() {
+            // Room information remains reachable while the board owns the body.
+            self.view.view(cx, ids!(desktop_chat_header)).handle_event(cx, event, &mut Scope::empty());
             return;
         }
         self.handle_desktop_chat_info(cx, event);
@@ -1663,7 +1678,10 @@ impl Widget for RoomScreen {
             } else if is_popup_menu_open && room_input_popup_menu.is_event_within_popup_menu(cx, event) {
                 room_input_popup_menu.handle_event(cx, event, &mut Scope::empty());
             } else {
-                self.view.handle_event(cx, event, &mut Scope::empty());
+                // The board receives events above, including when its chat
+                // fallback is visible. Never dispatch the same input twice.
+                self.view.view(cx, ids!(desktop_chat_header)).handle_event(cx, event, &mut Scope::empty());
+                self.view.view(cx, ids!(room_screen_wrapper)).handle_event(cx, event, &mut Scope::empty());
             }
         });
         // Here, we handle and remove any general actions that are relevant to only this RoomScreen.
@@ -2026,7 +2044,7 @@ impl Widget for RoomScreen {
 
         // If this RoomScreen was just drawn for the first time after being opened for
         // a "Reply In Thread", then then focus on the text input in the RoomInputBar.
-        if self.focus_input_bar_on_show {
+        if self.focus_input_bar_on_show && !self.view.action_room_board(cx, ids!(actions_board)).active() {
             self.focus_input_bar_on_show = false;
             self.view.room_input_bar(cx, ids!(room_input_bar)).set_key_focus(cx);
         }
@@ -3919,6 +3937,9 @@ impl RoomScreen {
 
         self.room_name_id = Some(room_name_id.clone());
         self.timeline_kind = Some(timeline_kind.clone());
+        self.view.action_room_board(cx, ids!(actions_board)).select(cx,
+            if matches!(timeline_kind, TimelineKind::MainRoom { .. }) { Some(room_name_id.room_id().clone()) } else { None });
+        self.view.view(cx, ids!(room_screen_wrapper)).set_visible(cx, true);
 
         // Tell the room input bar which room/thread we're now displaying.
         // The list of room members is None for now, it'll get updated later.
@@ -3929,6 +3950,7 @@ impl RoomScreen {
     }
 
     pub fn hide_displayed_room(&mut self, cx: &mut Cx) {
+        self.view.action_room_board(cx, ids!(actions_board)).select(cx, None);
         if self.tl_state.is_some() {
             self.hide_timeline();
         }
@@ -4210,6 +4232,8 @@ impl RoomScreen {
 impl RoomScreenRef {
     pub fn jump_to_history_event(&self, cx: &mut Cx, event: OwnedEventId) {
         if let Some(mut inner) = self.borrow_mut() {
+            inner.view.action_room_board(cx, ids!(actions_board)).show_history(cx);
+            inner.view.view(cx, ids!(room_screen_wrapper)).set_visible(cx, true);
             inner.pending_history_jump = Some(event);
             inner.history_jump_started = false;
             inner.redraw(cx);

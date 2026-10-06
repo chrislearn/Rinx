@@ -45,6 +45,8 @@ struct App {
     #[rust]
     calls: usize,
     #[rust]
+    connects: usize,
+    #[rust]
     matrix_token: String,
 }
 impl MatchEvent for App {
@@ -61,6 +63,8 @@ impl MatchEvent for App {
             self.ui.label(cx, ids!(hint)).set_text(cx, "Live Matrix · isolated Palpo validation backend");
             (session["user_session"]["user_id"].as_str().or_else(|| session["user_session"]["meta"]["user_id"].as_str()).unwrap().to_owned(),
              session["user_session"]["access_token"].as_str().or_else(|| session["user_session"]["tokens"]["access_token"].as_str()).unwrap().to_owned())
+        } else if std::env::args().any(|a| a == "--coordinator") {
+            ("@coordinator:example.test".into(), "coordinator-secret".into())
         } else if std::env::args().any(|a| a == "--admin") {
             ("@admin:example.test".into(), "admin-secret".into())
         } else {
@@ -68,7 +72,8 @@ impl MatchEvent for App {
         };
         self.matrix_token = token;
         self.runtime = Some(tokio::runtime::Runtime::new().unwrap());
-        self.host = Some(PalpoHost::new("a".repeat(64)).unwrap());
+        self.host = Some(PalpoHost::new("a".repeat(64)).unwrap()
+            .with_action(std::env::var("PALPO_FIXTURE_ACTION").ok()));
         self.lease = Some(Lease::new(
             InstanceId {
                 app: APP_ID.into(),
@@ -108,7 +113,7 @@ impl AppMain for App {
         if let Event::Custom(command) = event {
             if command == "palpo:inspect" {
                 let splash = self.ui.splash(cx, ids!(app));
-                let data = serde_json::json!({"calls": self.calls, "heap": splash.isolate_heap_key(cx), "pending": self.pending.len(), "revision": theme::snapshot(cx).revision});
+                let data = serde_json::json!({"calls": self.calls, "connects": self.connects, "heap": splash.isolate_heap_key(cx), "pending": self.pending.len(), "revision": theme::snapshot(cx).revision});
                 std::fs::write(
                     rinx::app_data_dir().join("inspection.json"),
                     data.to_string(),
@@ -141,6 +146,7 @@ impl AppMain for App {
             .collect();
         for req in take_splash_host_requests_for(&owned) {
             self.calls += 1;
+            if req.service == "palpo.fleets.connect" { self.connects += 1; }
             let host = self.host.as_ref().unwrap().clone();
             let lease = self.lease.as_ref().unwrap().clone();
             let base = std::env::var("PALPO_FIXTURE_URL").expect("local fixture URL");
@@ -159,6 +165,13 @@ impl AppMain for App {
                 let result = host
                     .execute(&lease, &account, url, &token, &req.service, args)
                     .await;
+                // Instrument evidence only: the production MiniAppsPanel sends
+                // this closed target to the account-bound application shell.
+                if matches!(req.service.as_str(), "palpo.accounts.open" | "palpo.requests.open") {
+                    if let Ok(target) = &result {
+                        std::fs::write(rinx::app_data_dir().join("navigation.json"), target.to_string()).unwrap();
+                    }
+                }
                 let _ = tx.send(result);
                 SignalToUI::set_ui_signal();
             });

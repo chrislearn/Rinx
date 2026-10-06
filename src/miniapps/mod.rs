@@ -41,14 +41,17 @@ pub async fn matrix_request(
 }
 
 
+pub mod action_room;
 mod catalog_worker;
 mod consent;
 mod library;
 mod package;
 pub mod palpo;
+mod private_export;
 pub mod presentation;
 mod sandbox;
 pub mod ui;
+pub mod window;
 pub use crate::host::octos::ContextProvider;
 pub use ui::{MiniAppsAction, MiniAppsPanelWidgetRefExt};
 
@@ -71,4 +74,6 @@ pub fn script_mod(vm: &mut makepad_widgets::ScriptVm) {
     });
     library::script_mod(vm);
     ui::script_mod(vm);
+    action_room::script_mod(vm);
+    window::script_mod(vm);
 }

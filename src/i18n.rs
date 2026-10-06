@@ -161,6 +161,13 @@ fn refresh_ui_in_language(
         if !seen.insert(widget.widget_uid()) {
             continue;
         }
+        // Splash descendants belong to a separate script heap and own their
+        // translations. Their raw script_source indices cannot be dereferenced
+        // in Rinx's VM (even when the numeric index happens to exist there).
+        // Stop before enqueueing children, including hidden/retained mini apps.
+        if widget.borrow::<Splash>().is_some() {
+            continue;
+        }
         widget.children(&mut |_, child| stack.push(child));
         let source = widget.script_source();
         if source == ScriptObject::ZERO {
