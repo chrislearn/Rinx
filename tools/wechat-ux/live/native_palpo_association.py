@@ -14,6 +14,7 @@ from urllib.request import Request
 import uuid
 
 from native_palpo_coordinator import HTTP, call, launch, post, port, fill
+from native_palpo import inspect
 
 
 def save_dialog(app, destination=None):
@@ -226,10 +227,20 @@ def main():
             saved.write_text(json.dumps(profile)); saved.chmod(0o600)
         subprocess.run([str(hagency), "registration", "--state-dir", str(state), "import", "--file", str(saved), "--homeserver", matrix_origin],
                        check=True, capture_output=True, text=True)
+        # Hold the runtime offline so the waiting state can be observed and
+        # clicked repeatedly before any authenticated proof can arrive.
+        owner.click_id("verify"); owner.wait_text("Connection probe sent")
+        owner.wait_text("Verifying…")
+        owner.capture("owner-verification-pending")
+        for _ in range(3): owner.click_id("verify")
+        assert inspect(owner)['connects'] == 1
+        assert len([e for e in Matrix.events.values() if e['type'] == 'com.hagency.connection.probe.v1']) == 1
+        assert any(w.get('i') == 'verify' and w.get('t') == 'Verifying…' for w in owner.snap())
+        detail = launch(root / "owner-detail", args.binary, endpoint, "owner", action=requested['actionId']); apps.append(detail)
+        detail.wait_text("Verifying…")
         runtime_log = (root / "hagency.log").open("w")
         processes.append(subprocess.Popen([str(hagency), "serve", "--state-dir", str(state), "--listen", f"127.0.0.1:{port()}", "--palpo-transport"],
                          stdout=runtime_log, stderr=subprocess.STDOUT))
-        owner.click_id("verify"); owner.wait_text("Connection probe sent")
         for _ in range(150):
             fleets = call(endpoint, session, "palpo.fleets.list", {})["fleets"]
             fleet = next(f for f in fleets if f["id"] == requested["fleetId"])
@@ -239,12 +250,18 @@ def main():
                 raise RuntimeError("Hagency exited; inspect hagency.log")
             time.sleep(.2)
         assert fleet["connectionVerified"] and fleet["connectivity"] == "online", fleet
-        owner.click_id("refresh"); owner.wait_text("Connection verified"); owner.wait_text("Runtime · online")
+        owner.wait_text("Connected", timeout=15); owner.wait_text("Runtime · online")
+        detail.wait_text("Connected", timeout=15)
+        detail.capture("owner-detail-automatically-connected")
+        owner.click_id("verify")
+        assert inspect(owner)['connects'] == 1
+        assert len([e for e in Matrix.events.values() if e['type'] == 'com.hagency.connection.probe.v1']) == 1
         owner.capture("owner-authenticated-probe-verified")
         report["checks"] = ["native Hagency persists owner intent before the request", "same intent retry returns one association",
             "actual Rinx administrator approves association", "explicitly authorized owner retrieves engagement-scoped profile",
             "native Hagency imports its matching pending association", "actual Rinx owner initiates probe",
-            "native Hagency consumes relayed Matrix event and work before verification", "Rinx shows proof time and current runtime connectivity"]
+            "native Hagency consumes relayed Matrix event and work before verification", "Rinx shows proof time and current runtime connectivity",
+            "pending verification disables repeated clicks", "engagement list and action detail update to Connected without refresh"]
         if args.native_export:
             report['checks'] += ['native Save cancellation writes no profile', 'native Save produces owner-only credentials importable by Hagency',
                 'native export returns no credential bytes to Splash, the app jail or logs']

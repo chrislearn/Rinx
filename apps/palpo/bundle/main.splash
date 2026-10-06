@@ -5,7 +5,8 @@ if !mod.rinx_theme.reloading() {
     mod.palpo = {room_board: false board_generation: 0 ready: false busy: false admin: false coordinator: false owner: false services: [] user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         notification_settings: nil device_time_zone: nil quiet_enabled: false quiet_start: "22:00" quiet_end: "08:00" quiet_zone: "UTC"
-        form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0}
+        form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0
+        polling: false view_generation: 0 connecting: "" connection_error: ""}
     if fs.exists("draft.json") {
         let saved = fs.read("draft.json").parse_json()
         if saved != nil {
@@ -74,21 +75,119 @@ fn watch_board(generation){
         watch_board(generation)
     })
 }
+fn action_data(data){
+    let selected = "{\"legacy\":false,\"projectSetup\":null,\"previousDecision\":null,\"connectionVerification\":\"unverified\"}".parse_json()
+    for key value in data { selected[key] = value }
+    return selected
+}
+fn connection_state(row, fleet){
+    if P.connecting == fleet { return "verifying" }
+    let info = "{\"connectionVerification\":\"\",\"connectionVerified\":false,\"execution\":\"\"}".parse_json()
+    for key value in row { info[key] = value }
+    if info.connectionVerification == "verified" || info.connectionVerified == true { return "verified" }
+    if info.connectionVerification == "unavailable" { return "unavailable" }
+    if P.connection_error == fleet { return "retry" }
+    if info.connectionVerification == "" {
+        if info.execution == "verified" { return "verified" }
+        return "unverified"
+    }
+    return info.connectionVerification
+}
+fn connection_text(state){
+    if state == "verified" { return "Connected" }
+    if state == "verifying" { return "Verifying…" }
+    if state == "retry" { return "Retry verification" }
+    return "Verify connection"
+}
+fn agent_progress_pending(row){
+    return row.state == "requested" || (row.state == "approved" && (row.execution == "pending" || row.execution == "provisioning" || row.execution == "unavailable" || row.execution == "unknown"))
+}
+fn watch_status(generation){
+    if !P.ready || generation != P.board_generation { return }
+    start_timeout(2.0, || {
+        if !P.ready || generation != P.board_generation { return }
+        let service = "" let args = {}
+        if P.page == "action" {
+            let row = P.selected
+            if (row.kind == "association" && row.state == "approved" && row.execution == "verifying") || (row.kind == "agent" && agent_progress_pending(row)) {
+                service = "palpo.inbox.get" args = {id: row.id}
+            }
+        }
+        if P.page == "requests" {
+            for row in P.rows {
+                if agent_progress_pending(row) { service = "palpo.requests.list" args = {offset: P.offset limit: 50} }
+            }
+        }
+        if P.page == "fleets" {
+            for row in P.rows {
+                let state = connection_state(row, row.id)
+                if state == "unverified" || state == "verifying" || state == "retry" { service = "palpo.fleets.list" }
+            }
+        }
+        if service != "" && !P.busy && !P.polling {
+            let page = P.page let view = P.view_generation
+            P.polling = true
+            host.request(service, args, fn(r){
+                P.polling = false
+                if generation != P.board_generation || view != P.view_generation || page != P.page || P.busy { return }
+                if r.is_ok {
+                    let changed = false
+                    if page == "action" {
+                        let selected = action_data(r.data.action)
+                        changed = selected.to_json() != P.selected.to_json()
+                        P.selected = selected
+                    } else if page == "requests" {
+                        changed = r.data.requests.to_json() != P.rows.to_json() || r.data.total != P.total
+                        P.rows = r.data.requests P.total = r.data.total
+                    } else {
+                        changed = r.data.fleets.to_json() != P.rows.to_json()
+                        P.rows = r.data.fleets
+                    }
+                    if changed { P.notice = "" draw_page() }
+                } else { P.notice = "Status could not be refreshed. Retrying automatically." ui.status.set_text(P.notice) }
+            })
+        }
+        watch_status(generation)
+    })
+}
+fn verify_connection(fleet){
+    if P.busy || P.connecting == fleet { return }
+    P.busy = true P.connecting = fleet P.connection_error = "" P.view_generation = P.view_generation + 1
+    P.notice = "Verifying connection… This updates automatically."
+    draw_page()
+    host.request("palpo.fleets.connect", {fleetId: fleet}, fn(r){
+        P.busy = false P.connecting = ""
+        if r.is_ok {
+            if P.page == "action" && P.selected.kind == "association" && P.selected.result.fleetId == fleet {
+                let info = "{\"connectionVerification\":\"verifying\"}".parse_json()
+                for key value in r.data.fleet { info[key] = value }
+                P.selected.connectionVerification = info.connectionVerification
+            }
+            if P.page == "fleets" {
+                for i in P.rows.len() { if P.rows[i].id == fleet { P.rows[i] = r.data.fleet } }
+            }
+            P.notice = if r.data.fleet.connectionVerified {"Connection verified."} else {"Connection probe sent. Waiting for Hagency; this updates automatically."}
+        } else { P.connection_error = fleet P.notice = r.error }
+        draw_page()
+    })
+}
 fn connect_app(){
     call("palpo.session.open", {}, fn(data){
         P.room_board = data.roomBoard P.board_generation = P.board_generation + 1
         P.ready = true P.admin = data.isAdmin P.coordinator = data.canApproveProjects == true P.owner = data.isResourceOwner == true P.user = data.userId P.services = data.services
         if P.room_board { watch_board(P.board_generation) }
+        watch_status(P.board_generation)
         if data.openAction != "" { review_action({id: data.openAction}) } else { refresh_page() }
     })
 }
 fn open_page(page){
     if P.busy { return }
+    P.view_generation = P.view_generation + 1
     P.page = page P.rows = [] P.selected = nil P.notice = "" P.offset = 0
     draw_page() refresh_page()
 }
 fn inbox_filter(value){ P.filter = value open_page("inbox") }
-fn inbox_page(offset){ if P.busy { return } P.offset = offset P.rows = [] refresh_page() }
+fn inbox_page(offset){ if P.busy { return } P.view_generation = P.view_generation + 1 P.offset = offset P.rows = [] refresh_page() }
 fn refresh_page(){
     if !P.ready { connect_app() return }
     if P.page == "action" { review_action(P.selected) return }
@@ -194,10 +293,10 @@ fn request_tokens(row){
     ])
 }
 fn review_action(row){
+    if P.busy { return }
+    P.view_generation = P.view_generation + 1
     call("palpo.inbox.get", {id: row.id}, fn(data){
-        let selected = "{\"legacy\":false,\"projectSetup\":null,\"previousDecision\":null}".parse_json()
-        for key value in data.action { selected[key] = value }
-        P.selected = selected P.page = "action"
+        P.selected = action_data(data.action) P.page = "action"
         host.request("palpo.inbox.seen", {id: row.id}, fn(r){})
     })
 }
@@ -226,7 +325,7 @@ fn fleet_action(fleet, operation){
             P.notice = if data.saved {"Configuration saved. Import it on your Hagency server, then verify the connection."} else {"Save cancelled. You can download the same configuration again."}
         })
     }
-    if operation == "connect" { call("palpo.fleets.connect", {fleetId: fleet.id}, fn(data){ P.notice = "Connection probe sent. Refresh engagements for the runtime result." }) }
+    if operation == "connect" { verify_connection(fleet.id) }
     if operation == "install" { call("palpo.fleets.install", {fleetId: fleet.id}, fn(data){ refresh_page() }) }
     if operation == "pause" || operation == "resume" || operation == "revoke" {
         new_form(operation + " Matrix access", "palpo.fleets.set_state", {fleetId: fleet.id action: operation}, [])
@@ -388,7 +487,16 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     continue_work := mod.widgets.RinxPrimaryButton{text: "Retry project setup" on_click: || continue_action()}
                     mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
                 }
-                if row.kind == "association" && row.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action({id: row.result.fleetId}, "connect")} }
+                if row.kind == "association" && available("palpo.fleets.connect") {
+                    let state = connection_state(row, row.result.fleetId)
+                    let disabled = P.busy || state == "verifying" || state == "verified"
+                    if row.canConnect == true || state == "verified" {
+                        verify := mod.widgets.RinxButton{text: connection_text(state) enabled: !disabled
+                            draw_text.color: if disabled {mod.widgets.RINX_DISABLED} else {mod.widgets.RINX_INK}
+                            draw_bg.color: if disabled {mod.widgets.RINX_FIELD} else {mod.widgets.RINX_SURFACE}
+                            on_click: || fleet_action({id: row.result.fleetId}, "connect")}
+                    }
+                }
                 if row.nextAction == "export_and_connect" && row.canContinue {
                     export := mod.widgets.RinxPrimaryButton{text: "Save configuration" on_click: || fleet_action({id: row.result.fleetId}, "export")}
 
@@ -571,7 +679,16 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
                     if fleet.localTaskStop == "unconfirmed" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Remote runtime stop has not been confirmed."} }
                     View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
                         if fleet.canExport == true && available("palpo.fleets.export") { export := mod.widgets.RinxButton{text: "Save configuration" on_click: || fleet_action(fleet, "export")} }
-                        if fleet.canConnect == true && available("palpo.fleets.connect") { verify := mod.widgets.RinxButton{text: "Verify connection" on_click: || fleet_action(fleet, "connect")} }
+                        if available("palpo.fleets.connect") {
+                            let state = connection_state(fleet, fleet.id)
+                            let disabled = P.busy || state == "verifying" || state == "verified"
+                            if fleet.canConnect == true || state == "verified" {
+                                verify := mod.widgets.RinxButton{text: connection_text(state) enabled: !disabled
+                                    draw_text.color: if disabled {mod.widgets.RINX_DISABLED} else {mod.widgets.RINX_INK}
+                                    draw_bg.color: if disabled {mod.widgets.RINX_FIELD} else {mod.widgets.RINX_SURFACE}
+                                    on_click: || fleet_action(fleet, "connect")}
+                            }
+                        }
                         if fleet.canInstall == true && available("palpo.fleets.install") { install := mod.widgets.RinxButton{text: "Retry setup" on_click: || fleet_action(fleet, "install")} }
                         if fleet.canPause == true && available("palpo.fleets.set_state") { pause_fleet := mod.widgets.RinxButton{text: "Pause Matrix access" on_click: || fleet_action(fleet, "pause")} }
                         if fleet.canResume == true && available("palpo.fleets.set_state") { resume_fleet := mod.widgets.RinxButton{text: "Resume Matrix access" on_click: || fleet_action(fleet, "resume")} }

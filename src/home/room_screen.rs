@@ -935,16 +935,7 @@ script_mod! {
                     text: ""
                 }
                 // Opens the chat info panel (members, history, notifications), as in WeChat.
-                desktop_chat_info_button := RobrixNeutralIconButton {
-                    width: 44, height: 36
-                    padding: 0
-                    align: Align{x: 0.5, y: 0.5}
-                    spacing: 0
-                    text: "···"
-                    draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold {font_size: (16 * mod.widgets.RINX_TEXT_SCALE)}}
-                    draw_bg +: {color: #x00000000 color_hover: #x0000000d color_down: #x0000001a border_size: 0}
-                    icon_walk: Walk{width: 0 height: 0}
-                }
+                desktop_chat_info_button := RinxChatInfoButton {}
             }
             LineH { draw_bg.color: #x00000014 }
         }

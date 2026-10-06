@@ -2,6 +2,17 @@
 use makepad_widgets::*;
 use crate::theme::{self, Accent, Appearance, Selection};
 
+fn mode_labels(translated: bool) -> Vec<String> {
+    let labels: &[&str] = if theme::system::supported() {
+        &["Light", "Dark", "System"]
+    } else {
+        &["Light", "Dark"]
+    };
+    labels.iter().map(|label| {
+        if translated { crate::i18n::tr(label) } else { label }.to_string()
+    }).collect()
+}
+
 script_mod! {
     use mod.prelude.widgets.*
     use mod.widgets.*
@@ -9,7 +20,7 @@ script_mod! {
         width: Fill height: Fit flow: Down spacing: 8 padding: Inset{top: 12 bottom: 16}
         RinxLabel {text: #(crate::i18n::tr("App appearance")) i18n_text: "App appearance" draw_text.text_style: theme.font_bold{font_size: (13 * mod.widgets.RINX_TEXT_SCALE)}}
         choices := View {width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 12
-            mode := DropDown {width: 150 height: RINX_CONTROL_HEIGHT labels: [#(crate::i18n::tr("Light")), #(crate::i18n::tr("Dark"))] i18n_labels: ["Light", "Dark"]}
+            mode := DropDown {width: 150 height: RINX_CONTROL_HEIGHT labels: #(mode_labels(true)) i18n_labels: #(mode_labels(false))}
             accent := DropDown {width: 150 height: RINX_CONTROL_HEIGHT labels: [#(crate::i18n::tr("Teal")), #(crate::i18n::tr("Violet"))] i18n_labels: ["Teal", "Violet"]}
         }
         customize := RinxButton {text: #(crate::i18n::tr("Customize appearance")) i18n_text: "Customize appearance"}
@@ -45,16 +56,6 @@ impl ScriptHook for AppearanceSettings {
         self.view
             .button(cx, ids!(customize))
             .set_visible(cx, self.selection.is_some());
-        if crate::theme::system::supported() {
-            self.view.drop_down(cx, ids!(mode)).set_labels(
-                cx,
-                vec![
-                    crate::i18n::tr("Light").into(),
-                    crate::i18n::tr("Dark").into(),
-                    crate::i18n::tr("System").into(),
-                ],
-            );
-        }
         if let Some(s) = self.selection {
             let index = if follow_system {
                 2

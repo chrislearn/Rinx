@@ -188,6 +188,8 @@ pub struct MiniAppsPanel {
     restyle_card: bool,
     #[rust]
     notice_text: String,
+    #[rust]
+    reply_redraw: NextFrame,
 }
 impl ScriptHook for MiniAppsPanel {
     fn on_after_apply(&mut self, vm: &mut ScriptVm, _apply: &Apply, _scope: &mut Scope, _value: ScriptValue) {
@@ -913,6 +915,9 @@ impl MiniAppsPanel {
                 if let Some((heap, req)) = reply {
                     let text = result.as_ref().map(|v| v.to_string());
                     splash_host_respond(cx, heap, req, text.as_deref().map_err(|e| e.as_str()));
+                    // Host callbacks run after this event and can replace dynamic
+                    // children. Invalidate this panel once after they have run.
+                    self.reply_redraw = cx.new_next_frame();
                 }
                 if let Err(error) = result {
                     self.notice(cx, &error);
@@ -935,9 +940,10 @@ impl Widget for MiniAppsPanel {
             if let Err(error) = self.render(cx) { self.notice(cx, &error); }
         }
         self.view.handle_event(cx, event, scope);
-        // A host reply can replace dynamic children while their new areas are
-        // still empty. Redraw their ancestors after the script queue is pumped.
-        if self.palpo.is_some() && matches!(event, Event::Signal) { cx.redraw_all(); }
+        if self.reply_redraw.is_event(event).is_some() {
+            self.reply_redraw = NextFrame::default();
+            self.view.redraw(cx);
+        }
         if let Event::Actions(actions) = event {
             if self.view.button(cx, ids!(close)).clicked(actions) {
                 if self.navigate_back(cx) { cx.action(MiniAppsAction::Close); }

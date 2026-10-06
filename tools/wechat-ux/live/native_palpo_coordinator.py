@@ -119,7 +119,7 @@ def machine_update(endpoint, fleet, body):
         return json.load(response)
 
 
-def launch(root, binary, endpoint, role, board=False, visible=False):
+def launch(root, binary, endpoint, role, board=False, visible=False, action=None):
     profile = root / "profile"
     (profile / "app").mkdir(parents=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -129,6 +129,8 @@ def launch(root, binary, endpoint, role, board=False, visible=False):
                MAKEPAD_NO_FOCUS="1", MAKEPAD_REMOTE=str(app.port), PALPO_FIXTURE_URL=endpoint)
     env.pop("PALPO_LIVE_SESSION_FILE", None)
     env.pop("MAKEPAD_FOCUS", None)
+    env.pop("PALPO_FIXTURE_ACTION", None)
+    if action: env['PALPO_FIXTURE_ACTION'] = action
     if visible:
         env.pop("MAKEPAD_HIDE_WINDOWS", None)
         env.pop("MAKEPAD_NO_FOCUS", None)
@@ -156,7 +158,7 @@ def launch(root, binary, endpoint, role, board=False, visible=False):
             except OSError:
                 pass
             time.sleep(.1)
-        app.wait_text("Pending actions stay here", timeout=45)
+        app.wait_text("Execution ·" if action else "Pending actions stay here", timeout=45)
         # The Inbox shell draws before its initial HTTP result. Input while the
         # bundle is busy is intentionally ignored; wait for that first result.
         for _ in range(150):
@@ -240,6 +242,16 @@ def main():
             report["board_binary_sha256"] = hashlib.sha256(args.board_binary.read_bytes()).hexdigest()
             board = launch(root / "board", args.board_binary, endpoint, "coordinator", board=True); apps.append(board)
             board.wait_text("Littlewhite"); board.capture("action-board-light")
+            # Unrelated Matrix/background signals must not repaint the app.
+            time.sleep(1)
+            before = inspect(board)
+            for _ in range(20):
+                board.request('/event', data='palpo:signal', wait=0)
+                time.sleep(.05)
+            after = inspect(board)
+            assert after['signals'] - before['signals'] >= 20
+            assert after['draws'] - before['draws'] <= 2, (before, after)
+            report['signal_redraws'] = {'signals': after['signals'] - before['signals'], 'draws': after['draws'] - before['draws']}
             assert not any(w.get("i") in {"projects", "resources", "actions_room"} for w in board.snap())
             board.click_id("review"); board.wait_text("Approve"); board.capture("action-board-latest-action")
             board.click_id("toggle"); board.wait_text("Ordinary chat timeline fallback")
@@ -280,6 +292,8 @@ def main():
         owner.click_id("requests"); owner.wait_text("Littlewhite"); owner.wait_text("Execution · pending")
         owner.wait_text("Allocation confirmation pending"); owner.wait_text("Token consumption not reported yet")
         owner.capture("owner-agents-pending")
+        detail = launch(root / "owner-detail", args.binary, endpoint, "owner", action=action["id"]); apps.append(detail)
+        detail.wait_text("Execution · pending")
         owner.click_id("projects"); owner.wait_text("project_one")
         assert not any(w.get("t") == "Request agent" for w in owner.snap())
         owner.click_id("requests"); owner.wait_text("Littlewhite")
@@ -302,10 +316,23 @@ def main():
                         consumedTokens=42, usageObservedAtMs=int(time.time() * 1000), usageEvidence="host_attributed_lower_bound",
                         usageComplete=False, quotaPaused=False, bound=True, ready=True,
                         fulfillment={"phase": "complete", "incomplete": False}, observedAt=datetime.now(timezone.utc).isoformat())
-        update = {"v": 2, "generation": 1, "sequence": 1, "heartbeat": True, "statuses": [observed],
+        provisioning = dict(observed, ready=False, lifecycle={"provisionEffect": "pending"})
+        update = {"v": 2, "generation": 1, "sequence": 1, "heartbeat": True, "statuses": [provisioning],
                   "coordinatorUpdates": [{"id": "command_" + receipt["commandId"], "payload": receipt, "digest": digest(receipt)}]}
         machine_update(endpoint, fleet, update)
-        owner.click_id("refresh"); owner.wait_text("Execution · ready"); owner.wait_text("Consumed: at least 42 tokens")
+        for app in (owner, detail):
+            app.wait_text("Execution · provisioning")
+        unavailable = dict(observed, ready=False, lifecycle={"provisionEffect": "complete", "matrixReady": False, "runtimeAvailability": "available"})
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [unavailable]})
+        for app in (owner, detail):
+            app.wait_text("Execution · unavailable")
+            app.capture("agent-unavailable-auto")
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 3, "heartbeat": True, "statuses": [observed]})
+        for app in (owner, detail):
+            app.wait_text("Execution · ready")
+            assert not any(w.get("t") == "Agent setup needs attention" for w in app.snap())
+            app.capture("agent-ready-auto")
+        owner.wait_text("Consumed: at least 42 tokens")
         owner.capture("owner-agents-current-usage")
         owner.click_id("more_tokens"); owner.wait_text("Additional tokens")
         fill(owner, "Additional tokens", "20000")
@@ -330,7 +357,7 @@ def main():
         top_up_receipt = dict(receipt, commandId=top_up_command["context"]["commandId"],
                               commandDigest=digest({"operation": "coordinator_token_top_up", "command": top_up_command}))
         observed["allocatedTokens"] = 120000
-        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [observed],
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 4, "heartbeat": True, "statuses": [observed],
             "coordinatorUpdates": [{"id": "command_" + top_up_receipt["commandId"], "payload": top_up_receipt, "digest": digest(top_up_receipt)}]})
         retried = call(endpoint, token, "palpo.inbox.submit", top_up_draft["payload"])["action"]
         assert retried["id"] == top_up["actionId"] and retried["execution"] == "done"
@@ -338,7 +365,7 @@ def main():
         owner.capture("owner-top-up-applied")
         observed["observedAt"] = "2020-01-01T00:00:00Z"
         observed["usageObservedAtMs"] = 1577836800000
-        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 3, "heartbeat": True, "statuses": [observed]})
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 5, "heartbeat": True, "statuses": [observed]})
         owner.click_id("refresh"); owner.wait_text("Usage sample is out of date")
         assert not any(w.get("t") == "Execution · ready" for w in owner.snap())
         assert not any(w.get("t") == "Request more tokens" for w in owner.snap())
@@ -360,7 +387,7 @@ def main():
         refusal = {"kind": "receipt", "registrationGeneration": 1, "delegationRevision": 1,
             "commandId": refused_command["context"]["commandId"], "state": "refused", "reason": "insufficient_capacity",
             "commandDigest": digest({"operation": "coordinator_agent_approval", "command": refused_command})}
-        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 4, "heartbeat": True,
+        machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 6, "heartbeat": True,
             "coordinatorUpdates": [{"id": "command_" + refusal["commandId"], "payload": refusal, "digest": digest(refusal)}]})
         owner.click_id("refresh")
         for _ in range(5):
@@ -381,7 +408,7 @@ def main():
         owner.capture("owner-agent-allocation-refused")
         # Native forms and real Palpo receipts; this provider fixture does not
         # claim to execute runtime cleanup (covered by native worker tests).
-        sequence = 5
+        sequence = 7
         observed.update(observedAt=datetime.now(timezone.utc).isoformat(), usageObservedAtMs=int(time.time() * 1000),
             lifecycle={"runtimeState": "active", "paused": False, "cleanup": "not_required", "cleanupEffect": None})
         machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": sequence, "heartbeat": True, "statuses": [observed]})
@@ -504,6 +531,7 @@ def main():
             "same command retry queues exactly one Hagency delivery", "owner sees approved and pending execution separately",
             "resource contribution is absent from the mini app", "role-scoped Projects and Agents navigation",
             "agent list distinguishes pending allocation and unknown consumption",
+            "agent list and action detail automatically follow pending, provisioning, unavailable and ready without Refresh",
             "authenticated provider fixture shows current lower-bound usage", "old provider observations do not claim live readiness",
             "owner requests additional tokens through the native form", "coordinator approves the allocation-bound top-up",
             "top-up retry after provider execution returns the original result",
