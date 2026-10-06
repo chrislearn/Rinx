@@ -1,4 +1,8 @@
 {
+  "Add Account": "添加账号",
+  "Saved Accounts": "已登录账号",
+  "Switching Account": "切换账号",
+  "Finishing the previous session…": "正在结束上一个账号的活动…",
   "\nWorkspace: {workspace}": "\n工作区：{workspace}",
   " (invited)": "（已邀请）",
   " reacted with: {0}": " 回应了：{0}",

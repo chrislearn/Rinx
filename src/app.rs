@@ -21,7 +21,7 @@ use crate::{
         event_source_modal::{EventSourceModalAction, EventSourceModalWidgetRefExt}, invite_modal::{InviteModalAction, InviteModalWidgetRefExt}, main_desktop_ui::MainDesktopUiAction, navigation_tab_bar::{NavigationBarAction, SelectedTab}, new_message_context_menu::NewMessageContextMenuWidgetRefExt, room_context_menu::RoomContextMenuWidgetRefExt, room_screen::{InviteAction, MessageAction, clear_timeline_states, invalidate_single_timeline_state}, rooms_list::{RoomsListAction, RoomsListRef, RoomsListUpdate, clear_all_invited_rooms, enqueue_rooms_list_update}
     }, join_leave_room_modal::{
         JoinLeaveModalKind, JoinLeaveRoomModalAction, JoinLeaveRoomModalWidgetRefExt
-    }, login::login_screen::LoginAction, logout::logout_confirm_modal::{LogoutAction, LogoutConfirmModalAction, LogoutConfirmModalWidgetRefExt}, persistence, profile::user_profile_cache::clear_user_profile_cache, room::BasicRoomDetails, settings::app_preferences::{AppPreferences, UiZoom}, shared::{confirmation_modal::{ConfirmationModalContent, ConfirmationModalWidgetRefExt}, context_menu::{ContextMenuClosed, menu_position_margin}, image_viewer::{ImageViewerAction, LoadState}, popup_list::{PopupKind, enqueue_popup_notification}}, sliding_sync::{DirectMessageRoomAction, MatrixRequest, TimelineKind, current_user_id, submit_async_request}, utils::RoomNameId, verification::VerificationAction, verification_modal::{
+    }, login::login_screen::LoginAction, logout::logout_confirm_modal::{LogoutAction, LogoutConfirmModalAction, LogoutConfirmModalWidgetRefExt}, persistence, profile::user_profile_cache::clear_user_profile_cache, room::BasicRoomDetails, settings::app_preferences::{AppPreferences, UiZoom}, shared::{confirmation_modal::{ConfirmationModalContent, ConfirmationModalWidgetRefExt}, context_menu::{ContextMenuClosed, menu_position_margin}, image_viewer::{ImageViewerAction, ImageViewerWidgetRefExt, LoadState}, popup_list::{PopupKind, enqueue_popup_notification}}, sliding_sync::{DirectMessageRoomAction, MatrixRequest, TimelineKind, current_user_id, submit_async_request}, utils::RoomNameId, verification::VerificationAction, verification_modal::{
         VerificationModalAction,
         VerificationModalWidgetRefExt,
     }
@@ -343,6 +343,23 @@ impl MatchEvent for App {
         }
 
         for action in actions {
+            if let Some(action) = action.downcast_ref::<crate::accounts::AccountAction>() {
+                if !crate::sliding_sync::account_changing() {
+                    self.persist_runtime_state(cx, "account switch");
+                    let target = match action {
+                        crate::accounts::AccountAction::Select(user) => Some(user.clone()),
+                        crate::accounts::AccountAction::Add => None,
+                    };
+                    let already_active = target.as_ref().is_some_and(|user| current_user_id().as_ref() == Some(user));
+                    if !already_active && crate::sliding_sync::request_account_change(target) {
+                        self.app_state.logged_in = false;
+                        self.update_login_visibility(cx);
+                        cx.action(LoginAction::Status { title: crate::i18n::tr("Switching Account").into(), status: crate::i18n::tr("Finishing the previous session…").into() });
+                    }
+                    self.ui.redraw(cx);
+                }
+                continue;
+            }
             if let Some(action) = action.downcast_ref::<ThemeStudioAction>() {
                 let modal = self.ui.modal(cx, ids!(theme_studio_modal));
                 self.ui
@@ -404,9 +421,11 @@ impl MatchEvent for App {
                     self.ui.redraw(cx);
                     continue;
                 }
-                Some(LogoutAction::ClearAppState { on_clear_appstate }) =>  {
+                Some(LogoutAction::ClearAppState { .. }) =>  {
+                    robius_speech::cancel_all();
                     self.clear_session_ui(cx);
-                    on_clear_appstate.notify_one();
+                    self.update_login_visibility(cx);
+                    self.ui.redraw(cx);
                     continue;
                 }
                 _ => {}
@@ -983,7 +1002,12 @@ impl App {
     }
 
     fn clear_session_ui(&mut self, cx: &mut Cx) {
+        self.lifecycle.last_app_state_save = None;
         self.pending_signup_navigation = None;
+        self.ui.image_viewer(cx, ids!(image_viewer_modal.content)).reset(cx);
+        for id in [ids!(image_viewer_modal), ids!(file_upload_modal), ids!(invite_modal), ids!(invite_confirmation_modal), ids!(event_source_modal), ids!(positive_confirmation_modal), ids!(delete_confirmation_modal), ids!(block_user_modal), ids!(join_leave_modal), ids!(room_history_modal), ids!(tsp_verification_modal)] {
+            self.ui.modal(cx, id).close(cx);
+        }
         self.close_web_browser(cx);
         #[cfg(feature = "agent_chat")]
         {
@@ -1096,6 +1120,7 @@ pub fn register_widgets(vm: &mut ScriptVm) {
 
     crate::assistant::sheet::script_mod(vm);
     crate::agent_access::script_mod(vm);
+    crate::home::account_list::script_mod(vm);
     crate::settings::script_mod(vm);
     // RoomInputBar depends on these Home widgets; preload them before room::script_mod.
     crate::home::location_preview::script_mod(vm);
@@ -1198,6 +1223,15 @@ impl AppMain for App {
         crate::agent_access::publish(current_user_id(), &self.app_state.agent_access);
         let scope = &mut Scope::with_data(&mut self.app_state);
         self.ui.handle_event(cx, event, scope);
+        // The backend may restore the next account only after every child has
+        // consumed ClearAppState, including hidden settings/room widgets.
+        if let Event::Actions(actions) = event {
+            for action in actions {
+                if let Some(LogoutAction::ClearAppState { on_clear_appstate }) = action.downcast_ref() {
+                    on_clear_appstate.notify_one();
+                }
+            }
+        }
         crate::theme::packages::after_event(cx, event);
         if matches!(event, Event::LiveEdit) {
             crate::i18n::refresh_ui(cx, &self.ui);

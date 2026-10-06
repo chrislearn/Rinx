@@ -1462,7 +1462,8 @@ impl RoomInputBar {
         let sign_with_tsp = self.is_tsp_signing_enabled(_cx);
 
         // `robius-file-picker` ensures that this `on_picked` callback runs on a bg thread.
-        move |result| handle_picked_file(result, move |file_data| {
+        let epoch = crate::account_session::epoch();
+        move |result| handle_picked_file(epoch, result, move |file_data| {
             Ok(PendingUpload::Attachment(AttachmentUpload {
                 timeline_kind,
                 file_data,
