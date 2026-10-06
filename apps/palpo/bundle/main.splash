@@ -1,16 +1,16 @@
-width: Fill height: Fill flow: Down spacing: 12
+width: Fill height: Fill flow: Down spacing: 8 align: Align{x: 0.5}
 show_bg: true draw_bg.color: mod.widgets.RINX_PAGE
 
 if !mod.rinx_theme.reloading() {
     mod.palpo = {room_board: false board_generation: 0 ready: false busy: false admin: false coordinator: false owner: false services: [] user: "" page: "inbox" filter: "needs_action"
         rows: [] resources: [] selected: nil pending: 0 offset: 0 total: 0 notice: "Connecting with your Rinx account…"
         notification_settings: nil device_time_zone: nil quiet_enabled: false quiet_start: "22:00" quiet_end: "08:00" quiet_zone: "UTC"
-        form: {title: "" service: "" payload: {} fields: []} has_draft: false request_count: 0
-        polling: false view_generation: 0 connecting: "" connection_error: ""}
+        form: {title: "" service: "" payload: {} fields: [] context: nil} has_draft: false request_count: 0
+        more: false manage: "" details: "" return_page: "inbox" polling: false view_generation: 0 connecting: "" connection_error: ""}
     if fs.exists("draft.json") {
         let saved = fs.read("draft.json").parse_json()
         if saved != nil {
-            let restored = "{\"roomName\":\"\"}".parse_json()
+            let restored = "{\"roomName\":\"\",\"context\":null}".parse_json()
             for key value in saved { restored[key] = value }
             mod.palpo.form = restored mod.palpo.has_draft = true
         }
@@ -18,6 +18,11 @@ if !mod.rinx_theme.reloading() {
 }
 let P = mod.palpo
 fn available(service){ for name in P.services { if name == service { return true } } return false }
+fn instructions_text(definition){
+    if definition == nil { return "" }
+    for key value in definition { if key == "instructions" && value != nil { return value } }
+    return ""
+}
 fn refusal_text(reason){
     if reason == "agent_unavailable" { return "The agent was provisioned, but its runtime or Matrix chat connection needs attention. Ask the Hagency owner to inspect the current state." }
     if reason == "provisioning_outcome_unknown" { return "Agent setup stopped with an uncertain result. Its allocation is retained. Ask the Hagency owner to inspect the original setup before retrying." }
@@ -49,17 +54,105 @@ fn control_text(control){
     if control.execution == "retired" { return "Agent removed · cleanup verified. Usage settlement is tracked separately." }
     return "Hagency applied the " + control.operation + " request."
 }
-// Dynamic render closures resolve the current host prototypes on every reapply.
-mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 10
-    draw_bg +: {color: mod.widgets.RINX_SURFACE border_color: mod.widgets.RINX_BORDER border_size: 1 border_radius: theme.corner_radius}}
+// Shared Rinx theme tokens; local layout defaults remove inherited widget padding.
+mod.widgets.PalpoText = mod.widgets.RinxLabel{margin: 0 padding: 0 width: Fill height: Fit flow: Flow.Right{wrap: true}}
+mod.widgets.PalpoMeta = mod.widgets.RinxHint{margin: 0 padding: 0 width: Fill height: Fit flow: Flow.Right{wrap: true}
+    draw_text.text_style.font_size: mod.widgets.RINX_BODY_SIZE}
+mod.widgets.PalpoTitle = mod.widgets.RinxPageTitle{margin: 0 padding: 0 width: Fill height: Fit flow: Flow.Right{wrap: true}}
+mod.widgets.PalpoName = mod.widgets.PalpoText{draw_text.text_style: theme.font_bold{font_size: mod.widgets.RINX_BODY_SIZE}}
+mod.widgets.PalpoButton = mod.widgets.RinxButton{margin: 0 spacing: 0 grab_key_focus: true
+    icon_walk: Walk{width: 0 height: 0}
+    draw_bg +: {color: mod.widgets.RINX_SELECTED color_focus: mod.widgets.RINX_PRESSED border_size: 0 border_radius: 6}
+    draw_text +: {color: mod.widgets.RINX_ACCENT color_hover: mod.widgets.RINX_ACCENT}}
+mod.widgets.PalpoPrimary = mod.widgets.RinxPrimaryButton{margin: 0 spacing: 0 grab_key_focus: true
+    icon_walk: Walk{width: 0 height: 0} draw_bg.border_radius: 8}
+mod.widgets.PalpoQuiet = mod.widgets.PalpoButton{
+    padding: Inset{left: 10 right: 10 top: 8 bottom: 8}
+    draw_bg +: {color: #0000 color_focus: mod.widgets.RINX_PRESSED border_color: #0000 border_color_hover: #0000 border_size: 0}}
+mod.widgets.PalpoTab = mod.widgets.PalpoQuiet{
+    draw_text.text_style: theme.font_bold{font_size: mod.widgets.RINX_BODY_SIZE}}
+mod.widgets.PalpoBadge = RoundedView{width: Fit height: Fit flow: Right padding: Inset{left: 8 right: 8 top: 5 bottom: 5}
+    draw_bg +: {color: mod.widgets.RINX_SELECTED border_radius: 6}
+    label := mod.widgets.PalpoMeta{width: Fit draw_text.color: mod.widgets.RINX_ACCENT}}
+mod.widgets.PalpoCard = RoundedView{width: Fill height: Fit flow: Down padding: 16 spacing: 8
+    draw_bg +: {color: mod.widgets.RINX_FIELD border_color: mod.widgets.RINX_BORDER border_size: 0 border_radius: 8}}
+mod.widgets.PalpoActions = View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 8 wrap_spacing: 8}
 
-fn draw_page(){ ui.navigation.set_visible(!P.room_board) ui.content.render() ui.navigation.render() ui.status.set_text(P.notice) }
+fn navigation_page(){
+    if P.page != "form" { return P.page }
+    if P.form.service == "palpo.agents.control" || P.form.service == "palpo.requests.create" { return "requests" }
+    if P.form.service == "palpo.inbox.decide" { return "inbox" }
+    return P.return_page
+}
+
+fn page_title(){
+    if P.page == "inbox" { return "Inbox · " + P.pending }
+    if P.page == "projects" { return "Projects" }
+    if P.page == "requests" { return "Agents" }
+    if P.page == "resources" { return "Resources" }
+    if P.page == "agent_resources" { return "Choose a resource" }
+    if P.page == "fleets" { return "Server engagements" }
+    if P.page == "notifications" { return "Notifications" }
+    if P.page == "activity" { return "Activity" }
+    if P.page == "accounts" { return "Signup requests" }
+    if P.page == "agents" { return "Matrix identities" }
+    return "Request details"
+}
+fn state_text(state){
+    if state == "requested" || state == "pending" { return "Awaiting approval" }
+    if state == "approved" { return "Approved" }
+    if state == "rejected" { return "Declined" }
+    if state == "ready" || state == "active" { return "Ready" }
+    if state == "verified" { return "Connected" }
+    if state == "revoked" { return "Revoked" }
+    if state == "retired" { return "Removed" }
+    return state
+}
+fn execution_text(state){
+    if state == "pending" { return "Waiting for Hagency" }
+    if state == "provisioning" { return "Preparing agent" }
+    if state == "ready" { return "Ready to chat" }
+    if state == "unavailable" || state == "provisioning_unknown" || state == "provisioning_failed" { return "Needs attention" }
+    if state == "unknown" { return "Readiness not confirmed" }
+    if state == "verifying" { return "Verifying connection" }
+    if state == "verified" { return "Connected" }
+    if state == "done" { return "Completed" }
+    if state == "retired" || state == "ended" { return "Ended" }
+    if state == "migration_pending" { return "Upgrade needed" }
+    if state == "installing" { return "Setting up connection" }
+    if state == "failed" { return "Needs attention" }
+    if state == "control_pending" { return "Applying change" }
+    if state == "control_applied" { return "Change applied" }
+    if state == "control_refused" || state == "cleanup_failed" || state == "inspection_required" { return "Needs attention" }
+    if state == "retiring" { return "Removing agent" }
+    if state == "paused" { return "Paused" }
+    return "Status unavailable"
+}
+fn status_background(state){
+    if state == "ready" || state == "verified" { return mod.widgets.RINX_SUCCESS_BG }
+    if state == "unavailable" || state == "provisioning_unknown" || state == "provisioning_failed" || state == "allocation_refused" { return mod.widgets.RINX_WARNING_BG }
+    return mod.widgets.RINX_SELECTED
+}
+fn status_foreground(state){
+    if state == "ready" || state == "verified" { return mod.widgets.RINX_SUCCESS_FG }
+    if state == "unavailable" || state == "provisioning_unknown" || state == "provisioning_failed" || state == "allocation_refused" { return mod.widgets.RINX_WARNING_FG }
+    return mod.widgets.RINX_ACCENT
+}
+fn kind_text(kind){
+    if kind == "agent" { return "Agent request" }
+    if kind == "project" { return "Project request" }
+    if kind == "association" { return "Server connection" }
+    if kind == "token_top_up" { return "Token request" }
+    return "Request"
+}
+fn sync_status(){ ui.status.set_text(P.notice) ui.status.set_visible(P.notice != "") }
+fn draw_page(){ ui.refresh.set_visible(P.page != "form" && P.page != "confirm") ui.more.set_visible(!P.room_board) ui.navigation.set_visible(!P.room_board) ui.content.render() ui.navigation.render() ui.account.render() sync_status() }
 fn call(service, args, complete){
     if P.busy { return }
     P.busy = true
     P.request_count = P.request_count + 1
     P.notice = "Working…"
-    ui.status.set_text(P.notice)
+    sync_status()
     host.request(service, args, fn(r){
         P.busy = false
         if r.is_ok { P.notice = "" complete(r.data) }
@@ -144,7 +237,7 @@ fn watch_status(generation){
                         P.rows = r.data.fleets
                     }
                     if changed { P.notice = "" draw_page() }
-                } else { P.notice = "Status could not be refreshed. Retrying automatically." ui.status.set_text(P.notice) }
+                } else { P.notice = "Status could not be refreshed. Retrying automatically." sync_status() }
             })
         }
         watch_status(generation)
@@ -183,7 +276,7 @@ fn connect_app(){
 fn open_page(page){
     if P.busy { return }
     P.view_generation = P.view_generation + 1
-    P.page = page P.rows = [] P.selected = nil P.notice = "" P.offset = 0
+    P.more = false P.page = page P.rows = [] P.selected = nil P.notice = "" P.offset = 0
     draw_page() refresh_page()
 }
 fn inbox_filter(value){ P.filter = value open_page("inbox") }
@@ -245,9 +338,33 @@ fn new_form(title, service, payload, fields){
     call("palpo.intent.new", {}, fn(data){
         if service == "palpo.inbox.decide" || service == "palpo.agents.control" || service == "palpo.inbox.activate" { payload.commandId = data.requestId }
         if service == "palpo.inbox.submit" || service == "palpo.fleets.register" || service == "palpo.requests.create" || service == "palpo.fleets.migrate" || service == "palpo.fleets.set_state" { payload.requestId = data.requestId }
-        P.form = {title: title service: service payload: payload fields: fields roomName: ""}
+        P.return_page = P.page
+        let context = nil
+        if P.selected != nil && service == "palpo.agents.control" {
+            let row = P.selected
+            context = {name: row.agentDefinition.name subtitle: row.role + " · " + execution_text(row.execution)
+                allocation: if row.allocatedTokens != nil {"Allocated: " + row.allocatedTokens + " tokens"} else {"Allocation confirmation pending"}
+                identity: "" note: ""}
+        }
+        if P.selected != nil && service == "palpo.inbox.decide" {
+            let row = P.selected
+            context = {name: row.payload.name subtitle: kind_text(row.kind) + " · " + state_text(row.state)
+                allocation: if row.kind == "agent" {"" + row.payload.requestedTokens + " tokens · " + row.payload.role} else {row.payload.reason}
+                identity: "Requested by " + row.ownerMxid
+                note: if row.kind == "agent" {instructions_text(row.payload.agentDefinition)} else {""}}
+        }
+        P.form = {title: title service: service payload: payload fields: fields roomName: "" context: context}
         P.page = "form" save_form()
     })
+}
+fn cancel_form(){
+    if P.busy { return }
+    P.view_generation = P.view_generation + 1
+    P.page = P.return_page P.notice = ""
+    if P.page == "action" && P.selected == nil { P.page = "inbox" }
+    // Keep the selected project and catalog when returning from an agent form.
+    draw_page()
+    if P.page != "agent_resources" { refresh_page() }
 }
 fn submit_form(){
     call(P.form.service, P.form.payload, fn(data){
@@ -279,10 +396,14 @@ fn choose_project_room(){
     })
 }
 fn control_agent(row, operation){
+    if P.busy { return }
+    P.selected = row
     new_form(if operation == "retire" {"Remove agent"} else {if operation == "retry_cleanup" {"Retry cleanup"} else {if operation == "stop" {"Pause agent"} else {"Resume agent"}}},
         "palpo.agents.control", {agentActionId: row.id operation: operation kind: "agent_control"}, [])
 }
 fn rename_agent(row){
+    if P.busy { return }
+    P.selected = row
     new_form("Rename agent", "palpo.agents.control", {agentActionId: row.id operation: "rename" kind: "agent_control" displayName: row.agentDefinition.name}, [
         {key: "displayName" label: "Display name" value: row.agentDefinition.name}
     ])
@@ -307,7 +428,7 @@ fn decision(value){
 }
 fn continue_action(){
     if P.selected.nextAction == "continue_legacy_project" {
-        P.form = {title: "Continue project request" service: "palpo.inbox.submit" payload: P.selected.continuation fields: [] roomName: ""}
+        P.form = {title: "Continue project request" service: "palpo.inbox.submit" payload: P.selected.continuation fields: [] roomName: "" context: nil}
         P.page = "form" save_form()
         return
     }
@@ -338,7 +459,7 @@ fn retry_fleet_change(fleet){
     let payload = {fleetId: fleet.id requestId: change.requestId}
     let service = "palpo.fleets.set_state"
     if change.kind == "rotation" { service = "palpo.fleets.migrate" payload.rotate = change.rotate } else { payload.action = change.action }
-    P.form = {title: "Retry connection change" service: service payload: payload fields: []}
+    P.form = {title: "Retry connection change" service: service payload: payload fields: [] context: nil}
     P.has_draft = true save_form() P.page = "form" draw_page()
 }
 fn register_fleet(){
@@ -362,7 +483,7 @@ fn rename_identity(agent){
     ])
 }
 fn retire_identity(agent){
-    P.form = {title: "Retire Matrix identity" service: "palpo.agents.retire" payload: {fleetId: P.selected.id agentId: agent.id} fields: []}
+    P.form = {title: "Retire Matrix identity" service: "palpo.agents.retire" payload: {fleetId: P.selected.id agentId: agent.id} fields: [] context: nil}
     P.page = "confirm" draw_page()
 }
 fn select_agent_resource(project){
@@ -392,227 +513,294 @@ fn submit_current(){
 if !mod.rinx_theme.reloading() { start_timeout(0.05, || connect_app()) }
 if mod.rinx_theme.reloading() { start_timeout(0.05, || {ui.content.render_style() ui.navigation.render_style()}) }
 
-View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
-    mod.widgets.RinxPageTitle{width: Fill text: "Palpo"}
-    refresh := mod.widgets.RinxButton{text: "Refresh" on_click: || refresh_page()}
-    disconnect := mod.widgets.RinxButton{text: "Disconnect" on_click: || call("palpo.session.disconnect", {}, fn(data){ P.ready = false P.notice = "Palpo disconnected. Rinx remains signed in." })}
+View{width: Fill{max: 840.} height: Fit flow: Right padding: Inset{left: 16 right: 8} spacing: 4 align: Align{y: 0.5}
+    View{width: Fill height: Fit flow: Down spacing: 4
+        mod.widgets.PalpoName{text: "PALPO" draw_text.color: mod.widgets.RINX_ACCENT}
+        account := View{width: Fill height: Fit flow: Down on_render: || {
+            mod.widgets.PalpoMeta{text: if P.ready {P.user} else {"Your workspace in Rinx"}}
+        }}
+    }
+    refresh := mod.widgets.PalpoQuiet{text: "Refresh" on_click: || refresh_page()}
+    more := mod.widgets.PalpoQuiet{text: "More" on_click: || {P.more = !P.more draw_page()}}
 }
-navigation := View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 on_render: || {
+navigation := View{width: Fill{max: 840.} height: Fit flow: Down spacing: 6 padding: Inset{left: 6 right: 6} on_render: || {
     if P.ready && !P.room_board {
-        inbox := mod.widgets.RinxButton{text: "Inbox · " + P.pending on_click: || open_page("inbox")}
-        if available("palpo.projects.list") { projects := mod.widgets.RinxButton{text: "Projects" on_click: || open_page("projects")} }
-        if available("palpo.requests.list") { requests := mod.widgets.RinxButton{text: "Agents" on_click: || open_page("requests")} }
-        if available("palpo.catalog.list") { resources := mod.widgets.RinxButton{text: "Resources" on_click: || open_page("resources")} }
-        if available("palpo.fleets.list") { fleets := mod.widgets.RinxButton{text: "Engagements" on_click: || open_page("fleets")} }
-        if available("palpo.notifications.get") && available("palpo.notifications.set") { notifications := mod.widgets.RinxButton{text: "Notifications" on_click: || open_page("notifications")} }
-        if available("palpo.actions.room.ensure") { actions_room := mod.widgets.RinxButton{text: "My Actions" on_click: || call("palpo.actions.room.ensure", {}, fn(data){ P.notice = "Opening My Actions in Rinx." })} }
-        if P.admin {
-            if available("palpo.activity.list") { activity := mod.widgets.RinxButton{text: "Activity" on_click: || open_page("activity")} }
-            if available("palpo.accounts.list") { accounts := mod.widgets.RinxButton{text: "Signups" on_click: || open_page("accounts")} }
+        let page = navigation_page()
+        View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 2
+            inbox := mod.widgets.PalpoTab{text: "Inbox" draw_bg.color: if page == "inbox" || page == "action" {mod.widgets.RINX_SELECTED} else {#0000} on_click: || open_page("inbox")}
+            if available("palpo.projects.list") { projects := mod.widgets.PalpoTab{text: "Projects" draw_bg.color: if page == "projects" {mod.widgets.RINX_SELECTED} else {#0000} on_click: || open_page("projects")} }
+            if available("palpo.requests.list") { requests := mod.widgets.PalpoTab{text: "Agents" draw_bg.color: if page == "requests" {mod.widgets.RINX_SELECTED} else {#0000} on_click: || open_page("requests")} }
+            if available("palpo.catalog.list") { resources := mod.widgets.PalpoTab{text: "Resources" draw_bg.color: if page == "resources" || page == "agent_resources" {mod.widgets.RINX_SELECTED} else {#0000} on_click: || open_page("resources")} }
         }
+        if P.more { mod.widgets.PalpoCard{padding: 12 spacing: 8
+            mod.widgets.PalpoMeta{text: if P.admin {"Matrix administrator"} else {if P.coordinator {"Engagement coordinator"} else {if P.owner {"Resource owner"} else {"Project member"}}}}
+            mod.widgets.PalpoActions{
+                if available("palpo.fleets.list") { fleets := mod.widgets.PalpoQuiet{text: "Engagements" on_click: || open_page("fleets")} }
+                if available("palpo.notifications.get") && available("palpo.notifications.set") { notifications := mod.widgets.PalpoQuiet{text: "Notifications" on_click: || open_page("notifications")} }
+                if available("palpo.actions.room.ensure") { actions_room := mod.widgets.PalpoQuiet{text: "My Actions" on_click: || call("palpo.actions.room.ensure", {}, fn(data){ P.notice = "Opening My Actions in Rinx." })} }
+                if P.admin {
+                    if available("palpo.activity.list") { activity := mod.widgets.PalpoQuiet{text: "Activity" on_click: || open_page("activity")} }
+                    if available("palpo.accounts.list") { accounts := mod.widgets.PalpoQuiet{text: "Signups" on_click: || open_page("accounts")} }
+                }
+                disconnect := mod.widgets.PalpoQuiet{text: "Disconnect" on_click: || call("palpo.session.disconnect", {}, fn(data){ P.ready = false P.notice = "Palpo disconnected. Rinx remains signed in." })}
+            }
+        } }
     }
 }}
-status := mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.notice}
-content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render: || {
+status := mod.widgets.PalpoMeta{width: Fill{max: 840.} padding: Inset{top: 4 bottom: 4} text: P.notice}
+content := ScrollYView{width: Fill{max: 840.} height: Fill flow: Down spacing: 16 padding: Inset{top: 12 right: 8 bottom: 24} on_render: || {
     if !P.ready {
         mod.widgets.PalpoCard{
-            mod.widgets.RinxPageTitle{width: Fill text: "Your account, one place"}
-            mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Projects, resources and pending actions use the Matrix account you already signed into in Rinx."}
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your server must support Palpo mini apps. No additional password is needed."}
-            retry := mod.widgets.RinxPrimaryButton{text: "Connect" on_click: || connect_app()}
+            mod.widgets.PalpoTitle{width: Fill text: "Your account, one place"}
+            mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Projects, resources and pending actions use the Matrix account you already signed into in Rinx."}
+            mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Your server must support Palpo mini apps. No additional password is needed."}
+            retry := mod.widgets.PalpoPrimary{text: "Connect" on_click: || connect_app()}
         }
     }
     if P.ready {
-        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: P.user + if P.admin {" · Matrix administrator"} else {""} + if P.coordinator {" · Engagement coordinator"} else {""} + if P.owner {" · Resource owner"} else {""} + if !P.admin && !P.coordinator && !P.owner {" · Project member"} else {""}}
+        if P.page != "form" && P.page != "action" && P.page != "confirm" && P.page != "notifications" {
+            View{width: Fill height: Fit padding: Inset{left: 16 right: 16} mod.widgets.PalpoTitle{text: page_title()}}
+        }
         if P.page == "inbox" {
-            View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
-                needs := mod.widgets.RinxButton{text: "Needs my action" on_click: || inbox_filter("needs_action")}
-                waiting := mod.widgets.RinxButton{text: "Waiting" on_click: || inbox_filter("waiting")}
-                history := mod.widgets.RinxButton{text: "History" on_click: || inbox_filter("history")}
+            View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6 padding: Inset{left: 6 right: 6}
+                needs := mod.widgets.PalpoTab{draw_bg.color: if P.filter == "needs_action" {mod.widgets.RINX_SELECTED} else {#0000} text: "Needs my action" on_click: || inbox_filter("needs_action")}
+                waiting := mod.widgets.PalpoTab{draw_bg.color: if P.filter == "waiting" {mod.widgets.RINX_SELECTED} else {#0000} text: "Waiting" on_click: || inbox_filter("waiting")}
+                history := mod.widgets.PalpoTab{draw_bg.color: if P.filter == "history" {mod.widgets.RINX_SELECTED} else {#0000} text: "History" on_click: || inbox_filter("history")}
             }
-            if P.filter != "history" { mod.widgets.PalpoCard{
-                mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Pending actions stay here until they are resolved."}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reading or dismissing a notification does not complete a request."}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "The Hagency owner allocates resources to your engagement. Project and agent requests are reviewed here by its coordinator."}
-                if P.has_draft && (P.form.service != "palpo.inbox.submit" || P.form.payload.kind != "contribution") && available(P.form.service) { resume := mod.widgets.RinxButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}} }
+            View{width: Fill height: Fit padding: Inset{left: 16 right: 16} mod.widgets.PalpoMeta{text: "Pending actions stay here until they are resolved."}}
+            if P.has_draft && (P.form.service != "palpo.inbox.submit" || P.form.payload.kind != "contribution") && available(P.form.service) {
+                resume := mod.widgets.PalpoButton{text: "Resume draft" on_click: || {P.page = "form" draw_page()}}
+            }
+            if P.rows.len() == 0 { mod.widgets.PalpoCard{spacing: 12
+                mod.widgets.PalpoName{text: if P.busy {"Loading requests…"} else {if P.filter == "needs_action" {"You're all caught up"} else {if P.filter == "waiting" {"Nothing waiting on a decision"} else {"Your request history"}}}}
+                mod.widgets.PalpoMeta{text: "No requests in this view. Refresh to check for updates."}
+                if P.filter == "needs_action" && available("palpo.projects.list") { browse_projects := mod.widgets.PalpoQuiet{text: "View projects" on_click: || open_page("projects")} }
             } }
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No requests in this view. Refresh to check for updates."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
                 mod.widgets.PalpoCard{
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.name}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.kind + " · " + row.state}
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
-                    review := mod.widgets.RinxButton{text: "Open latest result" on_click: || review_action(row)}
+                    mod.widgets.PalpoName{text: row.payload.name}
+                    mod.widgets.PalpoActions{mod.widgets.PalpoBadge{label.text: kind_text(row.kind)} mod.widgets.PalpoBadge{label.text: state_text(row.state)}}
+                    if row.payload.reason != "" { mod.widgets.PalpoText{text: row.payload.reason} }
+                    if row.kind == "agent" {
+                        mod.widgets.PalpoText{text: "" + row.payload.requestedTokens + " tokens · " + row.payload.role}
+                        if instructions_text(row.payload.agentDefinition) != "" {
+                            mod.widgets.PalpoMeta{text: instructions_text(row.payload.agentDefinition)}
+                        }
+                    }
+                    mod.widgets.PalpoMeta{text: "Requested by " + row.ownerMxid}
+                    review := mod.widgets.PalpoPrimary{text: if row.needsMyAction {"Review request"} else {"View request"} on_click: || review_action(row)}
                 }
             }
             View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
-                if P.offset > 0 { previous := mod.widgets.RinxButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
-                if P.offset + 50 < P.total { next := mod.widgets.RinxButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
+                if P.offset > 0 { previous := mod.widgets.PalpoButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
+                if P.offset + 50 < P.total { next := mod.widgets.PalpoButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
             }
         }
         if P.page == "action" {
             let row = P.selected
+            back := mod.widgets.PalpoQuiet{text: "Back to Inbox" on_click: || open_page("inbox")}
             mod.widgets.PalpoCard{
-                mod.widgets.RinxPageTitle{width: Fill text: row.payload.name}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.kind + " · " + row.state}
-                mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.payload.reason}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Requested by " + row.ownerMxid}
-                if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
-                if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
-                if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                mod.widgets.PalpoTitle{width: Fill text: row.payload.name}
+                mod.widgets.PalpoActions{mod.widgets.PalpoBadge{label.text: kind_text(row.kind)} mod.widgets.PalpoBadge{label.text: state_text(row.state)}}
+                if row.payload.reason != "" { mod.widgets.PalpoText{text: row.payload.reason} }
+                if row.kind == "agent" {
+                    View{width: Fill height: Fit flow: Down spacing: 8
+                        mod.widgets.PalpoName{text: "Requested allocation"}
+                        mod.widgets.PalpoText{text: "" + row.payload.requestedTokens + " tokens"}
+                        if row.payload.role != nil { mod.widgets.PalpoMeta{text: "Role · " + row.payload.role} }
+                        if instructions_text(row.payload.agentDefinition) != "" {
+                            mod.widgets.PalpoMeta{text: instructions_text(row.payload.agentDefinition)}
+                        }
+                    }
+                }
+                mod.widgets.PalpoMeta{text: "Requested by " + row.ownerMxid}
+                if row.state == "approved" && row.execution != nil && row.execution != "allocation_refused" { mod.widgets.PalpoBadge{label.text: execution_text(row.execution) draw_bg.color: if row.execution == "ready" || row.execution == "verified" {mod.widgets.RINX_SUCCESS_BG} else {mod.widgets.RINX_SELECTED} label.draw_text.color: if row.execution == "ready" || row.execution == "verified" {mod.widgets.RINX_SUCCESS_FG} else {mod.widgets.RINX_ACCENT}} }
+                if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                if row.execution == "allocation_refused" { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
                 if row.kind == "agent" && available("palpo.agents.control") {
-                    if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
+                    if row.agentControl != nil { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
                 }
                 if row.kind == "association" {
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + row.payload.coordinatorMxid}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Runtime · " + row.payload.runtimeId}
+                    mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + row.payload.coordinatorMxid}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Runtime · " + row.payload.runtimeId}
                     if row.canRetrySetup && available("palpo.fleets.install") {
-                        retry_setup := mod.widgets.RinxPrimaryButton{text: "Retry connection setup" on_click: || call("palpo.fleets.install", {fleetId: row.fleetId}, fn(data){review_action(row)})}
+                        retry_setup := mod.widgets.PalpoPrimary{text: "Retry connection setup" on_click: || call("palpo.fleets.install", {fleetId: row.fleetId}, fn(data){review_action(row)})}
                     }
                 }
                 if row.canDecide {
+                    if row.kind == "agent" {mod.widgets.PalpoMeta{text: "After approval, Hagency validates the allocation and prepares the agent. Readiness updates here."}}
                     View{width: Fill height: Fit spacing: 8
-                        approve := mod.widgets.RinxPrimaryButton{text: "Approve" on_click: || decision("approve")}
-                        reject := mod.widgets.RinxButton{text: "Reject" on_click: || decision("reject")}
+                        approve := mod.widgets.PalpoPrimary{text: "Approve" on_click: || decision("approve")}
+                        reject := mod.widgets.PalpoButton{text: "Reject" on_click: || decision("reject")}
                     }
                 }
-                if row.kind == "project" && row.projectSetup != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: setup_text(row.projectSetup)} }
-                if row.legacy == true { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.migrationNote} }
-                if row.previousDecision != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Earlier decision · " + row.previousDecision.by + " · " + row.previousDecision.reason} }
+                if row.kind == "project" && row.projectSetup != nil { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: setup_text(row.projectSetup)} }
+                if row.legacy == true { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: row.migrationNote} }
+                if row.previousDecision != nil { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Earlier decision · " + row.previousDecision.by + " · " + row.previousDecision.reason} }
                 if row.nextAction == "continue_legacy_project" && row.canContinue && available("palpo.inbox.submit") {
-                    continue_legacy := mod.widgets.RinxPrimaryButton{text: "Continue project request" on_click: || continue_action()}
+                    continue_legacy := mod.widgets.PalpoPrimary{text: "Continue project request" on_click: || continue_action()}
                 }
                 if available("palpo.inbox.activate") && row.canContinue && row.nextAction != "export_and_connect" && row.nextAction != "continue_legacy_project" {
-                    continue_work := mod.widgets.RinxPrimaryButton{text: "Retry project setup" on_click: || continue_action()}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
+                    continue_work := mod.widgets.PalpoPrimary{text: "Retry project setup" on_click: || continue_action()}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Approval is recorded. This step completes the server operation."}
                 }
                 if row.kind == "association" && available("palpo.fleets.connect") {
                     let state = connection_state(row, row.result.fleetId)
                     let disabled = P.busy || state == "verifying" || state == "verified"
                     if row.canConnect == true || state == "verified" {
-                        verify := mod.widgets.RinxButton{text: connection_text(state) enabled: !disabled
+                        verify := mod.widgets.PalpoButton{text: connection_text(state) enabled: !disabled
                             draw_text.color: if disabled {mod.widgets.RINX_DISABLED} else {mod.widgets.RINX_INK}
                             draw_bg.color: if disabled {mod.widgets.RINX_FIELD} else {mod.widgets.RINX_SURFACE}
                             on_click: || fleet_action({id: row.result.fleetId}, "connect")}
                     }
                 }
                 if row.nextAction == "export_and_connect" && row.canContinue {
-                    export := mod.widgets.RinxPrimaryButton{text: "Save configuration" on_click: || fleet_action({id: row.result.fleetId}, "export")}
+                    export := mod.widgets.PalpoPrimary{text: "Save configuration" on_click: || fleet_action({id: row.result.fleetId}, "export")}
 
                 }
-                if row.needsMyAction { snooze := mod.widgets.RinxButton{text: "Remind me in an hour" on_click: || snooze_action()} }
-                latest := mod.widgets.RinxButton{text: "Refresh result" on_click: || review_action(row)}
+                mod.widgets.PalpoActions{
+                if row.needsMyAction { snooze := mod.widgets.PalpoButton{text: "Remind me in an hour" on_click: || snooze_action()} }
+                latest := mod.widgets.PalpoQuiet{text: "Refresh result" on_click: || review_action(row)}
+                }
             }
         }
         if P.page == "notifications" && P.notification_settings != nil {
             let prefs = P.notification_settings
             mod.widgets.PalpoCard{
-                mod.widgets.RinxPageTitle{width: Fill text: "Notifications"}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Saved for this Matrix account across devices. Pending actions stay in your Inbox even when notifications are off."}
-                notifications_enabled := mod.widgets.RinxButton{text: if prefs.enabled {"Action notifications: On"} else {"Action notifications: Off"}
+                mod.widgets.PalpoTitle{width: Fill text: "Notifications"}
+                mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Saved for this Matrix account across devices. Pending actions stay in your Inbox even when notifications are off."}
+                notifications_enabled := mod.widgets.PalpoButton{text: if prefs.enabled {"Action notifications: On"} else {"Action notifications: Off"}
                     on_click: || {prefs.enabled = !prefs.enabled draw_page()}}
-                reminders_enabled := mod.widgets.RinxButton{text: if prefs.remindersEnabled {"Reminders: On"} else {"Reminders: Off"}
+                reminders_enabled := mod.widgets.PalpoButton{text: if prefs.remindersEnabled {"Reminders: On"} else {"Reminders: Off"}
                     on_click: || {prefs.remindersEnabled = !prefs.remindersEnabled draw_page()}}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Reminders are timed from when an action starts. Reading it does not finish it. Missed reminders are combined into one."}
+                mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Reminders are timed from when an action starts. Reading it does not finish it. Missed reminders are combined into one."}
                 for i in prefs.reminderMinutes.len() {
                     let label = "Reminder " + (i + 1) + " (minutes after action starts)"
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: label}
+                    mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: label}
                     mod.widgets.RinxInput{width: Fill text: "" + prefs.reminderMinutes[i] empty_text: label
                         on_change: |value| { prefs.reminderMinutes[i] = value }}
                 }
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Use increasing times between 15 minutes and 7 days. After the last reminder, the action remains pending."}
-                quiet_hours := mod.widgets.RinxButton{text: if P.quiet_enabled {"Quiet hours: On"} else {"Quiet hours: Off"}
+                mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Use increasing times between 15 minutes and 7 days. After the last reminder, the action remains pending."}
+                quiet_hours := mod.widgets.PalpoButton{text: if P.quiet_enabled {"Quiet hours: On"} else {"Quiet hours: Off"}
                     on_click: || {P.quiet_enabled = !P.quiet_enabled draw_page()}}
                 if P.quiet_enabled {
-                    mod.widgets.RinxLabel{width: Fill text: "Quiet hours start (HH:MM)"}
+                    mod.widgets.PalpoText{width: Fill text: "Quiet hours start (HH:MM)"}
                     mod.widgets.RinxInput{width: Fill text: P.quiet_start empty_text: "Quiet hours start (HH:MM)" on_change: |value| {P.quiet_start = value}}
-                    mod.widgets.RinxLabel{width: Fill text: "Quiet hours end (HH:MM)"}
+                    mod.widgets.PalpoText{width: Fill text: "Quiet hours end (HH:MM)"}
                     mod.widgets.RinxInput{width: Fill text: P.quiet_end empty_text: "Quiet hours end (HH:MM)" on_change: |value| {P.quiet_end = value}}
-                    mod.widgets.RinxLabel{width: Fill text: "Time zone"}
+                    mod.widgets.PalpoText{width: Fill text: "Time zone"}
                     mod.widgets.RinxInput{width: Fill text: P.quiet_zone empty_text: "Time zone" on_change: |value| {P.quiet_zone = value}}
                     if P.device_time_zone != nil {
-                        device_zone := mod.widgets.RinxButton{text: "Use this device's time zone" on_click: || {P.quiet_zone = P.device_time_zone draw_page()}}
+                        device_zone := mod.widgets.PalpoButton{text: "Use this device's time zone" on_click: || {P.quiet_zone = P.device_time_zone draw_page()}}
                     }
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Use a time zone such as America/Los_Angeles. Quiet hours follow daylight saving time and postpone all Palpo notifications."}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Use a time zone such as America/Los_Angeles. Quiet hours follow daylight saving time and postpone all Palpo notifications."}
                 }
-                save_notifications := mod.widgets.RinxPrimaryButton{text: "Save notification settings" on_click: || save_notification_settings()}
+                save_notifications := mod.widgets.PalpoPrimary{text: "Save notification settings" on_click: || save_notification_settings()}
             }
         }
         if P.page == "form" {
             mod.widgets.PalpoCard{
-                mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
-                mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Draft saved on this device. You can retry safely."}
-                if P.form.service == "palpo.agents.control" {
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retire" {"Remove this agent from the runtime and its Matrix rooms. Chat history stays available. Completion waits for verified cleanup; unknown usage keeps its reservation."} else {"This change is sent to the agent's Hagency runtime. Its latest result stays in My agents."}}
+                mod.widgets.PalpoTitle{width: Fill text: P.form.title}
+                if P.form.context != nil {
+                    let context = P.form.context
+                    mod.widgets.PalpoName{text: context.name}
+                    mod.widgets.PalpoMeta{text: context.subtitle}
+                    if context.allocation != "" {mod.widgets.PalpoText{text: context.allocation}}
+                    if context.note != "" {mod.widgets.PalpoMeta{text: context.note}}
+                    if context.identity != "" {mod.widgets.PalpoMeta{text: context.identity}}
                 }
-                if P.form.service == "palpo.inbox.activate" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Retry the approved project's room setup. The original approval, room bindings and resource grant are retained."} }
+                if P.form.service == "palpo.agents.control" {
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: if P.form.payload.operation == "retire" {"Remove this agent from the runtime and its Matrix rooms. Chat history stays available. Completion waits for verified cleanup; unknown usage keeps its reservation."} else {if P.form.payload.operation == "rename" {"Choose the name people see in Matrix. Your agent's identity and conversation history stay the same."} else {"This change is sent to the agent's Hagency runtime. Check Agents for its progress."}}}
+                }
+                if P.form.service == "palpo.inbox.decide" && P.form.payload.decision == "approve" {
+                    mod.widgets.PalpoMeta{text: "Your decision is recorded with this reason. You can follow setup progress in the request's latest result."}
+                }
+                if P.form.service == "palpo.inbox.activate" { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Retry the approved project's room setup. The original approval, room bindings and resource grant are retained."} }
                 if P.form.service == "palpo.fleets.set_state" {
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "This changes the engagement's Matrix credentials. Revocation is final. Existing allocations and history remain; stopping a remote runtime requires separate confirmation. Resume requires a new connection check."}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "This changes the engagement's Matrix credentials. Revocation is final. Existing allocations and history remain; stopping a remote runtime requires separate confirmation. Resume requires a new connection check."}
                 }
                 if P.form.service == "palpo.fleets.migrate" {
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Save the updated configuration, import it into the same Hagency engagement and verify its connection. Other engagements keep their own credentials. Pending deliveries and agent allocations are retained."}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Save the updated configuration, import it into the same Hagency engagement and verify its connection. Other engagements keep their own credentials. Pending deliveries and agent allocations are retained."}
                 }
                 if P.form.service == "palpo.inbox.submit" && P.form.payload.kind == "project" {
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if P.form.roomName != "" {"Project room: " + P.form.roomName} else {"A new project room will be created."}}
-                    choose_room := mod.widgets.RinxButton{text: "Choose an existing room" on_click: || choose_project_room()}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: if P.form.roomName != "" {"Project room: " + P.form.roomName} else {"A new project room will be created."}}
+                    choose_room := mod.widgets.PalpoButton{text: "Choose an existing room" on_click: || choose_project_room()}
                     if P.form.roomName != "" {
-                        new_room := mod.widgets.RinxButton{text: "Create a new room instead" on_click: || {P.form.payload.roomId = nil P.form.roomName = "" save_form() draw_page()}}
+                        new_room := mod.widgets.PalpoButton{text: "Create a new room instead" on_click: || {P.form.payload.roomId = nil P.form.roomName = "" save_form() draw_page()}}
                     }
                 }
                 for i in P.form.fields.len() {
                     let item = P.form.fields[i]
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: item.label}
+                    mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: item.label}
                     mod.widgets.RinxInput{width: Fill text: item.value empty_text: item.label on_change: |value| edit_field(i, value)}
                     if P.form.service == "palpo.requests.create" && item.key == "agentName" {
-                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Start with a letter. Use letters, numbers, hyphens or underscores, up to 64 characters."}
+                        mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Start with a letter. Use letters, numbers, hyphens or underscores, up to 64 characters."}
                     }
                 }
-                submit := mod.widgets.RinxPrimaryButton{text: "Submit" on_click: || submit_current()}
-                cancel := mod.widgets.RinxButton{text: "Back to Inbox" on_click: || open_page("inbox")}
+                mod.widgets.PalpoActions{
+                    submit := mod.widgets.PalpoPrimary{text: if P.busy {"Submitting…"} else {P.form.title} enabled: !P.busy on_click: || submit_current()}
+                    cancel := mod.widgets.PalpoQuiet{text: "Cancel" on_click: || cancel_form()}
+                }
+                mod.widgets.PalpoMeta{text: "Draft saved on this device. Nothing is sent until you submit."}
             }
         }
         if P.page == "confirm" {
             mod.widgets.PalpoCard{
-                mod.widgets.RinxPageTitle{width: Fill text: P.form.title}
-                mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "This changes Matrix access. It does not confirm that a remote agent process has stopped."}
-                confirm := mod.widgets.RinxPrimaryButton{text: "Confirm" on_click: || call(P.form.service, P.form.payload, fn(data){ open_page("fleets") })}
-                cancel := mod.widgets.RinxButton{text: "Cancel" on_click: || open_page("fleets")}
+                mod.widgets.PalpoTitle{width: Fill text: P.form.title}
+                mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "This changes Matrix access. It does not confirm that a remote agent process has stopped."}
+                mod.widgets.PalpoActions{
+                confirm := mod.widgets.PalpoPrimary{text: "Confirm" on_click: || call(P.form.service, P.form.payload, fn(data){ open_page("fleets") })}
+                cancel := mod.widgets.PalpoQuiet{text: "Cancel" on_click: || open_page("fleets")}
+                }
             }
         }
         if P.page == "projects" {
-            if available("palpo.catalog.list") { new_project := mod.widgets.RinxPrimaryButton{text: "Request a project" on_click: || open_page("resources")} }
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your approved projects will appear here."} }
+            if available("palpo.catalog.list") { new_project := mod.widgets.PalpoPrimary{text: "Request a project" on_click: || open_page("resources")} }
+            if P.rows.len() == 0 { mod.widgets.PalpoCard{
+                mod.widgets.PalpoName{text: "Start your first project"}
+                mod.widgets.PalpoMeta{text: "Choose a resource and describe what you want to build. Your coordinator reviews the request."}
+                mod.widgets.PalpoMeta{text: "Your approved projects will appear here."}
+            } }
             for i in P.rows.len() {
                 let project = P.rows[i]
                 mod.widgets.PalpoCard{
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: project.name}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: project.state + " · " + project.ownerMxid}
-                    if project.projectSetup != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: setup_text(project.projectSetup)} }
-                    if project.canRetrySetup && available("palpo.inbox.activate") { retry_setup := mod.widgets.RinxButton{text: "Retry project setup" on_click: || retry_project_setup(project.actionId, project.revision)} }
-                    if project.canRequest && available("palpo.requests.create") { agent := mod.widgets.RinxPrimaryButton{text: "Request agent" on_click: || select_agent_resource(project)} }
-                    if !project.canRequest { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "New agent requests are not available for this project yet."} }
+                    mod.widgets.PalpoName{text: project.name}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: project.state + " · " + project.ownerMxid}
+                    if project.projectSetup != nil { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: setup_text(project.projectSetup)} }
+                    if project.canRetrySetup && available("palpo.inbox.activate") { retry_setup := mod.widgets.PalpoButton{text: "Retry project setup" on_click: || retry_project_setup(project.actionId, project.revision)} }
+                    if project.canRequest && available("palpo.requests.create") { agent := mod.widgets.PalpoPrimary{text: "Request agent" on_click: || select_agent_resource(project)} }
+                    if !project.canRequest { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "New agent requests are not available for this project yet."} }
                 }
             }
         }
         if P.page == "resources" || P.page == "agent_resources" {
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Resources published by Hagency. Approval does not reserve token capacity."}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No resource catalog is available yet."} }
+            mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Resources published by Hagency. Approval does not reserve token capacity."}
+            if P.rows.len() == 0 { mod.widgets.PalpoCard{
+                mod.widgets.PalpoName{text: "No resources available yet"}
+                mod.widgets.PalpoMeta{text: "Ask the Hagency owner to create a resource for this server and give your Matrix account access."}
+                if available("palpo.fleets.list") { view_engagements := mod.widgets.PalpoQuiet{text: "View server engagements" on_click: || open_page("fleets")} }
+            } }
             for i in P.rows.len() {
                 let fleet = P.rows[i]
                 if P.page == "resources" || fleet.id == P.selected.fleetId {
-                    mod.widgets.PalpoCard{
-                        mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: fleet.name}
-                        mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: fleet.state}
+                    View{width: Fill height: Fit flow: Down spacing: 12
+                        View{width: Fill height: Fit padding: Inset{left: 16 right: 16} mod.widgets.PalpoName{text: fleet.name}}
                         if fleet.capabilities != nil {
                             for j in fleet.capabilities.offers.len() {
                                 let offer = fleet.capabilities.offers[j]
                                 for k in offer.resources.len() {
                                     let resource = offer.resources[k]
-                                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: resource.name + " · " + offer.role}
-                                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: resource.framework + " · " + resource.model}
-                                    if P.page == "resources" { choose := mod.widgets.RinxPrimaryButton{text: "Request project here" on_click: || request_project(fleet, resource)} }
-                                    if P.page == "agent_resources" { choose := mod.widgets.RinxPrimaryButton{text: "Use this resource" on_click: || request_agent(resource, offer.role)} }
+                                    mod.widgets.PalpoCard{
+                                        mod.widgets.PalpoName{text: resource.name}
+                                        mod.widgets.PalpoBadge{label.text: offer.role}
+                                        mod.widgets.PalpoMeta{text: resource.framework + " · " + resource.model}
+                                        if offer.description != nil && offer.description != "" { mod.widgets.PalpoText{text: offer.description} }
+                                        mod.widgets.PalpoName{text: "Allocated budget: " + resource.allocatedTokens + " tokens"}
+                                        if resource.period != nil { mod.widgets.PalpoMeta{text: "Period · " + resource.period} }
+                                        if P.page == "resources" { choose := mod.widgets.PalpoPrimary{text: "Request project here" on_click: || request_project(fleet, resource)} }
+                                        if P.page == "agent_resources" { choose := mod.widgets.PalpoPrimary{text: "Use this resource" on_click: || request_agent(resource, offer.role)} }
+                                    }
                                 }
                             }
                         }
@@ -621,112 +809,128 @@ content := ScrollYView{width: Fill height: Fill flow: Down spacing: 12 on_render
             }
         }
         if P.page == "requests" {
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Agent provisioning and connection readiness are verified by the server."}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Your agent requests will appear here, including those awaiting approval or setup."} }
+            View{width: Fill height: Fit padding: Inset{left: 16 right: 16} mod.widgets.PalpoMeta{text: "Your team, with live setup and usage updates."}}
+            if P.rows.len() == 0 { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Your agent requests will appear here, including those awaiting approval or setup."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
                 mod.widgets.PalpoCard{
-                    if row.agentDefinition != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.agentDefinition.name} }
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.role + " · " + row.state}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Initial request: " + row.requestedTokens + " tokens"}
-                    if row.execution != nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Execution · " + row.execution} }
-                    if row.execution == "migration_pending" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "This earlier request is retained. Its Hagency owner must complete migration before runtime controls become available."} }
-                    if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
-                if row.execution == "allocation_refused" { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
-                    if row.allocatedTokens != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocated: " + row.allocatedTokens + " tokens"} }
-                    if row.allocatedTokens == nil && row.execution != "allocation_refused" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
+                    View{width: Fill height: Fit flow: Right spacing: 12 align: Align{y: 0.5}
+                        if row.agentDefinition != nil { mod.widgets.PalpoName{width: Fill text: row.agentDefinition.name} }
+                        if row.state == "approved" && row.execution != nil && row.execution != "allocation_refused" {
+                            mod.widgets.PalpoBadge{label.text: execution_text(row.execution) draw_bg.color: status_background(row.execution) label.draw_text.color: status_foreground(row.execution)}
+                        }
+                    }
+                    mod.widgets.PalpoMeta{text: row.role + " · " + state_text(row.state)}
+                    if row.execution == "migration_pending" { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "This earlier request is retained. Its Hagency owner must complete migration before runtime controls become available."} }
+                    if row.execution == "provisioning_unknown" || row.execution == "provisioning_failed" || row.execution == "unavailable" { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Agent setup needs attention"} mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                if row.execution == "allocation_refused" { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: "Allocation refused"} mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: refusal_text(row.failureReason)} }
+                    if row.allocatedTokens != nil { mod.widgets.PalpoName{text: "Allocated: " + row.allocatedTokens + " tokens"} }
+                    if row.allocatedTokens == nil && row.execution != "allocation_refused" { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Allocation confirmation pending"} }
                     if row.usage != nil {
                         if row.usage.consumedTokens != nil {
-                            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: if row.usage.complete == true {"Final accounted usage: " + row.usage.consumedTokens + " tokens"} else {"Consumed: at least " + row.usage.consumedTokens + " tokens"}}
-                            if row.usage.state == "stale" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Usage sample is out of date. Refresh for the latest report."} }
+                            mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: if row.usage.complete == true {"Final accounted usage: " + row.usage.consumedTokens + " tokens"} else {"Consumed: at least " + row.usage.consumedTokens + " tokens"}}
+                            if row.usage.state == "stale" { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Usage sample is out of date. Refresh for the latest report."} }
                         }
-                        if row.usage.consumedTokens == nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
+                        if row.usage.consumedTokens == nil { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Token consumption not reported yet"} }
                     }
-                    if row.agentMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.agentMxid} }
-                    if available("palpo.requests.open") && row.canOpenChat { open_agent_chat := mod.widgets.RinxPrimaryButton{text: "Open agent chat" on_click: || call("palpo.requests.open", {requestId: row.chatRequestId}, fn(data){ P.notice = "Opening the agent's project room in Rinx." })} }
-                    if row.canRequestTopUp == true { more_tokens := mod.widgets.RinxButton{text: "Request more tokens" on_click: || request_tokens(row)} }
+                    mod.widgets.PalpoActions{
+                    if available("palpo.requests.open") && row.canOpenChat { open_agent_chat := mod.widgets.PalpoPrimary{text: "Open agent chat" on_click: || call("palpo.requests.open", {requestId: row.chatRequestId}, fn(data){ P.notice = "Opening the agent's project room in Rinx." })} }
+                    if row.canRequestTopUp == true { more_tokens := mod.widgets.PalpoButton{text: "Request more tokens" on_click: || request_tokens(row)} }
+                    }
                     if available("palpo.agents.control") {
-                        if row.agentControl != nil { mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
-                        if row.canRename { rename_agent := mod.widgets.RinxButton{text: "Rename agent" on_click: || rename_agent(row)} }
-                        if row.canPause { pause_agent := mod.widgets.RinxButton{text: "Pause agent" on_click: || control_agent(row,"stop")} }
-                        if row.canResume { resume_agent := mod.widgets.RinxButton{text: "Resume agent" on_click: || control_agent(row,"start")} }
-                        if row.canRetire { remove_agent := mod.widgets.RinxButton{text: "Remove agent" on_click: || control_agent(row,"retire")} }
-                        if row.canRetryCleanup { retry_cleanup := mod.widgets.RinxButton{text: "Retry cleanup" on_click: || control_agent(row,"retry_cleanup")} }
+                        if row.agentControl != nil { mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: control_text(row.agentControl)} }
+                        if P.manage == row.id { mod.widgets.PalpoActions{
+                        if row.canRename { rename_agent := mod.widgets.PalpoButton{text: "Rename agent" on_click: || rename_agent(row)} }
+                        if row.canPause { pause_agent := mod.widgets.PalpoButton{text: "Pause agent" on_click: || control_agent(row,"stop")} }
+                        if row.canResume { resume_agent := mod.widgets.PalpoButton{text: "Resume agent" on_click: || control_agent(row,"start")} }
+                        if row.canRetire { remove_agent := mod.widgets.PalpoButton{draw_text.color: mod.widgets.RINX_DANGER_FG draw_text.color_hover: mod.widgets.RINX_DANGER_FG text: "Remove agent" on_click: || control_agent(row,"retire")} }
+                        if row.canRetryCleanup { retry_cleanup := mod.widgets.PalpoButton{text: "Retry cleanup" on_click: || control_agent(row,"retry_cleanup")} }
+                        } }
                     }
-                    if available("palpo.inbox.get") { agent_result := mod.widgets.RinxButton{text: "Open latest result" on_click: || review_action(row)} }
+                    mod.widgets.PalpoActions{
+                        if available("palpo.agents.control") && (row.canRename || row.canPause || row.canResume || row.canRetire || row.canRetryCleanup) {
+                            manage_agent := mod.widgets.PalpoQuiet{text: if P.manage == row.id {"Close controls"} else {"Manage agent"} on_click: || {P.manage = if P.manage == row.id {""} else {row.id} draw_page()}}
+                        }
+                    if available("palpo.inbox.get") { agent_result := mod.widgets.PalpoQuiet{text: "Open latest result" on_click: || review_action(row)} }
+                    agent_details := mod.widgets.PalpoQuiet{text: if P.details == row.id {"Hide details"} else {"Details"} on_click: || {P.details = if P.details == row.id {""} else {row.id} draw_page()}}
+                    }
+                    if P.details == row.id {
+                        mod.widgets.PalpoMeta{text: "Initial request: " + row.requestedTokens + " tokens"}
+                        if row.agentMxid != nil { mod.widgets.PalpoMeta{text: row.agentMxid} }
+                    }
                 }
             }
         }
         if P.page == "projects" || P.page == "requests" {
             View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
-                if P.offset > 0 { previous := mod.widgets.RinxButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
-                if P.offset + 50 < P.total { next := mod.widgets.RinxButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
+                if P.offset > 0 { previous := mod.widgets.PalpoButton{text: "Previous" on_click: || inbox_page(P.offset - 50)} }
+                if P.offset + 50 < P.total { next := mod.widgets.PalpoButton{text: "Next" on_click: || inbox_page(P.offset + 50)} }
             }
         }
         if P.page == "fleets" {
-            if P.admin && available("palpo.fleets.register") { register := mod.widgets.RinxPrimaryButton{text: "Register fleet" on_click: || register_fleet()} }
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No server engagements are available to this account."} }
+            if P.admin && available("palpo.fleets.register") { register := mod.widgets.PalpoPrimary{text: "Register fleet" on_click: || register_fleet()} }
+            if P.rows.len() == 0 { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "No server engagements are available to this account."} }
             for i in P.rows.len() {
                 let fleet = P.rows[i]
                 mod.widgets.PalpoCard{
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: fleet.name}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: fleet.state + " · " + fleet.ownerMxid}
-                    if fleet.coordinatorMxid != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + fleet.coordinatorMxid} }
-                    if fleet.connectionVerified == true { mod.widgets.RinxLabel{text: "Connection verified"} }
-                    if fleet.lastVerifiedAt != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Last verified · " + fleet.lastVerifiedAt} }
-                    if fleet.connectivity != nil { mod.widgets.RinxHint{text: "Runtime · " + fleet.connectivity} }
-                    if fleet.lastError != nil { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: fleet.lastError} }
-                    if fleet.localTaskStop == "unconfirmed" { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Remote runtime stop has not been confirmed."} }
+                    mod.widgets.PalpoName{text: fleet.name}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: fleet.state + " · " + fleet.ownerMxid}
+                    if fleet.coordinatorMxid != nil { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Coordinator · " + fleet.coordinatorMxid} }
+                    if fleet.connectionVerified == true { mod.widgets.PalpoText{text: "Connection verified"} }
+                    if fleet.lastVerifiedAt != nil { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Last verified · " + fleet.lastVerifiedAt} }
+                    if fleet.connectivity != nil { mod.widgets.PalpoMeta{text: "Runtime · " + fleet.connectivity} }
+                    if fleet.lastError != nil { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: fleet.lastError} }
+                    if fleet.localTaskStop == "unconfirmed" { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Remote runtime stop has not been confirmed."} }
                     View{width: Fill height: Fit flow: Flow.Right{wrap: true} spacing: 6
-                        if fleet.canExport == true && available("palpo.fleets.export") { export := mod.widgets.RinxButton{text: "Save configuration" on_click: || fleet_action(fleet, "export")} }
+                        if fleet.canExport == true && available("palpo.fleets.export") { export := mod.widgets.PalpoButton{text: "Save configuration" on_click: || fleet_action(fleet, "export")} }
                         if available("palpo.fleets.connect") {
                             let state = connection_state(fleet, fleet.id)
                             let disabled = P.busy || state == "verifying" || state == "verified"
                             if fleet.canConnect == true || state == "verified" {
-                                verify := mod.widgets.RinxButton{text: connection_text(state) enabled: !disabled
+                                verify := mod.widgets.PalpoButton{text: connection_text(state) enabled: !disabled
                                     draw_text.color: if disabled {mod.widgets.RINX_DISABLED} else {mod.widgets.RINX_INK}
                                     draw_bg.color: if disabled {mod.widgets.RINX_FIELD} else {mod.widgets.RINX_SURFACE}
                                     on_click: || fleet_action(fleet, "connect")}
                             }
                         }
-                        if fleet.canInstall == true && available("palpo.fleets.install") { install := mod.widgets.RinxButton{text: "Retry setup" on_click: || fleet_action(fleet, "install")} }
-                        if fleet.canPause == true && available("palpo.fleets.set_state") { pause_fleet := mod.widgets.RinxButton{text: "Pause Matrix access" on_click: || fleet_action(fleet, "pause")} }
-                        if fleet.canResume == true && available("palpo.fleets.set_state") { resume_fleet := mod.widgets.RinxButton{text: "Resume Matrix access" on_click: || fleet_action(fleet, "resume")} }
-                        if fleet.canRevoke == true && available("palpo.fleets.set_state") { revoke_fleet := mod.widgets.RinxButton{text: "Revoke Matrix access" on_click: || fleet_action(fleet, "revoke")} }
-                        if fleet.canRotate == true && available("palpo.fleets.migrate") { rotate_fleet := mod.widgets.RinxButton{text: "Renew credentials" on_click: || fleet_action(fleet, "migrate")} }
-                        if fleet.canInspectQueue == true && available("palpo.fleets.queue") { queue := mod.widgets.RinxButton{text: "Delivery queue" on_click: || fleet_action(fleet, "queue")} }
-                        if fleet.pendingCredentialChange != nil { retry_fleet := mod.widgets.RinxButton{text: "Retry connection change" on_click: || retry_fleet_change(fleet)} }
+                        if fleet.canInstall == true && available("palpo.fleets.install") { install := mod.widgets.PalpoButton{text: "Retry setup" on_click: || fleet_action(fleet, "install")} }
+                        if fleet.canPause == true && available("palpo.fleets.set_state") { pause_fleet := mod.widgets.PalpoButton{text: "Pause Matrix access" on_click: || fleet_action(fleet, "pause")} }
+                        if fleet.canResume == true && available("palpo.fleets.set_state") { resume_fleet := mod.widgets.PalpoButton{text: "Resume Matrix access" on_click: || fleet_action(fleet, "resume")} }
+                        if fleet.canRevoke == true && available("palpo.fleets.set_state") { revoke_fleet := mod.widgets.PalpoButton{text: "Revoke Matrix access" on_click: || fleet_action(fleet, "revoke")} }
+                        if fleet.canRotate == true && available("palpo.fleets.migrate") { rotate_fleet := mod.widgets.PalpoButton{text: "Renew credentials" on_click: || fleet_action(fleet, "migrate")} }
+                        if fleet.canInspectQueue == true && available("palpo.fleets.queue") { queue := mod.widgets.PalpoButton{text: "Delivery queue" on_click: || fleet_action(fleet, "queue")} }
+                        if fleet.pendingCredentialChange != nil { retry_fleet := mod.widgets.PalpoButton{text: "Retry connection change" on_click: || retry_fleet_change(fleet)} }
                     }
                 }
             }
         }
         if P.page == "agents" {
-            register := mod.widgets.RinxPrimaryButton{text: "Register approved identity" on_click: || register_identity()}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No managed identities in this fleet."} }
+            register := mod.widgets.PalpoPrimary{text: "Register approved identity" on_click: || register_identity()}
+            if P.rows.len() == 0 { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "No managed identities in this fleet."} }
             for i in P.rows.len() {
                 let agent = P.rows[i]
                 mod.widgets.PalpoCard{
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: agent.displayName}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: agent.mxid + " · " + agent.state}
-                    rename := mod.widgets.RinxButton{text: "Rename" on_click: || rename_identity(agent)}
-                    retire := mod.widgets.RinxButton{text: "Retire identity" on_click: || retire_identity(agent)}
+                    mod.widgets.PalpoName{text: agent.displayName}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: agent.mxid + " · " + agent.state}
+                    rename := mod.widgets.PalpoButton{text: "Rename" on_click: || rename_identity(agent)}
+                    retire := mod.widgets.PalpoButton{text: "Retire identity" on_click: || retire_identity(agent)}
                 }
             }
         }
         if P.page == "activity" {
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No administration activity yet."} }
-            for i in P.rows.len() { let row = P.rows[i] mod.widgets.PalpoCard{mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.action + " · " + row.result} mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.actor + " · " + row.at}} }
+            if P.rows.len() == 0 { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "No administration activity yet."} }
+            for i in P.rows.len() { let row = P.rows[i] mod.widgets.PalpoCard{mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: row.action + " · " + row.result} mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: row.actor + " · " + row.at}} }
         }
         if P.page == "accounts" {
-            mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "Account decisions open in their original trusted Matrix approval room."}
-            if P.rows.len() == 0 { mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: "No account signup requests."} }
+            mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "Account decisions open in their original trusted Matrix approval room."}
+            if P.rows.len() == 0 { mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: "No account signup requests."} }
             for i in P.rows.len() {
                 let row = P.rows[i]
                 mod.widgets.PalpoCard{
-                    mod.widgets.RinxLabel{width: Fill flow: Flow.Right{wrap: true} text: row.displayName + " · " + row.status}
-                    mod.widgets.RinxHint{width: Fill flow: Flow.Right{wrap: true} text: row.reason}
+                    mod.widgets.PalpoText{width: Fill flow: Flow.Right{wrap: true} text: row.displayName + " · " + row.status}
+                    mod.widgets.PalpoMeta{width: Fill flow: Flow.Right{wrap: true} text: row.reason}
                     if row.canOpen && available("palpo.accounts.open") {
-                        open_signup := mod.widgets.RinxPrimaryButton{text: "Open signup request" on_click: || call("palpo.accounts.open", {requestId: row.id}, fn(data){ P.notice = "Opening the original approval request in Rinx." })}
+                        open_signup := mod.widgets.PalpoPrimary{text: "Open signup request" on_click: || call("palpo.accounts.open", {requestId: row.id}, fn(data){ P.notice = "Opening the original approval request in Rinx." })}
                     }
                 }
             }

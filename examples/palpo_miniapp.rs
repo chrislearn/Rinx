@@ -21,6 +21,7 @@ script_mod! {
     startup() do #(App::script_component(vm)) {
         ui: Root {
             main_window := Window {
+                window.title: "Palpo · isolated validation"
                 window.inner_size: #(if std::env::args().any(|a| a == "--narrow") {dvec2(430.,820.)} else {dvec2(1000.,800.)})
                 body +: {flow: Down padding: 20 spacing: 12 show_bg: true draw_bg.color: RINX_PAGE
                     hint := RinxHint{text: "Local Palpo instrument test · fixture accounts"}
@@ -51,6 +52,9 @@ struct App {
 }
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
+        if std::env::args().any(|a| a == "--ux-review") {
+            self.ui.label(cx, ids!(hint)).set_visible(cx, false);
+        }
         let profile = std::env::var_os("RINX_DATA_DIR").expect("isolated fixture profile");
         let manifest =
             octosense_app_contract::parse(include_str!("../apps/palpo/bundle/manifest.json"))
@@ -90,10 +94,11 @@ impl MatchEvent for App {
         splash.set_storage_quota(cx, Some(1024 * 1024));
         splash.set_host_caps(cx, manifest.capabilities);
         splash.set_policy(cx, Some(vec![]), Some(50_000_000));
-        let source = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/apps/palpo/bundle/main.splash"
-        ))
+        // Only this isolated instrument host accepts a comparison bundle.
+        // Production Rinx always loads its verified built-in package.
+        let source_path = std::env::var_os("PALPO_FIXTURE_BUNDLE").map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/apps/palpo/bundle/main.splash")));
+        let source = std::fs::read_to_string(source_path)
         .unwrap();
         splash.set_text(cx, &source);
     }

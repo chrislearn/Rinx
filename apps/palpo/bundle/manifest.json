@@ -40,7 +40,7 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "54f8abd46c6d7d8da1155e4621c7e1f7db2db49824f29834bb1f227fb1ea480c"
+    "bundle_blake3": "2e8d8754995cf0be7dbdfbd55638ed32ab2d3ae95bc3d0af1f407585926a0f09"
   },
   "name": "Palpo",
   "requires": [
