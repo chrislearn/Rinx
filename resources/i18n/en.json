@@ -1,4 +1,8 @@
 {
+  "Import": "Import",
+  "No matching articles. Try another keyword.": "No matching articles. Try another keyword.",
+  "No published articles yet. Publish a draft to a chat to see it here.": "No published articles yet. Publish a draft to a chat to see it here.",
+  "No withdrawn articles.": "No withdrawn articles.",
   "\nWorkspace: {workspace}": "\nWorkspace: {workspace}",
   " (invited)": " (invited)",
   " reacted with: {0}": " reacted with: {0}",
