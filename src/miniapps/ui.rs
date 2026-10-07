@@ -19,6 +19,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+const HAGENCY_CONSENT: &str = "Hagency uses your current Matrix account.\nAllow it to read your projects and requests, submit work, and perform fleet or approval actions only where your server permits.\nConfiguration downloads use Rinx's file picker. Passwords and tokens stay outside the app.\nRun remembers consent for this account and this exact bundled version.";
+
 // Mirror the server's existing-room eligibility for useful choices; Palpo
 // re-fetches the authoritative state under the caller's identity on submission.
 fn eligible_project_room(room: &matrix_sdk::Room, account: &ruma::UserId) -> bool {
@@ -99,24 +101,24 @@ script_mod! {
             }
             buttons := View {width: Fill height: Fit spacing: 8
                 review := RinxButton {text: "Review bundle"}
-                run := RinxButton {text: "Run"}
+                run := RinxButton {text: #(crate::i18n::tr("Run")) i18n_text: "Run"}
             }
         }
         notice := RinxLabel {width: Fill height: Fit flow: Flow.Right{wrap: true} text: ""}
         approval := View {visible: false width: Fill height: Fit flow: Down spacing: 8
             details := RinxLabel {width: Fill flow: Flow.Right{wrap: true}}
             buttons := View {width: Fill height: Fit spacing: 8
-                allow := RinxButton {text: "Allow once"}
-                deny := RinxButton {text: "Deny"}
+                allow := RinxButton {text: #(crate::i18n::tr("Allow once")) i18n_text: "Allow once"}
+                deny := RinxButton {text: #(crate::i18n::tr("Deny")) i18n_text: "Deny"}
             }
         }
         project_room_picker := View {visible: false width: Fill height: Fill flow: Down spacing: 12
-            RinxPageTitle {text: "Choose a project room"}
-            RinxHint {width: Fill flow: Flow.Right{wrap: true} text: "Choose a private, unencrypted room you created. Submitting the project will invite its Hagency representative. Rinx shares only your selected room with Palpo."}
-            rooms := DropDown {width: Fill labels: ["Choose a room"] popup_menu +: {width: 280}}
+            RinxPageTitle {text: #(crate::i18n::tr("Choose a project room")) i18n_text: "Choose a project room"}
+            RinxHint {width: Fill flow: Flow.Right{wrap: true} text: #(crate::i18n::tr("Choose a private, unencrypted room you created. Submitting the project will invite its Hagency representative. Rinx shares only your selected room with Hagency.")) i18n_text: "Choose a private, unencrypted room you created. Submitting the project will invite its Hagency representative. Rinx shares only your selected room with Hagency."}
+            rooms := DropDown {width: Fill labels: [#(crate::i18n::tr("Choose a room"))] popup_menu +: {width: 280}}
             selected_room := RinxHint {width: Fill flow: Flow.Right{wrap: true} text: ""}
-            use_room := RinxPrimaryButton {text: "Use this room"}
-            cancel_room := RinxButton {text: "Cancel"}
+            use_room := RinxPrimaryButton {text: #(crate::i18n::tr("Use this room")) i18n_text: "Use this room"}
+            cancel_room := RinxButton {text: #(crate::i18n::tr("Cancel")) i18n_text: "Cancel"}
         }
         app_content := View {visible: false width: Fill height: Fill
             card := Splash {width: Fill height: Fill}
@@ -208,14 +210,14 @@ impl ScriptHook for MiniAppsPanel {
             if self.project_room_reply.is_some() {
                 let dropdown = self.view.drop_down(cx, ids!(project_room_picker.rooms));
                 let selected = dropdown.selected_item();
-                let mut labels = vec!["Choose a room".to_owned()];
+                let mut labels = vec![crate::i18n::tr("Choose a room").to_owned()];
                 labels.extend(self.project_rooms.iter().map(|(name,_)| name.clone()));
                 dropdown.set_labels(cx, labels);
                 dropdown.set_selected_item(cx, selected);
                 self.present_selected_room(cx, selected);
             }
             self.view.view(cx, ids!(import_form)).set_visible(cx, app && self.lease.is_none());
-            self.view.label(cx, ids!(notice)).set_text(cx, &self.notice_text);
+            self.view.label(cx, ids!(notice)).set_text(cx, if self.notice_text == HAGENCY_CONSENT { crate::i18n::tr(HAGENCY_CONSENT) } else { &self.notice_text });
             self.view.widget(cx, ids!(notice)).set_visible(cx, self.board.is_none() || !self.notice_text.is_empty());
             self.present_review_controls(cx);
             let imported = self.package.as_ref().and_then(Package::builtin_id).is_none();
@@ -328,7 +330,7 @@ impl MiniAppsPanel {
 
     fn notice(&mut self, cx: &mut Cx, message: &str) {
         self.notice_text = message.to_owned();
-        self.view.label(cx, ids!(notice)).set_text(cx, message);
+        self.view.label(cx, ids!(notice)).set_text(cx, if message == HAGENCY_CONSENT { crate::i18n::tr(HAGENCY_CONSENT) } else { message });
         self.view.widget(cx, ids!(notice)).set_visible(cx, self.board.is_none() || !message.is_empty());
     }
     fn stop(&mut self, cx: &mut Cx) {
@@ -456,7 +458,7 @@ impl MiniAppsPanel {
         self.view.view(cx, ids!(bundle_path)).set_visible(cx, imported);
         self.review_notice = format!("{} {} · {}\nServices: {}\nAllowed room: {}\nRun grants these services for this session. Octos turns may use the connected core's tools.",package.manifest.name,package.manifest.version,origin,services,if room.trim().is_empty(){"None"}else{room.trim()});
         if package.builtin_id() == Some(super::palpo::APP_ID) {
-            self.review_notice = "Palpo uses your current Matrix account.\nAllow it to read your projects and requests, submit work, and perform fleet or approval actions only where your server permits.\nConfiguration downloads use Rinx's file picker. Passwords and tokens stay outside the app.\nRun remembers consent for this account and this exact bundled version.".into();
+            self.review_notice = HAGENCY_CONSENT.into();
         }
         let notice = self.review_notice.clone();
         self.notice(cx, &notice);
@@ -618,7 +620,7 @@ impl MiniAppsPanel {
         let lease = self.lease.as_ref().ok_or("Mini app is closed")?;
         lease.authorize(account.as_str(), "palpo.projects.select_room", None)?;
         if lease.identity().app != super::palpo::APP_ID {
-            return Err("Room selection belongs to the Palpo app".into());
+            return Err("Room selection belongs to the Hagency app".into());
         }
         let client = crate::sliding_sync::get_client().ok_or("Not logged in")?;
         self.project_rooms = client.joined_rooms().into_iter().filter(|r| eligible_project_room(r, account.as_ref())).map(|room| {
@@ -627,7 +629,7 @@ impl MiniAppsPanel {
             (name, room.room_id().to_string())
         }).collect();
         self.project_rooms.sort_by(|a,b| a.0.to_lowercase().cmp(&b.0.to_lowercase()).then(a.1.cmp(&b.1)));
-        let mut labels = vec!["Choose a room".to_owned()];
+        let mut labels = vec![crate::i18n::tr("Choose a room").to_owned()];
         labels.extend(self.project_rooms.iter().map(|(name,_)| name.clone()));
         let dropdown = self.view.drop_down(cx, ids!(project_room_picker.rooms));
         dropdown.set_labels(cx, labels);
@@ -695,7 +697,7 @@ impl MiniAppsPanel {
                 SignalToUI::set_ui_signal();
             });
         } else if octosense_app_contract::palpo::SERVICES.contains(&service) {
-            let host = self.palpo.clone().ok_or("Palpo session is unavailable")?;
+            let host = self.palpo.clone().ok_or("Hagency session is unavailable")?;
             let service = service.to_owned();
             crate::sliding_sync::spawn_async_task(async move {
                 let result = super::palpo::request(host, lease, service, args).await;
@@ -1075,7 +1077,7 @@ impl Widget for MiniAppsPanel {
                         row.widget(cx, ids!(article_icon)).set_visible(cx, !operations);
                         row.widget(cx, ids!(operations_icon)).set_visible(cx, operations);
                         row.label(cx, ids!(copy.name)).set_text(cx, crate::i18n::tr(&app.manifest.name));
-                        row.label(cx, ids!(copy.subtitle)).set_text(cx, if app.manifest.id == super::palpo::APP_ID {"Projects, resources and pending actions."} else {crate::i18n::tr("Your article, your style.")});
+                        row.label(cx, ids!(copy.subtitle)).set_text(cx, if app.manifest.id == super::palpo::APP_ID {crate::i18n::tr("Projects, resources and pending actions.")} else {crate::i18n::tr("Your article, your style.")});
                         row.draw_all(cx, &mut Scope::empty());
                     }
                 }
@@ -1091,7 +1093,7 @@ impl MiniAppsPanelRef {
         inner.board = Some(target);
         inner.palpo_action = None;
         let index = crate::system_apps::apps().iter().position(|a| a.manifest.id == super::palpo::APP_ID)
-            .ok_or("Palpo app is not installed")?;
+            .ok_or("Hagency app is not installed")?;
         inner.open_builtin(cx, index)
     }
 

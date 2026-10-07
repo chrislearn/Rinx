@@ -1659,7 +1659,7 @@ impl App {
     fn open_agent_chat(&mut self, cx: &mut Cx, target: &crate::miniapps::palpo::AgentChatTarget,
         account: Option<&ruma::UserId>, room_state: Option<RoomState>) -> Result<(), &'static str> {
         if account != Some(target.account.as_ref()) {
-            return Err("Your account changed. Reopen Palpo from your current account.");
+            return Err(crate::i18n::tr("Your account changed. Reopen Hagency from your current account."));
         }
         if room_state != Some(RoomState::Joined) {
             return Err("The project room is still syncing. Refresh My Agents and try again shortly.");

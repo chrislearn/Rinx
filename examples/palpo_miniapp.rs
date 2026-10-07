@@ -21,7 +21,7 @@ script_mod! {
     startup() do #(App::script_component(vm)) {
         ui: Root {
             main_window := Window {
-                window.title: "Palpo · isolated validation"
+                window.title: "Hagency · isolated validation"
                 window.inner_size: #(if std::env::args().any(|a| a == "--narrow") {dvec2(430.,820.)} else {dvec2(1000.,800.)})
                 body +: {flow: Down padding: 20 spacing: 12 show_bg: true draw_bg.color: RINX_PAGE
                     hint := RinxHint{text: "Local Palpo instrument test · fixture accounts"}
@@ -128,6 +128,14 @@ impl AppMain for App {
             if command == "palpo:revoke" {
                 self.lease.as_ref().unwrap().revoke();
             }
+            for (name, language) in [
+                ("palpo:zh-CN", rinx::i18n::Language::Chinese),
+                ("palpo:en", rinx::i18n::Language::English),
+            ] {
+                if command == name {
+                    rinx::i18n::set_language(cx, language).unwrap();
+                }
+            }
             for (name, appearance, accent) in [
                 ("palpo:dark", Appearance::Dark, Accent::Teal),
                 ("palpo:light", Appearance::Light, Accent::Teal),
@@ -140,6 +148,9 @@ impl AppMain for App {
         }
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
+        if matches!(event, Event::LiveEdit) {
+            rinx::i18n::refresh_ui(cx, &self.ui);
+        }
         if matches!(event, Event::Signal) {
             cx.redraw_all();
         }
