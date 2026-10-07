@@ -5,6 +5,7 @@ This does not prove Matrix delivery, subscription support or phone-device parity
 The external mechanical scorer is recorded unchanged, never used as similarity.
 """
 import argparse, hashlib, importlib.util, json, os, socket, subprocess, time
+import urllib.error
 from collections import Counter
 from pathlib import Path
 from PIL import Image
@@ -48,6 +49,13 @@ def journeys(app, screen, root, media_count=0):
         app.request('/event', data='review:'+mode, wait=1); time.sleep(.4)
     def click_widget(w):
         x,y,width,height=w['r']; app.click(x+min(12,width/2),y+min(12,height/2))
+    def tap(name):
+        x,y,width,height=visible(name)[0]['r']
+        app.request('/click',x=x+width/2,y=y+height/2,wait=0)
+        # Read back the resulting frame explicitly. The SDK's wait=1 input
+        # acknowledgement can reject a redundant present after page changes;
+        # replaying the click would navigate twice.
+        app.request('/g')
     if screen == 'moments':
         check('secondary actions initially collapsed', not visible('moments_refresh'))
         for name in ('moments_menu','moments_compose'):
@@ -72,9 +80,38 @@ def journeys(app, screen, root, media_count=0):
         check('post opens its complete text', text('detail_body') == [body])
         if not media_count:
             check('existing comment is visible', any('这样的周末真好' in t for t in text('comment_body')))
+            likes = text('detail_likes')
+            tap('moments_like')
+            check('liking without an account stays open with sign-in guidance',
+                  text('detail_body') == [body] and any('需要先登录' in t for t in text('moments_status')))
+            check('offline like is not presented as successful', text('detail_likes') == likes)
+        else:
+            tap('media_download')
+            check('offline download stays open with sign-in guidance',
+                  text('detail_body') == [body] and any('需要先登录' in t for t in text('moments_status')))
+        tap('moments_comment')
+        app.request('/t', t='离线预览不能发送这条评论', wait=1)
+        tap('moments_comment_send')
+        check('offline comment retains input without claiming delivery',
+              text('moments_comment') == ['离线预览不能发送这条评论']
+              and all('离线预览不能发送这条评论' not in t for t in text('comment_body'))
+              and any('需要先登录' in t for t in text('moments_status')))
         app.capture('moment-detail')
-        app.click_id('back')
+        tap('back')
         check('back restores feed', body in text('post_body'))
+        tap('moments_menu'); tap('moments_audience')
+        check('audience page opens without an account', bool(visible('audience_name')))
+        tap('share_dm_contacts')
+        check('offline audience change stays open with sign-in guidance',
+              bool(visible('audience_name')) and any('需要先登录' in t for t in text('moments_status')))
+        tap('back')
+        tap('moments_compose'); tap('moments_add_media')
+        check('offline media picker gives guidance without starting an account operation',
+              bool(visible('moments_body')) and any('需要先登录' in t for t in text('moments_status')))
+        tap('compose_audience'); tap('share_dm_contacts'); tap('back')
+        check('audience returns to composer without an account', bool(visible('moments_body')))
+        tap('back')
+        check('composer returns to feed without an account', body in text('post_body'))
     elif screen == 'library':
         check('classifications use readable names', all(visible(n) for n in ('drafts_tab','published_tab','withdrawn_tab')))
         check('draft summaries visible', bool(text('description')))
@@ -182,6 +219,8 @@ def main():
         # Full UX acceptance additionally requires the reference and journey review.
     except Exception as error:
         report['error'] = str(error)
+        if isinstance(error, urllib.error.HTTPError):
+            report['native_error'] = error.read().decode(errors='replace')
         raise
     finally:
         (args.output/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))

@@ -494,6 +494,9 @@ mod draft_tests {
     }
 }
 impl MomentsPanel {
+    fn account_required(&mut self) {
+        self.status = crate::i18n::tr("Sign in to publish, react, comment or download.").into();
+    }
     fn show_avatar(cx: &mut Cx, avatar: AvatarRef, timeline: &Timeline) {
         let image = timeline.members.iter().find(|member| member.id == timeline.author)
             .and_then(|member| member.avatar_url.as_ref())
@@ -660,7 +663,15 @@ impl MomentsPanel {
     }
     fn run(&mut self, cx: &mut Cx, command: Command) {
         #[cfg(feature = "ux_fixtures")]
-        if self.review_mode { return; }
+        if self.review_mode {
+            // Browsing a fixture must not claim to perform an account action.
+            // Marking a post seen is local presentation and needs no warning.
+            if !matches!(command, Command::Seen(_)) {
+                self.account_required();
+                self.redraw(cx);
+            }
+            return;
+        }
         let feedback = command.feedback();
         let is_refresh = matches!(feedback, CommandFeedback::Refresh(_));
         if self.busy && (self.mutating || is_refresh) {
@@ -839,6 +850,7 @@ impl MomentsPanel {
             return;
         }
         let Some(owner) = self.owner.clone() else {
+            self.account_required();
             return;
         };
         let session = self.session;
@@ -1256,12 +1268,9 @@ impl Widget for MomentsPanel {
             Page::Details => {
                 if let Some(post) = self.detail.clone() {
                     if self.button(cx, ids!(moments_like)).clicked(actions) {
-                        let own = self.feed.timelines.get(&post.room).and_then(|t| {
-                            t.index
-                                .likes(&post)
-                                .get(self.owner.as_ref().unwrap())
-                                .cloned()
-                        });
+                        let own = self.owner.as_ref().and_then(|owner|
+                            self.feed.timelines.get(&post.room)
+                                .and_then(|t| t.index.likes(&post).get(owner).cloned()));
                         self.run(
                             cx,
                             match own {
@@ -1313,6 +1322,11 @@ impl Widget for MomentsPanel {
                             self.media_index = (self.media_index + media.len() - 1) % media.len();
                         }
                         if self.button(cx, ids!(media_download)).clicked(actions) {
+                            if self.owner.is_none() {
+                                self.account_required();
+                                self.redraw(cx);
+                                return;
+                            }
                             let a = &media[self.media_index];
                             start_attachment_download(
                                 DownloadableAttachment {
@@ -1385,10 +1399,9 @@ impl Widget for MomentsPanel {
                     .as_ref()
                     .map(|t| t.members.clone())
                     .unwrap_or_default();
-                let choices: Vec<_> = self
-                    .feed
-                    .own(self.owner.as_ref().unwrap())
-                    .iter()
+                let choices: Vec<_> = self.owner.as_ref()
+                    .into_iter()
+                    .flat_map(|owner| self.feed.own(owner))
                     .map(|t| t.room.clone())
                     .collect();
                 let hidden: Vec<_> = self.feed.preferences.hidden.iter().cloned().collect();

@@ -25,7 +25,11 @@ script_mod! {
         ui: Root {
             main_window := Window {
                 window.inner_size: #(if narrow() {dvec2(390., 844.)} else if mode() == "moments" {dvec2(560., 820.)} else {dvec2(1040., 820.)})
-                window.title: "Rinx · Reading review"
+                window.title: #(match mode().as_str() {
+                    "library" => "Rinx · 我的文章 · 离线设计预览",
+                    "reader" => "Rinx · 标签阅读器 · 离线设计预览",
+                    _ => "Rinx · 朋友圈 · 离线设计预览",
+                })
                 body +: {
                     moments := MomentsPanel {visible: #(mode() == "moments") padding: 0}
                     articles := ArticlePanel {visible: #(mode() == "library") padding: 0}

@@ -114,7 +114,30 @@
       }
     ],
     "build_profile": "fast (unoptimized); not a production performance benchmark",
-    "reading_binary_sha256": "a46207f5baa4cb813afe9d49c3b5b5feba31e691d1d02ad3635a14cbfed9beb7"
+    "reading_binary_sha256": "a46207f5baa4cb813afe9d49c3b5b5feba31e691d1d02ad3635a14cbfed9beb7",
+    "accountless_preview_crash_regression": {
+      "cause": "Like handler unwrapped a missing account in the offline preview; audience handler contained the same assumption.",
+      "reproduced_with_old_binary": true,
+      "old_binary_sha256": "a46207f5baa4cb813afe9d49c3b5b5feba31e691d1d02ad3635a14cbfed9beb7",
+      "checks": [
+        {
+          "report": "target/reading-ux/crash-fixed-v3/report.json",
+          "binary_sha256": "e1eb192d4845af890b774b79e5cd5ce2f5d854a899fbd9523b992b583c2e88e3",
+          "checks_passed": 32
+        },
+        {
+          "report": "target/reading-ux/crash-fixed-album/report.json",
+          "binary_sha256": "e1eb192d4845af890b774b79e5cd5ce2f5d854a899fbd9523b992b583c2e88e3",
+          "checks_passed": 36
+        }
+      ],
+      "unit_tests": {
+        "passed": 19,
+        "ignored": 1
+      },
+      "scope": "Native macOS, desktop and phone widths, no Matrix account. Like, comment, audience, compose, and four-image download paths.",
+      "limitation": "This validates safe read-only preview interactions, not authenticated publishing or physical phones."
+    }
   },
   "acceptance_gaps": [
     "Not every captured surface reaches 9.5.",
