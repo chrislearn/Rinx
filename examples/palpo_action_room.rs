@@ -27,12 +27,14 @@ script_mod! {
 struct App {
     #[live] ui: WidgetRef,
     #[rust] runtime: Option<tokio::runtime::Runtime>,
+    #[rust] draws: usize,
+    #[rust] signals: usize,
 }
 impl MatchEvent for App {
     fn handle_startup(&mut self, cx: &mut Cx) {
         let endpoint = std::env::var("PALPO_FIXTURE_URL").expect("local fixture origin required");
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        let account = "@admin:example.test";
+        let account = "@coordinator:example.test";
         let room = runtime.block_on(async {
             install_instrument_account(&endpoint, account).await.unwrap();
             let host = PalpoHost::new("a".repeat(64)).unwrap();
@@ -66,6 +68,15 @@ impl AppMain for App {
         self::script_mod(vm)
     }
     fn handle_event(&mut self, cx: &mut Cx, event: &Event) {
+        if matches!(event, Event::Draw(_)) { self.draws += 1; }
+        if matches!(event, Event::Signal) { self.signals += 1; }
+        if let Event::Custom(command) = event {
+            if command == "palpo:signal" { SignalToUI::set_ui_signal(); }
+            if command == "palpo:inspect" {
+                std::fs::write(rinx::app_data_dir().join("inspection.json"),
+                    serde_json::json!({"draws":self.draws,"signals":self.signals}).to_string()).unwrap();
+            }
+        }
         self.match_event(cx, event);
         self.ui.handle_event(cx, event, &mut Scope::empty());
         let active = self.ui.action_room_board(cx, ids!(board)).active();

@@ -3,31 +3,6 @@
 `octosense-app-contract` follows the rules in [README.md](README.md#stability):
 within `1.x` it only grows.
 
-## 1.2.0 (pending release)
-
-- `palpo.actions.room.get` verifies the current account's private room without
-  creating or joining it. Separate `palpo.actions.room.ensure` explicitly sets up
-  and opens it, requiring `palpo-actions-room-v1`. Hosts verify the closed
-  account/bot/server/room/purpose reply before navigation or mounting the board;
-  room names and Matrix event content do not grant this authority.
-- Separate `palpo.notifications.get` / `palpo.notifications.set` grants cover
-  the current account's server-side reminders and quiet hours. Inbox/read-only
-  grants do not imply the ability to change notification preferences.
-
-- `palpo.requests.open` requires `palpo-agent-navigation-v1` and resolves a ready
-  agent's project room through the current account. The bundle supplies a request
-  ID, never a room or URL; the host checks the account and joined room again.
-
-- `palpo.inbox.recover` explicitly grants failed-project reservation recovery;
-  existing read/decision grants do not acquire it. The backend retains current
-  designated-administrator authority and Hagency must prove unused release.
-- Exact Palpo host-service grants, with `palpo-admin-v1` required by Palpo
-  bundles. Credentials stay in the host; package consent grants no business role.
-- `palpo.accounts.open` and required feature `palpo-account-navigation-v1` let
-  a host navigate to a server-authorized signup request's original Matrix event.
-  It does not send an approval or accept a script-supplied room/event destination.
-  Older hosts refuse the required feature rather than silently lose navigation.
-
 ## 1.1.0
 
 `RESERVED_NAMES` lists the native apps OctoSense ships (its

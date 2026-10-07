@@ -288,10 +288,10 @@ script_mod! {
         draw_bg +: {
             highlight: instance(0.0)
             hover: instance(0.0)
-            color: instance((COLOR_PRIMARY)) // default color)
+            color: instance(mod.widgets.RINX_PAGE)
             color_hover: instance(COLOR_LIST_ITEM_BG_HOVER)
 
-            mentions_bar_color: instance((COLOR_PRIMARY))
+            mentions_bar_color: instance(mod.widgets.RINX_PAGE)
             mentions_bar_width: instance(4.0)
 
             pixel: fn() {
@@ -368,7 +368,7 @@ script_mod! {
             width: Fill,
             height: Fit
             flow: Right,
-            padding: Inset{top: 0, bottom: 10, left: (1.5 * mod.widgets.RINX_GUTTER), right: (1.5 * mod.widgets.RINX_GUTTER)},
+            padding: Inset{top: 0, bottom: 10, left: (1.5 * mod.widgets.RINX_GUTTER), right: (2.5 * mod.widgets.RINX_GUTTER)},
 
             profile := View {
                 align: Align{x: 0.5, y: 0.0} // centered horizontally, top aligned
@@ -387,11 +387,12 @@ script_mod! {
                 tsp_sign_indicator := TspSignIndicator { }
             }
 
-            content := View {
+            content := RoundedView {
                 width: Fill{max: mod.widgets.RINX_READING_WIDTH},
                 height: Fit
                 flow: Down,
-                padding: 0.0
+                padding: 12
+                draw_bg +: {color: mod.widgets.RINX_INCOMING border_radius: theme.corner_radius border_size: 1 border_color: mod.widgets.RINX_BORDER}
 
                 username_view := View {
                     flow: Right,
@@ -401,7 +402,7 @@ script_mod! {
                         width: Fill,
                         flow: Flow.Right { wrap: false },
                         padding: 0,
-                        margin: Inset{bottom: 9.0, top: 20.0, right: 10.0,}
+                        margin: Inset{bottom: 6.0, right: 10.0}
                         max_lines: 1
                         text_overflow: Ellipsis
                         draw_text +: {
@@ -455,7 +456,7 @@ script_mod! {
         }
         bubble := RoundedView {
             width: Fill height: Fit flow: Down padding: 10
-            draw_bg +: {color: mod.widgets.RINX_INCOMING border_radius: theme.corner_radius}
+            draw_bg +: {color: mod.widgets.RINX_INCOMING border_radius: theme.corner_radius border_size: 1 border_color: mod.widgets.RINX_BORDER}
             message := HtmlOrPlaintext {
                 selectable: true
                 plaintext_view +: {pt_label +: {draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_regular {font_size: mod.widgets.MOBILE_MESSAGE_FONT_SIZE}}}}
@@ -482,7 +483,7 @@ script_mod! {
         mobile_bubble: true
         draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
-            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
+            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 20 right: 20 top: 8 bottom: 8}
             profile := MobileMessageProfile {}
             content := MobileMessageContent {}
             View {width: Fill height: 1}
@@ -492,7 +493,7 @@ script_mod! {
         mobile_bubble: true
         draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
-            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
+            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 20 right: 20 top: 8 bottom: 8}
             View {width: Fill height: 1}
             content := MobileMessageContent {
                 align: Align{x: 1}
@@ -504,9 +505,7 @@ script_mod! {
     }
 
     mod.widgets.MobileMiniAppMessage = mod.widgets.MobileMessage {}
-    mod.widgets.MobileOwnMiniAppMessage = mod.widgets.MobileOwnMessage {
-        body.content.bubble.draw_bg.color: mod.widgets.RINX_SURFACE
-    }
+    mod.widgets.MobileOwnMiniAppMessage = mod.widgets.MobileOwnMessage {}
     mod.widgets.MiniAppMessage = mod.widgets.Message {}
 
     let MobileImageContent = View {
@@ -543,7 +542,7 @@ script_mod! {
         mobile_media: true
         draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
-            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
+            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 20 right: 20 top: 8 bottom: 8}
             profile := MobileMessageProfile {}
             content := MobileImageContent {}
             View {width: Fill height: 1}
@@ -553,7 +552,7 @@ script_mod! {
         mobile_media: true
         draw_bg +: {color: mod.widgets.RINX_PAGE mentions_bar_color: mod.widgets.RINX_PAGE mentions_bar_width: 0}
         body := View {
-            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 12 right: 12 top: 8 bottom: 8}
+            width: Fill height: Fit flow: Right spacing: 10 padding: Inset{left: 20 right: 20 top: 8 bottom: 8}
             View {width: Fill height: 1}
             content := MobileImageContent {username_view.visible: false}
             profile := MobileMessageProfile {}
@@ -573,7 +572,7 @@ script_mod! {
             width: Fill,
             height: Fit
             flow: Right,
-            padding: Inset{ top: 0, bottom: 2.5, left: (1.5 * mod.widgets.RINX_GUTTER), right: (1.5 * mod.widgets.RINX_GUTTER) },
+            padding: Inset{ top: 0, bottom: 6, left: (1.5 * mod.widgets.RINX_GUTTER), right: (2.5 * mod.widgets.RINX_GUTTER) },
             profile := View {
                 align: Align{x: 0.5, y: 0.0} // centered horizontally, top aligned
                 width: 65.0,
@@ -585,11 +584,13 @@ script_mod! {
                 edited_indicator := EditedIndicator { }
                 tsp_sign_indicator := TspSignIndicator { }
             }
-            content := View {
-                width: Fill{max: 770},
+            content := RoundedView {
+                width: Fill{max: mod.widgets.RINX_READING_WIDTH},
                 height: Fit,
                 flow: Down,
-                padding: Inset{ left: 10.0 }
+                margin: Inset{left: 10}
+                padding: 12
+                draw_bg +: {color: mod.widgets.RINX_INCOMING border_radius: theme.corner_radius border_size: 1 border_color: mod.widgets.RINX_BORDER}
 
                 message := HtmlOrPlaintext { selectable: true }
                 mini_app_card := mod.widgets.MiniAppCard {}
@@ -855,6 +856,11 @@ script_mod! {
     mod.widgets.Timeline = #(ChatTimeline::register_widget(vm)) {
         width: Fill,
         height: Fill,
+        show_bg: true
+        draw_bg +: {
+            color: instance(mod.widgets.RINX_PAGE)
+            pixel: fn() {return Pal.premul(self.color)}
+        }
         align: Align{x: 0.5, y: 0.0} // center horizontally, align to top vertically
         flow: Overlay,
         new_batch: true
@@ -935,16 +941,7 @@ script_mod! {
                     text: ""
                 }
                 // Opens the chat info panel (members, history, notifications), as in WeChat.
-                desktop_chat_info_button := RobrixNeutralIconButton {
-                    width: 44, height: 36
-                    padding: 0
-                    align: Align{x: 0.5, y: 0.5}
-                    spacing: 0
-                    text: "···"
-                    draw_text +: {color: mod.widgets.RINX_INK text_style: theme.font_bold {font_size: (16 * mod.widgets.RINX_TEXT_SCALE)}}
-                    draw_bg +: {color: #x00000000 color_hover: #x0000000d color_down: #x0000001a border_size: 0}
-                    icon_walk: Walk{width: 0 height: 0}
-                }
+                desktop_chat_info_button := RinxChatInfoButton {}
             }
             LineH { draw_bg.color: #x00000014 }
         }
@@ -956,7 +953,7 @@ script_mod! {
             flow: Overlay,
 
             show_bg: true
-            draw_bg.color: (COLOR_PRIMARY_DARKER)
+            draw_bg.color: mod.widgets.RINX_PAGE
 
             restore_status_view := RestoreStatusView {}
 
@@ -7074,6 +7071,8 @@ pub struct Message {
 
     #[rust]
     details: Option<MessageDetails>,
+    #[rust]
+    surface_state: Option<(u64, bool)>,
     /// `True` while a context menu that we opened is being shown.
     #[rust] is_context_menu_open: bool,
     /// Set on file/image/audio/video messages so the download button knows
@@ -7096,6 +7095,7 @@ pub struct Message {
 impl ScriptHook for Message {
     fn on_after_apply(&mut self, vm: &mut ScriptVm, _: &Apply, _: &mut Scope, _: ScriptValue) {
         self.appearance = crate::theme::snapshot_for_vm(vm);
+        self.surface_state = None;
     }
 
     fn on_after_reload(&mut self, _vm: &mut ScriptVm) {
@@ -7519,6 +7519,17 @@ impl Message {
     ) {
         let prev_section_visible = self.download_info.is_some();
         let prev_state = self.download_state;
+        let surface_state = (self.appearance.revision, event_tl_item.is_own());
+        if !self.mobile_bubble && !self.mobile_media && self.surface_state != Some(surface_state) {
+            let color = self.appearance.role(if event_tl_item.is_own() {
+                "color.chat.outgoing"
+            } else {
+                "color.chat.incoming"
+            });
+            let mut content = self.view.view(cx, ids!(body.content));
+            script_apply_eval!(cx, content, {draw_bg +: {color: #(color)}});
+            self.surface_state = Some(surface_state);
+        }
 
         // If the message details changed, reset any UI state that belongs to the old message.
         if self.details.as_ref().is_none_or(|d| d.timeline_event_id != details.timeline_event_id) {

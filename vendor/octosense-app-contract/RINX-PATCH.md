@@ -1,21 +1,34 @@
 # Pending shared contract release
 
-Source from companion App Hub commit `9854614` (merged in App Hub PR #72),
-based on App Hub 2bcb898, with the Palpo consent descriptions, explicit signup
-navigation, ready-agent navigation, notification settings and failed-allocation recovery grants from
-`d9c790dee000c1f2f56024f4df098dd1091dbf66` (App Hub PR #82).
-Adds the ADR 0010 exact service grants and their consent language as version 1.2.0.
-Signup navigation requires its own `palpo-account-navigation-v1` host feature;
-older grants are not widened. No admission or integrity rule is relaxed.
-Failed-allocation recovery requires the exact `palpo.inbox.recover` grant;
-an existing project-decision grant does not acquire recovery authority.
-Ready-agent navigation requires the exact `palpo.requests.open` grant and
-`palpo-agent-navigation-v1`; request read access does not acquire navigation.
-The separate `palpo.notifications.get` and `palpo.notifications.set` grants
-cover only the current account; reading settings cannot change them.
+Exact source from companion App Hub commit `9854614` on
+`feat/palpo-miniapp-contract`, based on App Hub 2bcb898. Adds the ADR 0010 exact service grants and their
+consent language as version 1.2.0. No admission or integrity rule is relaxed.
 Remove the root, standalone miniapp-catalog, system-apps and miniapp-package
 Cargo patches when the same shared contract is published. All four consumers
 require at least version 1.2 so build, admission and packaging agree.
 
-Private room verification and explicit setup use separate grants. Setup requires
-`palpo-actions-room-v1`; Inbox read cannot join or navigate rooms.
+The additive `palpo.agents.control` grant and consent text match companion App
+Hub commit `6180376` on `fix/palpo-project-consent`. It authorizes bounded
+project-scoped lifecycle intents; the backend still checks current authority.
+
+The notification read/settings grants match App Hub commit `8ff0654`. The native
+host supplies a device time-zone suggestion; only an explicit settings save
+changes the account preference.
+
+The vendored manifest, Palpo service registry, policy and growth tests now match
+App Hub `6180376`, including the closed native signup/agent navigation targets
+and verified My Actions room feature gates. Native integration was adapted from
+Rinx `a9aaa2f0`, `8d2ffbd4` and `ee3836bb`; the superseded Node workflow-view
+normalizer is intentionally not used with the ADR 0011 Rust projections.
+
+Scoped rename consent now matches App Hub `a93073d`; the same lifecycle grant
+is checked for the project owner/resource owner/current coordinator. Runtime
+`coordinatorAgentProfileV1` negotiation is required before displaying rename.
+
+Project setup recovery consent matches App Hub `2e2ad26`. The Rust endpoint
+checks current project/engagement roles and requires an existing approved grant;
+it cannot create a replacement approval.
+
+Native project room selection and its required host feature match App Hub
+`978a28f`. Only the selected joined room crosses the Rinx picker boundary;
+Palpo independently checks current owner authority before binding it.

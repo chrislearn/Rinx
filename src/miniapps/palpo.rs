@@ -187,7 +187,7 @@ impl PalpoHost {
         if session.is_none() {
             let opened = self.post(&endpoint, "session", matrix_token, &json!({
                 "appId": lease.identity().app, "bundleDigest": self.digest,
-                "services": lease.services().iter().filter(|s| octosense_app_contract::palpo::SERVICES.contains(&s.as_str())).collect::<Vec<_>>()
+                "services": lease.services().iter().filter(|s| s.as_str() != "palpo.projects.select_room" && octosense_app_contract::palpo::SERVICES.contains(&s.as_str())).collect::<Vec<_>>()
             })).await?;
             lease.check(account)?;
             if opened["userId"].as_str() != Some(account) || opened["version"] != 1 {
@@ -265,20 +265,7 @@ impl PalpoHost {
                 serde_json::to_vec_pretty(&result).map_err(|_| "Invalid fleet configuration")?;
             // Credentials go directly to a native save dialog, never into an
             // isolate result, clipboard, chat, app jail, or diagnostic log.
-            let (tx, rx) = tokio::sync::oneshot::channel();
-            robius_file_picker::FileDialog::new()
-                .set_file_name("hagency-registration.json")
-                .save_data(bytes, move |result| {
-                    let _ = tx.send(
-                        result
-                            .map(|file| file.is_some())
-                            .map_err(|_| "Could not save configuration".to_string()),
-                    );
-                })
-                .map_err(|_| "Could not open the system save dialog")?;
-            let saved = rx
-                .await
-                .map_err(|_| "Configuration save was interrupted")??;
+            let saved = super::private_export::save(bytes, lease.clone(), account.to_owned()).await?;
             lease.check(account)?;
             return Ok(json!({"saved": saved}));
         }
@@ -294,7 +281,6 @@ impl PalpoHost {
             // user's cross-device preference. Unsupported hosts show UTC.
             object.insert("deviceTimeZone".into(), json!(iana_time_zone::get_timezone().ok()));
         }
-        normalize_workflow_views(service, &mut result);
         bounded_reply(result)
     }
     async fn post(
@@ -333,118 +319,6 @@ impl PalpoHost {
             bytes.extend_from_slice(&chunk);
         }
         decode_response(status, &bytes)
-    }
-}
-
-// Splash treats absent properties as errors, not null. Older servers may still
-// return the earlier unbudgeted DTOs; make optional display fields explicit and
-// keep agent requests disabled until an accepted allocation is reported.
-fn normalize_workflow_views(service: &str, result: &mut Value) {
-    if service == "palpo.accounts.list" {
-        if let Some(rows) = result.get_mut("requests").and_then(Value::as_array_mut) {
-            for row in rows {
-                if let Some(row) = row.as_object_mut() {
-                    row.entry("canOpen").or_insert(json!(false));
-                }
-            }
-        }
-    }
-    fn action(row: &mut Value) {
-        let requester = row.get("ownerMxid").cloned().unwrap_or(Value::Null);
-        if let Some(object) = row.as_object_mut() {
-            object.entry("requesterMxid").or_insert(requester);
-            object.entry("workflowVersion").or_insert(Value::Null);
-            object.entry("reservations").or_insert(Value::Null);
-            object.entry("releases").or_insert(Value::Null);
-            object.entry("canRetryReservation").or_insert(json!(false));
-            object.entry("canReleaseReservation").or_insert(json!(false));
-            object.entry("canRetry").or_insert(json!(false));
-            object.entry("reminderStatus").or_insert(Value::Null);
-        }
-        if let Some(payload) = row.get_mut("payload").and_then(Value::as_object_mut) {
-            payload.entry("allocations").or_insert(Value::Null);
-            if let Some(allocations) = payload.get_mut("allocations").and_then(Value::as_array_mut) {
-                for allocation in allocations {
-                    let name = allocation
-                        .get("resourceId")
-                        .cloned()
-                        .unwrap_or(json!("Project resource"));
-                    if let Some(allocation) = allocation.as_object_mut() {
-                        allocation.entry("resourceName").or_insert(name);
-                    }
-                }
-            }
-        }
-        for key in ["reservations", "releases"] {
-            if let Some(rows) = row.get_mut(key).and_then(Value::as_array_mut) {
-                for item in rows {
-                    if let Some(item) = item.as_object_mut() {
-                        item.entry("resourceName").or_insert(json!("Project resource"));
-                    }
-                }
-            }
-        }
-    }
-    if service == "palpo.requests.list" {
-        if let Some(rows) = result.get_mut("requests").and_then(Value::as_array_mut) {
-            for row in rows {
-                if let Some(row) = row.as_object_mut() {
-                    row.entry("actionId").or_insert(Value::Null);
-                    row.entry("canOpenChat").or_insert(json!(false));
-                    row.entry("canRequestTopUp").or_insert(json!(false));
-                    row.entry("allocation").or_insert(Value::Null);
-                    row.entry("canRemove").or_insert(json!(false));
-                    row.entry("lifecycle").or_insert(Value::Null);
-                }
-            }
-        }
-    }
-    if service.starts_with("palpo.inbox.") {
-        if let Some(row) = result.get_mut("action") {
-            action(row);
-        }
-        if let Some(rows) = result.get_mut("actions").and_then(Value::as_array_mut) {
-            for row in rows {
-                action(row);
-            }
-        }
-    }
-    if service == "palpo.projects.list" {
-        if let Some(rows) = result.get_mut("projects").and_then(Value::as_array_mut) {
-            for row in rows {
-                if row.get("allocation").is_none_or(Value::is_null) {
-                    row["allocation"] =
-                        json!({"state":"migration_required","ready":false,"grants":[]});
-                    row["canRequest"] = json!(false);
-                } else if let Some(allocation) =
-                    row.get_mut("allocation").and_then(Value::as_object_mut)
-                {
-                    allocation.entry("grants").or_insert(json!([]));
-                }
-            }
-        }
-    }
-    if service == "palpo.catalog.list" {
-        if let Some(fleets) = result.get_mut("fleets").and_then(Value::as_array_mut) {
-            for fleet in fleets {
-                if let Some(offers) = fleet
-                    .pointer_mut("/capabilities/offers")
-                    .and_then(Value::as_array_mut)
-                {
-                    for offer in offers {
-                        if let Some(resources) =
-                            offer.get_mut("resources").and_then(Value::as_array_mut)
-                        {
-                            for resource in resources {
-                                if let Some(resource) = resource.as_object_mut() {
-                                    resource.entry("contributions").or_insert(json!([]));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -552,9 +426,6 @@ mod tests {
             let mut changed = value.clone(); changed[key] = replacement;
             assert!(SignupApprovalTarget::from_reply(&changed, "@admin:example.test").is_err(), "{key}");
         }
-        let mut old = json!({"requests":[{"id":"legacy"}]});
-        normalize_workflow_views("palpo.accounts.list", &mut old);
-        assert_eq!(old["requests"][0]["canOpen"], false);
     }
     #[test]
     fn agent_chat_target_is_closed_typed_and_bound_to_the_current_account() {
@@ -573,50 +444,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn legacy_workflow_views_render_without_enabling_unbudgeted_requests() {
-        let mut old = json!({"projects":[{"id":"legacy","canRequest":true}]});
-        normalize_workflow_views("palpo.projects.list", &mut old);
-        assert_eq!(old["projects"][0]["canRequest"], false);
-        assert_eq!(
-            old["projects"][0]["allocation"]["state"],
-            "migration_required"
-        );
-
-        let mut current = json!({"projects":[{"id":"allocated","canRequest":true,
-            "allocation":{"state":"allocated","ready":true,"grants":[{"id":"grant_a"}]}}]});
-        let unchanged = current.clone();
-        normalize_workflow_views("palpo.projects.list", &mut current);
-        assert_eq!(current, unchanged);
-
-        let legacy_action = json!({"id":"action_old","payload":{"name":"Old request"}});
-        let mut list = json!({"actions":[legacy_action.clone()]});
-        let mut detail = json!({"action":legacy_action});
-        normalize_workflow_views("palpo.inbox.list", &mut list);
-        normalize_workflow_views("palpo.inbox.get", &mut detail);
-        assert_eq!(list["actions"][0], detail["action"]);
-        assert_eq!(detail["action"].get("reservations"), Some(&Value::Null));
-        assert_eq!(detail["action"].get("workflowVersion"), Some(&Value::Null));
-        assert_eq!(
-            detail["action"]["payload"].get("allocations"),
-            Some(&Value::Null)
-        );
-
-        let mut catalog =
-            json!({"fleets":[{"capabilities":{"offers":[{"resources":[{"id":"r"}]}]}}]});
-        normalize_workflow_views("palpo.catalog.list", &mut catalog);
-        assert_eq!(
-            catalog["fleets"][0]["capabilities"]["offers"][0]["resources"][0]["contributions"],
-            json!([])
-        );
-        let mut legacy_requests = json!({"requests":[{"id":"old_agent","state":"active"}]});
-        normalize_workflow_views("palpo.requests.list", &mut legacy_requests);
-        assert_eq!(legacy_requests["requests"][0]["canRequestTopUp"], false);
-        assert_eq!(legacy_requests["requests"][0]["canRemove"], false);
-        assert_eq!(legacy_requests["requests"][0]["canOpenChat"], false);
-        assert_eq!(legacy_requests["requests"][0].get("lifecycle"), Some(&Value::Null));
-        assert_eq!(legacy_requests["requests"][0].get("allocation"), Some(&Value::Null));
-    }
     #[test]
     fn inaccessible_configuration_does_not_report_a_missing_adapter() {
         let error = decode_response(

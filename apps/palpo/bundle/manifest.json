@@ -7,9 +7,9 @@
     "palpo.catalog.list",
     "palpo.projects.list",
     "palpo.requests.list",
-    "palpo.requests.open",
     "palpo.requests.create",
     "palpo.fleets.list",
+    "palpo.fleets.register",
     "palpo.fleets.install",
     "palpo.fleets.set_state",
     "palpo.fleets.migrate",
@@ -20,6 +20,7 @@
     "palpo.agents.register",
     "palpo.agents.rename",
     "palpo.agents.retire",
+    "palpo.agents.control",
     "palpo.activity.list",
     "palpo.accounts.list",
     "palpo.accounts.open",
@@ -27,25 +28,27 @@
     "palpo.inbox.submit",
     "palpo.inbox.get",
     "palpo.inbox.decide",
-    "palpo.inbox.recover",
     "palpo.inbox.activate",
     "palpo.inbox.seen",
     "palpo.inbox.snooze",
     "palpo.notifications.get",
     "palpo.notifications.set",
     "palpo.actions.room.get",
-    "palpo.actions.room.ensure"
+    "palpo.actions.room.ensure",
+    "palpo.requests.open",
+    "palpo.projects.select_room"
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "357542cab6df3aaf6c7801b70b51cf40952e85320c8d84343fa4f9cc4b7e6d62"
+    "bundle_blake3": "5253958e63b3386b5228ad56f07c880acf07e764de0783a659f54de6ba69ad6b"
   },
-  "name": "Palpo",
+  "name": "Hagency",
   "requires": [
     "palpo-admin-v1",
-    "palpo-account-navigation-v1",
+    "palpo-actions-room-v1",
     "palpo-agent-navigation-v1",
-    "palpo-actions-room-v1"
+    "palpo-account-navigation-v1",
+    "palpo-project-room-picker-v1"
   ],
   "schema": 1,
   "version": "0.1.0"
