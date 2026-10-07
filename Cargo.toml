@@ -175,6 +175,8 @@ dark-light = "2"
 
 
 [features]
+## Offline native review fixtures; never enabled in distributed builds.
+ux_fixtures = []
 # Isolated local accounts exist only in instrument builds.
 palpo-instrument = []
 default = ["standalone", "agent_chat"]
@@ -553,3 +555,7 @@ octoscript-node = { git = "https://www.github.com/OctoSense-org/Octoscript-Makep
 [[example]]
 name = "palpo_local"
 required-features = ["palpo-instrument"]
+
+[[example]]
+name = "reading_ux"
+required-features = ["ux_fixtures"]

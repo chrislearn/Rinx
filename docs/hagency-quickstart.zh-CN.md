@@ -34,6 +34,10 @@ hagency start
 **小程序 → Palpo**（移动布局中在 **发现** 下）。首次使用时检查权限并点击
 **运行（Run）**。小程序使用当前 Matrix 账号，无需在其中填写密码或 Codex 密钥。
 
+主要标签为 **Inbox、Projects、Agents、Resources**。在 **More（更多）** 中打开
+**Engagements（服务器关联）**、**Notifications（通知）** 和 **My Actions（我的待办）**；
+管理员工具仅在当前账号有权限时显示。
+
 ## 1. 建立服务器关联
 
 1. **运维者，在 Hagency 中**：在 **设置 → 连接 Palpo** 或 **服务器关联** 页面
@@ -83,8 +87,9 @@ hagency start
 5. **协调者** 在自己的 Palpo Inbox 审查并批准或拒绝申请额度。Hagency 收到决策
    后检查当前授权和容量。
 6. **所有者** 查看 **Agents → 打开最新结果（Open latest result）**。
-   **已批准（approved）** 是审批结果；**执行（Execution）· pending / provisioning**
-   表示仍在配置运行环境。测试聊天前等待 **Execution · ready**。
+   **已批准（Approved）** 是审批结果；**Waiting for Hagency（等待 Hagency）／
+   Preparing agent（正在配置 agent）** 表示仍在配置运行环境。
+   测试聊天前等待 **Ready to chat（可以聊天）**。
 
 项目审批通过代表获得资源使用资格，并未预留 agent 的 token。项目房间用于共享
 讨论和 @ 提及 agent；本地工作目录、加密所有者私聊和加密审批室是各自独立的。
@@ -98,8 +103,8 @@ hagency start
 - 在所有者审批室用卡片按钮批准受保护操作。文字回复不算批准。这与 Palpo Inbox
   中的项目和 token 审批是不同决策。
 - 需要时使用 **Palpo → Agents → 申请更多 token（Request more tokens）**，由
-  协调者审批。重命名、暂停、恢复和移除只在当前账号有权限时显示；操作后查看
-  最新运行结果。
+  协调者审批。在 **Manage agent（管理 agent）** 中打开重命名、暂停、恢复和移除；
+  这些操作只在当前账号有权限时显示，操作后查看最新运行结果。
 
 ## 排查问题，保留原请求
 
@@ -108,10 +113,10 @@ hagency start
 | Inbox 为空 | 当前 Matrix 账号及筛选。先由所有者确认，再由管理员批准；项目和 agent 由协调者审批。 |
 | 资源为空 | 连接已验证、资源已发布、可申请人 ID 正确、委托有效。 |
 | 项目没有就绪 | 查看配置说明。只有服务器提供入口时，使用 **重试项目配置**。 |
-| 已批准但 `provisioning` | 配置仍在进行。私聊邀请出现后接受，并继续查看执行状态。 |
-| `provisioning_unknown`／配置需要处理 | 请 Hagency 运维者检查原始尝试、日志及 Matrix 状态。账号／房间可能已创建，token 可能仍预留，不要重复申请。 |
-| `unavailable` | agent 已存在，但运行环境或 Matrix 连接需要在 Hagency 主机处理。 |
-| `ready` 但私聊无回复 | 确认你是所有者、没有其他成员；请运维者检查密钥交换和消息接收。 |
+| 已批准但 Preparing agent | 配置仍在进行。私聊邀请出现后接受，并继续查看执行状态。 |
+| Needs attention，配置结果不确定 | 请 Hagency 运维者检查原始尝试、日志及 Matrix 状态。账号／房间可能已创建，token 可能仍预留，不要重复申请。 |
+| Needs attention，运行环境不可用 | agent 已存在，但运行环境或 Matrix 连接需要在 Hagency 主机处理。 |
+| Ready to chat 但私聊无回复 | 确认你是所有者、没有其他成员；请运维者检查密钥交换和消息接收。 |
 | 审批卡片无法解密 | 验证当前 Rinx 会话，或使用其他已验证会话。 |
 
 ## 设置和主题
