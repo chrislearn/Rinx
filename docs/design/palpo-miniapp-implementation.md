@@ -114,6 +114,10 @@ store gate still refuses its absent publisher listing. No publisher or platform
 claim is fabricated. Companion App Contract and Robius picker changes are vendored
 with provenance and licenses pending their upstream releases.
 
+The [archived PR #60 checkpoint](palpo-miniapp-legacy-checkpoint.md) preserves
+the earlier Node workflow and native/worker validation history. Its commands and
+acceptance claims apply only to the pinned historical revision.
+
 ## Checkpoint evidence (2026-10-03)
 
 - Companion Palpo commit: `291b438` (`feat/rinx-miniapp`), 79 backend tests passed.
