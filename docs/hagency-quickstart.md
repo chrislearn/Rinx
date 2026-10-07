@@ -40,6 +40,10 @@ apps** is under **Discover**. Review its permissions and click **Run** on first
 use. The app uses the current Matrix account; enter no password or Codex key in
 the mini app.
 
+The main tabs are **Inbox, Projects, Agents and Resources**. Open **More** for
+**Engagements**, **Notifications** and **My Actions**; administrator tools appear
+there only when your account has access.
+
 ## 1. Establish the server engagement
 
 1. **Operator, in Hagency:** click **New server engagement** under **Setup →
@@ -100,8 +104,8 @@ create engagement resources through the same wizard above.
    your Palpo Inbox. Hagency checks authorization and capacity when it receives
    the decision.
 6. **Owner:** follow **Agents → Open latest result**. **Approved** is the
-   decision; **Execution · pending / provisioning** means runtime setup is
-   still in progress. Wait for **Execution · ready** before testing chat.
+   decision; **Waiting for Hagency / Preparing agent** means runtime setup is
+   still in progress. Wait for **Ready to chat** before testing chat.
 
 Project approval grants resource access; it does not reserve an agent's tokens.
 The project room is for shared discussion and agent @mentions. The local agent
@@ -118,8 +122,8 @@ workspace, encrypted owner DM and encrypted approval room are separate.
   buttons. A text reply is not an approval. These decisions are separate from
   project and token approvals in the Palpo Inbox.
 - Use **Palpo → Agents → Request more tokens** when needed; the coordinator
-  reviews the request. Rename, pause, resume and remove controls appear only
-  when the current account is authorized. Read their latest runtime result.
+  reviews the request. Open **Manage agent** for authorized rename, pause,
+  resume and remove controls. Read their latest runtime result.
 
 ## Check problems without duplicating requests
 
@@ -128,10 +132,10 @@ workspace, encrypted owner DM and encrypted approval room are separate.
 | Empty Inbox | Current Matrix account and Inbox filter. Owner confirmation comes before admin approval; projects and agents go to the coordinator. |
 | Empty Resources | Verified connection, published resource, eligible-manager ID and active delegation. |
 | Project not ready | Open its setup explanation. Use **Retry project setup** only when the server offers it. |
-| Approved but `provisioning` | Setup is still running. Accept the DM invitation when it appears and follow the execution status. |
-| `provisioning_unknown` / setup needs attention | Ask the Hagency operator to inspect the original attempt, logs and Matrix state. Account/room creation may already have happened and tokens may remain reserved; do not create duplicates. |
-| `unavailable` | The agent exists but its runtime or Matrix connection needs attention on the Hagency host. |
-| DM silent while `ready` | Confirm you are its owner and the DM has no other people; ask the operator to inspect key exchange and message intake. |
+| Approved, Preparing agent | Setup is still running. Accept the DM invitation when it appears and follow the execution status. |
+| Needs attention, setup outcome uncertain | Ask the Hagency operator to inspect the original attempt, logs and Matrix state. Account/room creation may already have happened and tokens may remain reserved; do not create duplicates. |
+| Needs attention, runtime unavailable | The agent exists but its runtime or Matrix connection needs attention on the Hagency host. |
+| DM silent while Ready to chat | Confirm you are its owner and the DM has no other people; ask the operator to inspect key exchange and message intake. |
 | Approval card cannot decrypt | Verify the current Rinx session or use another verified session. |
 
 ## Settings and themes

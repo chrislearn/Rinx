@@ -40,9 +40,9 @@
   ],
   "id": "im.palpo.operations",
   "integrity": {
-    "bundle_blake3": "70b088b6413f53a84e50bbbcfb7bf87c4c8f518dbf2f3fa86ac499495183fef1"
+    "bundle_blake3": "89b416a00b9baeabc4e7767b18a874ed769a9b940063df6a3c3e3ca115122574"
   },
-  "name": "Palpo",
+  "name": "Hagency",
   "requires": [
     "palpo-admin-v1",
     "palpo-actions-room-v1",

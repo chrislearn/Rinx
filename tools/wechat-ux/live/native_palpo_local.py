@@ -109,6 +109,7 @@ def create_agent(app, project, name, tokens):
     scroll(app, 200)
     fill(app, 'Initial tokens', str(tokens))
     app.capture('agent-request-form')
+    app.click_id('review_form'); app.wait_text('3 · Review and send')
     app.click_id('submit')
 
 
@@ -131,8 +132,10 @@ def create_project(app, fleet, name, submit=True):
         raise AssertionError('Selected engagement resource unavailable')
     app.wait_text('Project name')
     fill(app, 'Project name', name)
+    fill(app, 'What will your project do?', 'Isolated workflow validation')
     app.capture('project-request-form')
     if submit:
+        app.click_id('review_form'); app.wait_text('3 · Review and send')
         app.click_id('submit')
 
 
