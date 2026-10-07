@@ -209,7 +209,7 @@ def main():
         profile = call(endpoint, session, "palpo.fleets.export", {"fleetId": requested["fleetId"]})
         saved = state / "approved-profile.json"
         owner = launch(root / "owner", args.binary, endpoint, "owner", visible=args.native_export); apps.append(owner)
-        owner.click_id("fleets"); owner.wait_text("Native Hagency association")
+        owner.click_id("more"); owner.click_id("fleets"); owner.wait_text("Native Hagency association")
         if args.native_export:
             save_dialog(owner)
             assert not saved.exists()

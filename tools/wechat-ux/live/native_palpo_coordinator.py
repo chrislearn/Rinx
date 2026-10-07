@@ -119,7 +119,7 @@ def machine_update(endpoint, fleet, body):
         return json.load(response)
 
 
-def launch(root, binary, endpoint, role, board=False, visible=False, action=None):
+def launch(root, binary, endpoint, role, board=False, visible=False, action=None, narrow=None, ux_review=False, bundle_source=None):
     profile = root / "profile"
     (profile / "app").mkdir(parents=True)
     app = PalpoApp(root, port=port(), auto_login=False)
@@ -130,6 +130,9 @@ def launch(root, binary, endpoint, role, board=False, visible=False, action=None
     env.pop("PALPO_LIVE_SESSION_FILE", None)
     env.pop("MAKEPAD_FOCUS", None)
     env.pop("PALPO_FIXTURE_ACTION", None)
+    env.pop("PALPO_FIXTURE_BUNDLE", None)
+    if bundle_source:
+        env['PALPO_FIXTURE_BUNDLE'] = str(bundle_source.resolve())
     if action: env['PALPO_FIXTURE_ACTION'] = action
     if visible:
         env.pop("MAKEPAD_HIDE_WINDOWS", None)
@@ -146,7 +149,11 @@ def launch(root, binary, endpoint, role, board=False, visible=False, action=None
             "CFBundleExecutable": "palpo_miniapp", "CFBundlePackageType": "APPL",
         }))
         binary = executable
-    args = [str(binary.resolve())] + (["--narrow"] if role == "owner" else ["--" + role])
+    args = [str(binary.resolve())] + ([] if role == "owner" else ["--" + role])
+    if (narrow if narrow is not None else role == "owner"):
+        args.append("--narrow")
+    if ux_review:
+        args.append("--ux-review")
     app.process = subprocess.Popen(args, env=env, stdout=app.log, stderr=subprocess.STDOUT)
     try:
         for _ in range(150):
@@ -158,7 +165,7 @@ def launch(root, binary, endpoint, role, board=False, visible=False, action=None
             except OSError:
                 pass
             time.sleep(.1)
-        app.wait_text("Execution ·" if action else "Pending actions stay here", timeout=45)
+        app.wait_text("Requested by " if action else "Pending actions stay here", timeout=45)
         # The Inbox shell draws before its initial HTTP result. Input while the
         # bundle is busy is intentionally ignored; wait for that first result.
         for _ in range(150):
@@ -287,13 +294,13 @@ def main():
         coordinator_session = post(endpoint, "session", "coordinator-secret", {"appId": "im.palpo.operations", "bundleDigest": "d" * 64, "services": ["palpo.inbox.decide"]})
         replay = call(endpoint, coordinator_session["sessionToken"], "palpo.inbox.decide", draft["payload"])["action"]
         assert replay["id"] == action["id"] and replay["state"] == "approved"
-        owner.click_id("latest"); owner.wait_text("agent · approved"); owner.wait_text("Execution · pending")
+        owner.click_id("latest"); owner.wait_text("Approved"); owner.wait_text("Waiting for Hagency")
         owner.capture("owner-approved-awaiting-hagency")
-        owner.click_id("requests"); owner.wait_text("Littlewhite"); owner.wait_text("Execution · pending")
+        owner.click_id("requests"); owner.wait_text("Littlewhite"); owner.wait_text("Waiting for Hagency")
         owner.wait_text("Allocation confirmation pending"); owner.wait_text("Token consumption not reported yet")
         owner.capture("owner-agents-pending")
         detail = launch(root / "owner-detail", args.binary, endpoint, "owner", action=action["id"]); apps.append(detail)
-        detail.wait_text("Execution · pending")
+        detail.wait_text("Waiting for Hagency")
         owner.click_id("projects"); owner.wait_text("project_one")
         assert not any(w.get("t") == "Request agent" for w in owner.snap())
         owner.click_id("requests"); owner.wait_text("Littlewhite")
@@ -321,15 +328,15 @@ def main():
                   "coordinatorUpdates": [{"id": "command_" + receipt["commandId"], "payload": receipt, "digest": digest(receipt)}]}
         machine_update(endpoint, fleet, update)
         for app in (owner, detail):
-            app.wait_text("Execution · provisioning")
+            app.wait_text("Preparing agent")
         unavailable = dict(observed, ready=False, lifecycle={"provisionEffect": "complete", "matrixReady": False, "runtimeAvailability": "available"})
         machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 2, "heartbeat": True, "statuses": [unavailable]})
         for app in (owner, detail):
-            app.wait_text("Execution · unavailable")
+            app.wait_text("Needs attention")
             app.capture("agent-unavailable-auto")
         machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 3, "heartbeat": True, "statuses": [observed]})
         for app in (owner, detail):
-            app.wait_text("Execution · ready")
+            app.wait_text("Ready to chat")
             assert not any(w.get("t") == "Agent setup needs attention" for w in app.snap())
             app.capture("agent-ready-auto")
         owner.wait_text("Consumed: at least 42 tokens")
@@ -367,7 +374,7 @@ def main():
         observed["usageObservedAtMs"] = 1577836800000
         machine_update(endpoint, fleet, {"v": 2, "generation": 1, "sequence": 5, "heartbeat": True, "statuses": [observed]})
         owner.click_id("refresh"); owner.wait_text("Usage sample is out of date")
-        assert not any(w.get("t") == "Execution · ready" for w in owner.snap())
+        assert not any(w.get("t") == "Ready to chat" for w in owner.snap())
         assert not any(w.get("t") == "Request more tokens" for w in owner.snap())
         owner.capture("owner-agents-stale-usage")
         refused_request = json.loads(json.dumps(request))
@@ -415,6 +422,8 @@ def main():
         for operation, widget_id, title in [("rename", "rename_agent", "Rename agent"), ("stop", "pause_agent", "Pause agent"), ("start", "resume_agent", "Resume agent"), ("retire", "remove_agent", "Remove agent")]:
             owner.click_id("refresh")
             owner.request('/m', k='scroll', x=210, y=420, dy=-2600, wait=1)
+            if any(w.get("i") == "manage_agent" and w.get("t") == "Manage agent" for w in owner.snap()):
+                owner.click_id("manage_agent")
             for _ in range(18):
                 if any(w.get("i") == widget_id for w in owner.snap()):
                     break
@@ -507,7 +516,7 @@ def main():
             stored = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
             assert stored["rustWorkflows"]["actions"][project_action["id"]]["decision"]["commandId"] == source
             assert stored["rustWorkflows"]["projectRetries"][retry_draft["payload"]["commandId"]]["command"]["approvalCommandId"] == source
-        coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: On")
+        coordinator.click_id("more"); coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: On")
         coordinator.click_id("notifications_enabled"); coordinator.wait_text("Action notifications: Off")
         coordinator.click_id("reminders_enabled"); coordinator.wait_text("Reminders: Off")
         for _ in range(16):
@@ -519,8 +528,8 @@ def main():
         coordinator.request('/m', k='scroll', x=400, y=420, dy=-2000, wait=1)
         coordinator.wait_text("Action notifications: Off"); coordinator.capture("coordinator-notifications-disabled")
         coordinator.click_id("inbox"); coordinator.wait_text("Pending actions stay here")
-        coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: Off")
-        owner.click_id("notifications"); owner.wait_text("Action notifications: On")
+        coordinator.click_id("more"); coordinator.click_id("notifications"); coordinator.wait_text("Action notifications: Off")
+        owner.click_id("more"); owner.click_id("notifications"); owner.wait_text("Action notifications: On")
         with sqlite3.connect(root / "admin.sqlite") as db:
             stored = json.loads(db.execute("SELECT body FROM state WHERE id=1").fetchone()[0])
             preferences = stored["actionInbox"]["preferences"]["@coordinator:example.test"]
