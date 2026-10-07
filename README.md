@@ -104,6 +104,10 @@ The main CI workflow builds and tests the native app and portable article core.
 The inherited multi-platform build and license-refresh workflows are available
 by manual dispatch; release signing and publishing require Rinx-specific secrets.
 
+## Multiple accounts
+
+Use the bottom-left account menu on desktop, or Settings → Account on mobile, to add accounts and switch between saved Matrix sessions. Only the selected account syncs. Switching retains each account's device and encryption database; logging out revokes only the selected account. Saved accounts are also available on the login screen. See [account flows and data isolation](docs/multi-account.md) for migration, storage boundaries, and experimental TSP limitations.
+
 ## Data and compatibility
 
 Rinx has its own application identity, `org.octosense.rinx`, and its own default data directory. It does not automatically migrate an existing Robrix login or profile. `RINX_DATA_DIR` selects an absolute path for an isolated profile; legacy `ROBRIX_DATA_DIR` remains a fallback for existing test tooling. `RINX_DATA_DIR` takes precedence.
